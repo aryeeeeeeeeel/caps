@@ -21,13 +21,10 @@ import {
       <IonPage>
         <IonHeader>
           <IonToolbar>
-            <IonButtons slot='start'>
-              <IonMenuButton></IonMenuButton>
-            </IonButtons>
             <IonTitle>Login</IonTitle>
           </IonToolbar>
         </IonHeader>
-        <IonContent fullscreen>
+        <IonContent className='ion-padding'>
           <IonButton onClick={()=>doLogin()} expand="full">
             Login
           </IonButton>
