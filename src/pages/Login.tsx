@@ -13,17 +13,25 @@ import {
       useIonRouter,
       IonList,
       IonInputPasswordToggle,
-      IonAvatar
+      IonAvatar,
+      IonAlert
   } from '@ionic/react';
-import { lockClosed, eye } from 'ionicons/icons';
-  
+  import { useState } from 'react';
+
   const Login: React.FC = () => {
-    const navigation = useIonRouter();
+      const navigation = useIonRouter();
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [showAlert, setShowAlert] = useState(false);
+  
+      const doLogin = () => {
+          if (email === "admin@example.com" && password === "password123") {
+              navigation.push('/it35-lab/app', 'forward', 'replace');
+          } else {
+              setShowAlert(true);
+          }
+      };
 
-
-    const doLogin = ()=> {
-        navigation.push('/it35-lab/app', 'forward','replace');
-    }
     const doRegister = ()=> {
       navigation.push('/it35-lab/register', 'forward','replace');
   }
@@ -43,13 +51,12 @@ import { lockClosed, eye } from 'ionicons/icons';
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center",paddingTop:'50px'}}>
         <IonList>
       <IonItem>
-      <IonInput type="email" label="Email" value="">
-      </IonInput>
+      <IonInput onIonChange={e => setEmail(e.detail.value!)}
+            />
       </IonItem>
       <IonItem>
-      <IonInput type="password" label="Password" value="Chemistry123">
-      <IonInputPasswordToggle slot="end"></IonInputPasswordToggle>
-      </IonInput>
+      <IonInput onIonChange={e => setPassword(e.detail.value!)}
+            />
       </IonItem>
       </IonList>
     </div>
@@ -60,6 +67,14 @@ import { lockClosed, eye } from 'ionicons/icons';
           <IonButton onClick={()=>doRegister()} fill="outline">
             Register
           </IonButton>
+          
+          <IonAlert
+            isOpen={showAlert}
+            onDidDismiss={() => setShowAlert(false)}
+            header="Login Failed"
+            message="Wrong email or password. Please try again."
+            buttons={['OK']}
+          />
           </div>
         </IonContent>
       </IonPage>
