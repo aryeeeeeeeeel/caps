@@ -43,6 +43,10 @@ import { lockClosed, eye } from 'ionicons/icons';
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center",paddingTop:'50px'}}>
         <IonList>
       <IonItem>
+      <IonInput type="email" label="Email" value="">
+      </IonInput>
+      </IonItem>
+      <IonItem>
       <IonInput type="password" label="Password" value="Chemistry123">
       <IonInputPasswordToggle slot="end"></IonInputPasswordToggle>
       </IonInput>
