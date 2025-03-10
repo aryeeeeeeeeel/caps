@@ -19,9 +19,16 @@ import {
 const Register: React.FC = () => {
   const navigation = useIonRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const doRegister = () => {
-    setIsOpen(true); 
+    if (password !== confirmPassword) {
+      setErrorOpen(true); // Show error alert
+    } else {
+      setIsOpen(true); // Show success alert
+    }
   };
 
   return (
@@ -42,13 +49,19 @@ const Register: React.FC = () => {
             </IonItem>
 
             <IonItem>
-              <IonInput type="password" label="Password">
+              <IonInput 
+                type="password" label="Password" value={password} 
+                onIonInput={(e) => setPassword(e.detail.value!)}
+              >
                 <IonInputPasswordToggle slot="end"></IonInputPasswordToggle>
               </IonInput>
             </IonItem>
 
             <IonItem>
-              <IonInput type="password" label="Confirm Password">
+              <IonInput 
+                type="password" label="Confirm Password" value={confirmPassword} 
+                onIonInput={(e) => setConfirmPassword(e.detail.value!)}
+              >
                 <IonInputPasswordToggle slot="end"></IonInputPasswordToggle>
               </IonInput>
             </IonItem>
@@ -60,6 +73,7 @@ const Register: React.FC = () => {
             Register
           </IonButton>
         </div>
+
         <IonAlert
           isOpen={isOpen}
           header="Registration Successful"
@@ -72,6 +86,14 @@ const Register: React.FC = () => {
             }
           ]}
           onDidDismiss={() => setIsOpen(false)}
+        />
+        <IonAlert
+          isOpen={errorOpen}
+          header="Error"
+          subHeader="Password Mismatch"
+          message="Your Confirm Password does not match the Password."
+          buttons={['OK']}
+          onDidDismiss={() => setErrorOpen(false)}
         />
       </IonContent>
     </IonPage>
