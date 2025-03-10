@@ -1,4 +1,5 @@
 import { 
+  IonButton,
     IonButtons,
       IonContent, 
       IonHeader, 
@@ -9,10 +10,16 @@ import {
       IonMenuButton, 
       IonPage, 
       IonTitle, 
-      IonToolbar 
+      IonToolbar, 
+      useIonRouter
   } from '@ionic/react';
   
   const Register: React.FC = () => {
+    const navigation = useIonRouter();
+
+    const doRegister = ()=> {
+      navigation.push('/it35-lab', 'forward','replace');
+  }
     return (
       <IonPage>
         <IonHeader>
@@ -42,6 +49,12 @@ import {
       </IonItem>
     </IonList>
     </div>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+          
+          <IonButton onClick={()=>doRegister()} fill="solid">
+            Register
+          </IonButton>
+          </div>
         </IonContent>
       </IonPage>
     );
