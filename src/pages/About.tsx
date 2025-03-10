@@ -7,6 +7,7 @@ import {
       IonCardTitle,
       IonContent, 
       IonHeader, 
+      IonImg, 
       IonMenuButton, 
       IonPage, 
       IonTitle, 
@@ -25,8 +26,8 @@ import {
           </IonToolbar>
         </IonHeader>
         <IonContent className='ion-padding'>
-        <IonCard>
-      <img alt="Silhouette of mountains" src="https://ionicframework.com/docs/img/demos/card-media.png" />
+        <IonCard className="profile-card">
+          <IonImg className="profile-img" alt="Clifford's profile picture" src="/clifford_profile.jpg" />
       <IonCardHeader>
         <IonCardTitle>Profile</IonCardTitle>
         <IonCardSubtitle>Clifford John B. Lutrago</IonCardSubtitle>
