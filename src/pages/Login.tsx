@@ -14,7 +14,8 @@ import {
       IonList,
       IonInputPasswordToggle,
       IonAvatar,
-      IonAlert
+      IonAlert,
+      IonToast
   } from '@ionic/react';
   import { useState } from 'react';
 
@@ -23,10 +24,14 @@ import {
       const [email, setEmail] = useState('');
       const [password, setPassword] = useState('');
       const [showAlert, setShowAlert] = useState(false);
+      const [showToast, setShowToast] = useState(false);
   
       const doLogin = () => {
-          if (email === "admin@example.com" && password === "password123") {
+          if (email === "admin@gmail.com" && password === "password123") {
+            setShowToast(true);
+            setTimeout(() => {
               navigation.push('/it35-lab/app', 'forward', 'replace');
+            }, 1500);
           } else {
               setShowAlert(true);
           }
@@ -67,13 +72,21 @@ import {
           <IonButton onClick={()=>doRegister()} fill="outline">
             Register
           </IonButton>
-          
+
           <IonAlert
             isOpen={showAlert}
             onDidDismiss={() => setShowAlert(false)}
             header="Login Failed"
             message="Wrong email or password. Please try again."
             buttons={['OK']}
+          />
+
+          <IonToast
+            isOpen={showToast}
+            onDidDismiss={() => setShowToast(false)}
+            message="Login successful! Redirecting..."
+            duration={1500} 
+            color="success"
           />
           </div>
         </IonContent>
