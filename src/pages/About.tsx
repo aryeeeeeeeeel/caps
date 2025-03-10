@@ -27,7 +27,7 @@ import {
         </IonHeader>
         <IonContent className='ion-padding'>
         <IonCard className="profile-card">
-          <IonImg className="profile-img" alt="Clifford's profile picture" src="/clifford_profile.jpg" />
+        <img className="profile-img" alt="Clifford's profile picture" src='/cliford_profile.jpg' />
       <IonCardHeader>
         <IonCardTitle>Profile</IonCardTitle>
         <IonCardSubtitle>Clifford John B. Lutrago</IonCardSubtitle>
