@@ -17,12 +17,14 @@ import {
       IonAlert,
       IonToast
   } from '@ionic/react';
+  import { eye, eyeOff } from 'ionicons/icons';
   import { useState } from 'react';
 
   const Login: React.FC = () => {
       const navigation = useIonRouter();
       const [email, setEmail] = useState('');
       const [password, setPassword] = useState('');
+      const [showPassword, setShowPassword] = useState(false);
       const [showAlert, setShowAlert] = useState(false);
       const [showToast, setShowToast] = useState(false);
   
@@ -60,8 +62,11 @@ import {
             />
       </IonItem>
       <IonItem>
-      <IonInput onIonChange={e => setPassword(e.detail.value!)}
+      <IonInput type={showPassword ? "text" : "password"} placeholder="Enter Password" value={password} onIonChange={e => setPassword(e.detail.value!)}
             />
+      <IonButton fill="clear" onClick={() => setShowPassword(!showPassword)}>
+                        <IonIcon icon={showPassword ? eyeOff : eye} />
+                        </IonButton>
       </IonItem>
       </IonList>
     </div>
