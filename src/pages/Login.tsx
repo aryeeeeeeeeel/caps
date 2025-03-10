@@ -24,6 +24,9 @@ import { lockClosed, eye } from 'ionicons/icons';
     const doLogin = ()=> {
         navigation.push('/it35-lab/app', 'forward','replace');
     }
+    const doRegister = ()=> {
+      navigation.push('/it35-lab/register', 'forward','replace');
+  }
     return (
       <IonPage>
         <IonHeader>
@@ -47,8 +50,11 @@ import { lockClosed, eye } from 'ionicons/icons';
       </IonList>
     </div>
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-          <IonButton onClick={()=>doLogin()} expand="full">
+          <IonButton onClick={()=>doLogin()} fill="solid">
             Login
+          </IonButton>
+          <IonButton onClick={()=>doRegister()} fill="outline">
+            Register
           </IonButton>
           </div>
         </IonContent>
