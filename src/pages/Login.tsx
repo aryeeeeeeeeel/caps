@@ -1,40 +1,48 @@
 import { 
-  IonAlert,
-  IonAvatar,
   IonButton,
-  IonContent, 
-  IonIcon, 
-  IonInput, 
-  IonInputPasswordToggle,  
-  IonPage,  
-  IonToast,  
-  useIonRouter
-} from '@ionic/react';
-import { useState } from 'react';
-import { supabase } from '../utils/supabaseClient';
+    IonButtons,
+      IonContent, 
+      IonHeader, 
+      IonMenuButton, 
+      IonPage, 
+      IonTitle, 
+      IonToolbar,
+      IonInput,
+      IonIcon,
+      IonItem, 
+      useIonRouter,
+      IonList,
+      IonInputPasswordToggle,
+      IonAvatar,
+      IonAlert,
+      IonToast
+  } from '@ionic/react';
+  import Icon1 from '../../img/Icon1.png';
+  import { useState } from 'react';
+  import { supabase } from '../utils/supabaseClient';
+  
+  const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
+    return (
+      <IonAlert
+        isOpen={isOpen}
+        onDidDismiss={onClose}
+        header="Notification"
+        message={message}
+        buttons={['OK']}
+      />
+    );
+  };
 
-const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
-  return (
-    <IonAlert
-      isOpen={isOpen}
-      onDidDismiss={onClose}
-      header="Notification"
-      message={message}
-      buttons={['OK']}
-    />
-  );
-};
-
-const Login: React.FC = () => {
-  const navigation = useIonRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [alertMessage, setAlertMessage] = useState('');
-  const [showAlert, setShowAlert] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-
-  const doLogin = async () => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const Login: React.FC = () => {
+      const navigation = useIonRouter();
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [alertMessage, setAlertMessage] = useState('');
+      const [showAlert, setShowAlert] = useState(false);
+      const [showToast, setShowToast] = useState(false);
+  
+      const doLogin = async () => {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setAlertMessage(error.message);
@@ -47,9 +55,9 @@ const Login: React.FC = () => {
       navigation.push('/it35-lab/app', 'forward', 'replace');
     }, 300);
   };
-  
-  return (
-    <IonPage>
+
+    return (
+       <IonPage>
       <IonContent className='ion-padding'>
         <div style={{
           display: 'flex',
@@ -69,7 +77,15 @@ const Login: React.FC = () => {
               overflow: 'hidden' 
             }}
           >
-
+            <img 
+             src={Icon1}
+            alt="User Avatar"
+            style={{
+           width: '100%',
+          height: '100%',
+          objectFit: 'cover'
+    }}
+  />
           </IonAvatar>
           <h1 style={{
             display: 'flex',
@@ -105,7 +121,7 @@ const Login: React.FC = () => {
 
         {/* Reusable AlertBox Component */}
         <AlertBox message={alertMessage} isOpen={showAlert} onClose={() => setShowAlert(false)} />
-
+        
         {/* IonToast for success message */}
         <IonToast
           isOpen={showToast}
@@ -119,5 +135,6 @@ const Login: React.FC = () => {
     </IonPage>
   );
 };
+  
+  export default Login;
 
-export default Login;
