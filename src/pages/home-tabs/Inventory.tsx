@@ -8,7 +8,7 @@ import {
       IonToolbar 
   } from '@ionic/react';
   
-  const Favorites: React.FC = () => {
+  const Inventory: React.FC = () => {
     return (
       <IonPage>
         <IonHeader>
@@ -28,11 +28,11 @@ import {
             height:'100%',
           }}
           >
-            Favorites
+            Inventory
             </div>
         </IonContent>
       </IonPage>
     );
   };
   
-  export default Favorites;
+  export default Inventory;

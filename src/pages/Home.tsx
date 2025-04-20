@@ -18,7 +18,7 @@ import { IonReactRouter } from '@ionic/react-router';
 import { bookOutline, search, star } from 'ionicons/icons';
 import { Route, Redirect } from 'react-router-dom';
 
-import Favorites from './home-tabs/Favorites';
+import Inventory from './home-tabs/Inventory';
 import Product from './home-tabs/Product';
 import Search from './home-tabs/Search';
 
@@ -26,7 +26,7 @@ const Home: React.FC = () => {
   const tabs = [
     {name:'Product', tab:'product', url: '/TRA-Manolo-Fortich/app/home/product', icon: bookOutline},
     {name:'Search', tab:'search', url: '/TRA-Manolo-Fortich/app/home/search', icon: search},
-    {name:'Favorites', tab:'favorites', url: '/TRA-Manolo-Fortich/app/home/favorites', icon: star},
+    {name:'Inventory', tab:'inventory', url: '/TRA-Manolo-Fortich/app/home/inventory', icon: star},
   ];
 
   return (
@@ -45,7 +45,7 @@ const Home: React.FC = () => {
             <IonRouterOutlet>
               <Route exact path="/TRA-Manolo-Fortich/app/home/product" component={Product} />
               <Route exact path="/TRA-Manolo-Fortich/app/home/search" component={Search} />
-              <Route exact path="/TRA-Manolo-Fortich/app/home/favorites" component={Favorites} />
+              <Route exact path="/TRA-Manolo-Fortich/app/home/inventory" component={Inventory} />
               <Route exact path="/TRA-Manolo-Fortich/app/home">
                 <Redirect to="/TRA-Manolo-Fortich/app/home/product" />
               </Route>
