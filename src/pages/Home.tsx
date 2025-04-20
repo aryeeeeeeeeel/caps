@@ -130,12 +130,12 @@ const Home: React.FC = () => {
               <p>{user.user_metadata?.full_name || 'User'}</p>
               
               <IonButton 
-                expand="block" 
-                fill="clear" 
-                routerLink="/profile"
-                onClick={() => setShowProfilePopover(false)}
+               expand="block" 
+               fill="clear" 
+               routerLink="/TRA-Manolo-Fortich/app/profile"
+               onClick={() => setShowProfilePopover(false)}
               >
-                View Profile
+               View Profile
               </IonButton>
               
               <IonButton 

@@ -34,6 +34,7 @@ import './theme/variables.css';
 import Login from './pages/Login';
 import Menu from './pages/Menu';
 import Register from './pages/Register';
+import Profile from './pages/Profile';
 
 setupIonicReact();
 
@@ -44,6 +45,7 @@ const App: React.FC = () => (
         <Route exact path="/TRA-Manolo-Fortich" component={Login} />
         <Route path="/TRA-Manolo-Fortich/app" component={Menu} />
         <Route exact path="/TRA-Manolo-Fortich/register" component={Register} />
+        <Route exact path="/TRA-Manolo-Fortich/app/profile" component={Profile} />
       </IonRouterOutlet>
     </IonReactRouter>
   </IonApp>
