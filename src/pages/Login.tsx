@@ -17,7 +17,7 @@ import {
       IonAlert,
       IonToast
   } from '@ionic/react';
-  import Icon1 from '../../img/Icon1.png';
+  import Icon1 from '../../img/Icon1.jpg';
   import { useState } from 'react';
   import { supabase } from '../utils/supabaseClient';
   
@@ -52,7 +52,7 @@ import {
 
     setShowToast(true); 
     setTimeout(() => {
-      navigation.push('/it35-lab/app', 'forward', 'replace');
+      navigation.push('/TRA-Manolo-Fortich/app', 'forward', 'replace');
     }, 300);
   };
 
@@ -115,7 +115,7 @@ import {
           Login
         </IonButton>
 
-        <IonButton routerLink="/it35-lab/register" expand="full" fill="clear" shape='round'>
+        <IonButton routerLink="/TRA-Manolo-Fortich/register" expand="full" fill="clear" shape='round'>
           Don't have an account? Register here
         </IonButton>
 
