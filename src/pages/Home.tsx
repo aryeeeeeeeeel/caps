@@ -46,6 +46,8 @@ const Home: React.FC = () => {
               <Route exact path="/TRA-Manolo-Fortich/app/home/product" component={Product} />
               <Route exact path="/TRA-Manolo-Fortich/app/home/search" component={Search} />
               <Route exact path="/TRA-Manolo-Fortich/app/home/inventory" component={Inventory} />
+              {/* Add this route for inventory with ID parameter */}
+              <Route exact path="/TRA-Manolo-Fortich/app/home/inventory/:id" component={Inventory} />
               <Route exact path="/TRA-Manolo-Fortich/app/home">
                 <Redirect to="/TRA-Manolo-Fortich/app/home/product" />
               </Route>
