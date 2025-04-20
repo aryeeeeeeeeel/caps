@@ -30,6 +30,7 @@ interface Product {
   description: string;
   current_stock: number;
   arrived_stock: number;
+  price: number;
   batch_date: string;
   expiration_date: string;
   is_out_of_stock: boolean;
@@ -52,8 +53,9 @@ const Inventory: React.FC = () => {
     description: '',
     current_stock: 0,
     arrived_stock: 0,
+    price: 0,
     batch_date: new Date().toISOString(),
-    expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year from now
+    expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
     is_out_of_stock: false
   });
 
@@ -178,6 +180,7 @@ const Inventory: React.FC = () => {
       description: '',
       current_stock: 0,
       arrived_stock: 0,
+      price: 0,
       batch_date: new Date().toISOString(),
       expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       is_out_of_stock: false
@@ -237,24 +240,33 @@ const Inventory: React.FC = () => {
             </IonItem>
 
             <IonItem>
-  <IonLabel position="stacked">Batch Date</IonLabel>
-  <IonDatetime
-    presentation="date"
-    locale="en-US"
-    value={currentProduct.batch_date}
-    onIonChange={e => handleInputChange('batch_date', e.detail.value!)}
-  />
-</IonItem>
+              <IonLabel position="stacked">Price (₱)</IonLabel>
+              <IonInput
+                type="number"
+                value={currentProduct.price}
+                onIonChange={e => handleInputChange('price', Number(e.detail.value!))}
+              />
+            </IonItem>
 
-<IonItem>
-  <IonLabel position="stacked">Expiration Date</IonLabel>
-  <IonDatetime
-    presentation="date"
-    locale="en-US"
-    value={currentProduct.expiration_date}
-    onIonChange={e => handleInputChange('expiration_date', e.detail.value!)}
-  />
-</IonItem>
+            <IonItem>
+              <IonLabel position="stacked">Batch Date</IonLabel>
+              <IonDatetime
+                presentation="date"
+                locale="en-US"
+                value={currentProduct.batch_date}
+                onIonChange={e => handleInputChange('batch_date', e.detail.value!)}
+              />
+            </IonItem>
+
+            <IonItem>
+              <IonLabel position="stacked">Expiration Date</IonLabel>
+              <IonDatetime
+                presentation="date"
+                locale="en-US"
+                value={currentProduct.expiration_date}
+                onIonChange={e => handleInputChange('expiration_date', e.detail.value!)}
+              />
+            </IonItem>
 
             <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
               <IonButton onClick={handleSubmit}>
@@ -287,6 +299,7 @@ const Inventory: React.FC = () => {
                     <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Description</th>
                     <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Current Stock</th>
                     <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Arrived Stock</th>
+                    <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Price</th>
                     <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Batch Date</th>
                     <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Expiration</th>
                     <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Status</th>
@@ -300,6 +313,7 @@ const Inventory: React.FC = () => {
                       <td style={{ padding: '10px' }}>{product.description}</td>
                       <td style={{ padding: '10px', textAlign: 'right' }}>{product.current_stock}</td>
                       <td style={{ padding: '10px', textAlign: 'right' }}>{product.arrived_stock}</td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>₱{product.price?.toFixed(2)}</td>
                       <td style={{ padding: '10px' }}>{new Date(product.batch_date).toLocaleDateString()}</td>
                       <td style={{ padding: '10px' }}>{new Date(product.expiration_date).toLocaleDateString()}</td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>
