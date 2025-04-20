@@ -8,18 +8,11 @@ import {
   IonToolbar,
   IonButton,
   IonIcon,
-  IonGrid,
-  IonRow,
-  IonCol,
-  IonItem,
-  IonLabel,
-  IonInput,
-  IonDatetime,
   IonAlert,
   IonToast,
   IonLoading
 } from '@ionic/react';
-import { add, create, trash } from 'ionicons/icons';
+import { useHistory } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { FaEdit, FaTrash } from 'react-icons/fa';
@@ -37,6 +30,7 @@ interface Product {
 }
 
 const Products: React.FC = () => {
+  const history = useHistory();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,101 +38,34 @@ const Products: React.FC = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [productToDelete, setProductToDelete] = useState<number | null>(null);
-  
-  // Form state
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentProduct, setCurrentProduct] = useState<Product>({
-    name: '',
-    description: '',
-    current_stock: 0,
-    arrived_stock: 0,
-    batch_date: new Date().toISOString(),
-    expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year from now
-    is_out_of_stock: false
-  });
 
-  // Fetch products from Supabase
-  const fetchProducts = async () => {
+  // Fetch only available products (not out of stock) from Supabase
+  const fetchAvailableProducts = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('is_out_of_stock', false)  // Only fetch products that are not out of stock
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setProducts(data || []);
     } catch (err) {
-      setError('Failed to fetch products');
-      console.error('Error fetching products:', err);
+      setError('Failed to fetch available products');
+      console.error('Error fetching available products:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchAvailableProducts();
   }, []);
 
-  // Handle form input changes
-  const handleInputChange = (field: keyof Product, value: any) => {
-    setCurrentProduct(prev => ({
-      ...prev,
-      [field]: value
-    }));
-
-    // Auto-update out_of_stock status
-    if (field === 'current_stock') {
-      setCurrentProduct(prev => ({
-        ...prev,
-        is_out_of_stock: value <= 0
-      }));
-    }
-  };
-
-  // Submit form (create or update)
-  const handleSubmit = async () => {
-    if (!currentProduct.name) {
-      setAlertMessage('Product name is required');
-      setShowAlert(true);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (isEditing && currentProduct.id) {
-        // Update existing product
-        const { error } = await supabase
-          .from('products')
-          .update(currentProduct)
-          .eq('id', currentProduct.id);
-
-        if (error) throw error;
-        setSuccess('Product updated successfully');
-      } else {
-        // Create new product
-        const { error } = await supabase
-          .from('products')
-          .insert([currentProduct]);
-
-        if (error) throw error;
-        setSuccess('Product added successfully');
-      }
-
-      resetForm();
-      fetchProducts();
-    } catch (err) {
-      setError('Failed to save product');
-      console.error('Error saving product:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Edit product
-  const handleEdit = (product: Product) => {
-    setCurrentProduct(product);
-    setIsEditing(true);
+  // Handle edit redirect
+  const handleEdit = (productId: number) => {
+    history.push(`/TRA-Manolo-Fortich/app/home/inventory/${productId}`);
   };
 
   // Delete product confirmation
@@ -161,7 +88,7 @@ const Products: React.FC = () => {
 
       if (error) throw error;
       setSuccess('Product deleted successfully');
-      fetchProducts();
+      fetchAvailableProducts(); // Refresh the available products list
     } catch (err) {
       setError('Failed to delete product');
       console.error('Error deleting product:', err);
@@ -171,20 +98,6 @@ const Products: React.FC = () => {
     }
   };
 
-  // Reset form
-  const resetForm = () => {
-    setCurrentProduct({
-      name: '',
-      description: '',
-      current_stock: 0,
-      arrived_stock: 0,
-      batch_date: new Date().toISOString(),
-      expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      is_out_of_stock: false
-    });
-    setIsEditing(false);
-  };
-
   return (
     <IonPage>
       <IonHeader>
@@ -192,92 +105,20 @@ const Products: React.FC = () => {
           <IonButtons slot="start">
             <IonMenuButton />
           </IonButtons>
-          <IonTitle>Products Management</IonTitle>
+          <IonTitle>Available Products</IonTitle>
         </IonToolbar>
       </IonHeader>
 
       <IonContent fullscreen>
         <div className="ion-padding">
-          {/* Product Form */}
-          <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
-            <h2>{isEditing ? 'Edit Product' : 'Add New Product'}</h2>
-            
-            <IonItem>
-              <IonLabel position="stacked">Product Name*</IonLabel>
-              <IonInput
-                value={currentProduct.name}
-                onIonChange={e => handleInputChange('name', e.detail.value!)}
-              />
-            </IonItem>
-
-            <IonItem>
-              <IonLabel position="stacked">Description</IonLabel>
-              <IonInput
-                value={currentProduct.description}
-                onIonChange={e => handleInputChange('description', e.detail.value!)}
-              />
-            </IonItem>
-
-            <IonItem>
-              <IonLabel position="stacked">Current Stock</IonLabel>
-              <IonInput
-                type="number"
-                value={currentProduct.current_stock}
-                onIonChange={e => handleInputChange('current_stock', Number(e.detail.value!))}
-              />
-            </IonItem>
-
-            <IonItem>
-              <IonLabel position="stacked">Arrived Stock</IonLabel>
-              <IonInput
-                type="number"
-                value={currentProduct.arrived_stock}
-                onIonChange={e => handleInputChange('arrived_stock', Number(e.detail.value!))}
-              />
-            </IonItem>
-
-            <IonItem>
-  <IonLabel position="stacked">Batch Date</IonLabel>
-  <IonDatetime
-    presentation="date"
-    locale="en-US"
-    value={currentProduct.batch_date}
-    onIonChange={e => handleInputChange('batch_date', e.detail.value!)}
-  />
-</IonItem>
-
-<IonItem>
-  <IonLabel position="stacked">Expiration Date</IonLabel>
-  <IonDatetime
-    presentation="date"
-    locale="en-US"
-    value={currentProduct.expiration_date}
-    onIonChange={e => handleInputChange('expiration_date', e.detail.value!)}
-  />
-</IonItem>
-
-            <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
-              <IonButton onClick={handleSubmit}>
-                <IonIcon slot="start" icon={isEditing ? create : add} />
-                {isEditing ? 'Update' : 'Add'} Product
-              </IonButton>
-              
-              {isEditing && (
-                <IonButton color="medium" onClick={resetForm}>
-                  Cancel
-                </IonButton>
-              )}
-            </div>
-          </div>
-
           {/* Products Table */}
-          <h2>Product Inventory</h2>
+          <h2>Available Products</h2>
           {loading && products.length === 0 ? (
-            <IonLoading isOpen={true} message="Loading products..." />
+            <IonLoading isOpen={true} message="Loading available products..." />
           ) : error ? (
             <div style={{ color: 'red' }}>{error}</div>
           ) : products.length === 0 ? (
-            <div>No products found</div>
+            <div>No available products found</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -304,15 +145,15 @@ const Products: React.FC = () => {
                       <td style={{ padding: '10px' }}>{new Date(product.expiration_date).toLocaleDateString()}</td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>
                         <span style={{ 
-                          color: product.is_out_of_stock ? 'red' : 'green',
+                          color: 'green',
                           fontWeight: 'bold'
                         }}>
-                          {product.is_out_of_stock ? 'Out of Stock' : 'In Stock'}
+                          In Stock
                         </span>
                       </td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>
                         <button 
-                          onClick={() => handleEdit(product)}
+                          onClick={() => handleEdit(product.id!)}
                           style={{ 
                             background: 'none', 
                             border: 'none', 
