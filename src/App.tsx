@@ -1,4 +1,4 @@
-import {Route} from 'react-router-dom';
+import { Route } from 'react-router-dom';
 import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 
@@ -18,21 +18,17 @@ import '@ionic/react/css/text-transformation.css';
 import '@ionic/react/css/flex-utils.css';
 import '@ionic/react/css/display.css';
 
-/**
- * Ionic Dark Mode
- * -----------------------------------------------------
- * For more info, please see:
- * https://ionicframework.com/docs/theming/dark-mode
- */
-
-/* import '@ionic/react/css/palettes/dark.always.css'; */
-/* import '@ionic/react/css/palettes/dark.class.css'; */
+/* Dark mode (system default) */
 import '@ionic/react/css/palettes/dark.system.css';
 
 /* Theme variables */
 import './theme/variables.css';
+
+/* ✅ Fixed imports: case-sensitive */
 import Login from './pages/Login';
+import LandingPage from "./pages/Landingpage";
 import Menu from './pages/Menu';
+import AdminLogin from "./pages/Adminlogin";
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 
@@ -42,7 +38,10 @@ const App: React.FC = () => (
   <IonApp>
     <IonReactRouter>
       <IonRouterOutlet>
-        <Route exact path="/it35-lab2" component={Login} />
+        {/* ✅ Changed path to lowercase and root route */}
+        <Route exact path="/it35-lab2" component={LandingPage} />
+        <Route path="/it35-lab2/user-login" component={Login} />
+        <Route path="/it35-lab2/admin-login" component={AdminLogin} />
         <Route path="/it35-lab2/app" component={Menu} />
         <Route exact path="/it35-lab2/register" component={Register} />
         <Route exact path="/it35-lab2/app/profile" component={Profile} />

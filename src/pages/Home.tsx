@@ -24,8 +24,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
 import Inventory from './home-tabs/Inventory';
-import Product from './home-tabs/Dashboard';
 import Search from './home-tabs/Search';
+import Dashboard from './home-tabs/Dashboard';
 
 const Home: React.FC = () => {
   const tabs = [
@@ -155,12 +155,12 @@ const Home: React.FC = () => {
         <IonReactRouter>
           <IonTabs>
             <IonRouterOutlet>
-              <Route exact path="/it35-lab2/app/home/product" component={Product} />
+              <Route exact path="/it35-lab2/app/home/dashboard" component={Dashboard} />
               <Route exact path="/it35-lab2/app/home/search" component={Search} />
               <Route exact path="/it35-lab2/app/home/inventory" component={Inventory} />
               <Route exact path="/it35-lab2/app/home/inventory/:id" component={Inventory} />
               <Route exact path="/it35-lab2/app/home">
-                <Redirect to="/it35-lab2/app/home/product" />
+                <Redirect to="/it35-lab2/app/home/dashboard" />
               </Route>
             </IonRouterOutlet>
 

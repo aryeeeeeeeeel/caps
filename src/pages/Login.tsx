@@ -1,3 +1,4 @@
+// src/pages/Login.tsx
 import { 
   IonButton,
   IonContent, 
@@ -7,12 +8,7 @@ import {
   IonInputPasswordToggle,
   IonAvatar,
   IonAlert,
-  IonToast,
-  IonModal,
-  IonLabel,
-  IonGrid,
-  IonRow,
-  IonCol
+  IonToast
 } from '@ionic/react';
 import Icon1 from '../../img/Icon1.jpg';
 import { useState } from 'react';
@@ -34,82 +30,10 @@ const Login: React.FC = () => {
   const navigation = useIonRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
   const [showAlert, setShowAlert] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-
-  const sendOtp = async () => {
-    if (!email) {
-      setAlertMessage('Please enter your email');
-      setShowAlert(true);
-      return false;
-    }
-
-    setIsSendingOtp(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: window.location.origin,
-          shouldCreateUser: false
-        }
-      });
-
-      if (error) throw error;
-      
-      setShowOtpModal(true);
-      setShowToast(true);
-      return true;
-    } catch (error: any) {
-      setAlertMessage(error.message || 'Failed to send OTP');
-      setShowAlert(true);
-      return false;
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
-  const verifyAndLogin = async () => {
-    if (!otp || !password) {
-      setAlertMessage('Please enter both OTP and password');
-      setShowAlert(true);
-      return;
-    }
-
-    setIsVerifying(true);
-    try {
-      // Verify OTP first
-      const { error: otpError } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email'
-      });
-      if (otpError) throw otpError;
-
-      // Then login with password
-      const { error: loginError } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
-      });
-      if (loginError) throw loginError;
-
-      setShowToast(true);
-      setTimeout(() => {
-        navigation.push('/it35-lab2/app', 'forward', 'replace');
-      }, 500);
-      
-      setShowOtpModal(false);
-    } catch (error: any) {
-      setAlertMessage(error.message || 'Verification failed. Please try again.');
-      setShowAlert(true);
-    } finally {
-      setIsVerifying(false);
-    }
-  };
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -117,12 +41,32 @@ const Login: React.FC = () => {
       setShowAlert(true);
       return;
     }
-    await sendOtp();
+
+    setIsLoggingIn(true);
+    try {
+      // Direct login without OTP
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      setShowToast(true);
+      setTimeout(() => {
+        navigation.push('/it35-lab2/app', 'forward', 'replace'); // user dashboard
+      }, 800);
+    } catch (error: any) {
+      setAlertMessage(error.message || 'Login failed. Please try again.');
+      setShowAlert(true);
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   return (
     <IonPage>
-      <IonContent className='ion-padding'>
+      <IonContent className="ion-padding">
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -166,65 +110,19 @@ const Login: React.FC = () => {
           onClick={handleLogin} 
           expand="full" 
           shape="round"
-          disabled={isSendingOtp}
+          disabled={isLoggingIn}
         >
-          {isSendingOtp ? 'Sending OTP...' : 'Login'}
+          {isLoggingIn ? 'Logging in...' : 'Login'}
         </IonButton>
 
         <IonButton 
-          routerLink="/it35-lab/register" 
+          routerLink="/register" 
           expand="full" 
           fill="clear" 
           shape="round"
         >
           Don't have an account? Register here
         </IonButton>
-
-        {/* OTP Verification Modal */}
-        <IonModal isOpen={showOtpModal} onDidDismiss={() => setShowOtpModal(false)}>
-          <IonContent className="ion-padding">
-            <IonGrid>
-              <IonRow className="ion-justify-content-center">
-                <IonCol size="12" sizeMd="8" sizeLg="6">
-                  <div style={{ textAlign: 'center', marginTop: '50%' }}>
-                    <IonLabel>
-                      <h2>Two-Factor Verification</h2>
-                      <p>We've sent a 6-digit code to {email}</p>
-                    </IonLabel>
-                    
-                    <IonInput
-                      fill="outline"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxlength={6}
-                      placeholder="Enter OTP"
-                      value={otp}
-                      onIonChange={e => setOtp(e.detail.value!)}
-                      style={{ margin: '20px 0' }}
-                    />
-                    
-                    <IonButton 
-                      expand="block" 
-                      onClick={verifyAndLogin}
-                      disabled={isVerifying}
-                    >
-                      {isVerifying ? 'Verifying...' : 'Verify & Login'}
-                    </IonButton>
-                    
-                    <IonButton 
-                      expand="block" 
-                      fill="clear" 
-                      onClick={() => setShowOtpModal(false)}
-                    >
-                      Cancel
-                    </IonButton>
-                  </div>
-                </IonCol>
-              </IonRow>
-            </IonGrid>
-          </IonContent>
-        </IonModal>
 
         <AlertBox 
           message={alertMessage} 
@@ -235,10 +133,10 @@ const Login: React.FC = () => {
         <IonToast
           isOpen={showToast}
           onDidDismiss={() => setShowToast(false)}
-          message="OTP sent successfully! Please check your email."
+          message="Login successful!"
           duration={3000}
           position="top"
-          color="primary"
+          color="success"
         />
       </IonContent>
     </IonPage>

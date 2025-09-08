@@ -18,7 +18,7 @@ import {
   useIonRouter
 } from '@ionic/react';
 
-import {homeOutline, logOutOutline, rocketOutline} from 'ionicons/icons';
+import {homeOutline, logOutOutline, personCircle, rocketOutline} from 'ionicons/icons';
 import { Redirect, Route } from 'react-router';
 import Home from './Home';
 import About from './About';
@@ -35,6 +35,7 @@ const Menu: React.FC = () => {
   const path = [
     {name:'Home', url: '/it35-lab2/app/home', icon: homeOutline},
     {name:'About', url: '/it35-lab2/app/about', icon: rocketOutline},
+    {name:'Profile', url: '/it35-lab2/app/home/profile', icon: personCircle},
   ];
 
   const handleLogout = async () => {
