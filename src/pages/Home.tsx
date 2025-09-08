@@ -24,14 +24,14 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
 import Inventory from './home-tabs/Inventory';
-import Product from './home-tabs/Product';
+import Product from './home-tabs/Dashboard';
 import Search from './home-tabs/Search';
 
 const Home: React.FC = () => {
   const tabs = [
-    {name:'Product', tab:'product', url: '/TRA-Manolo-Fortich/app/home/product', icon: bookOutline},
-    {name:'Search', tab:'search', url: '/TRA-Manolo-Fortich/app/home/search', icon: search},
-    {name:'Inventory', tab:'inventory', url: '/TRA-Manolo-Fortich/app/home/inventory', icon: star},
+    {name:'Dashboard', tab:'dashboard', url: '/it35-lab2/app/home/dashboard', icon: bookOutline},
+    {name:'Search', tab:'search', url: '/it35-lab2/app/home/search', icon: search},
+    {name:'Inventory', tab:'inventory', url: '/it35-lab2/app/home/inventory', icon: star},
   ];
 
   const [user, setUser] = useState<any>(null);
@@ -132,7 +132,7 @@ const Home: React.FC = () => {
               <IonButton 
                expand="block" 
                fill="clear" 
-               routerLink="/TRA-Manolo-Fortich/app/profile"
+               routerLink="/it35-lab2/app/profile"
                onClick={() => setShowProfilePopover(false)}
               >
                View Profile
@@ -155,12 +155,12 @@ const Home: React.FC = () => {
         <IonReactRouter>
           <IonTabs>
             <IonRouterOutlet>
-              <Route exact path="/TRA-Manolo-Fortich/app/home/product" component={Product} />
-              <Route exact path="/TRA-Manolo-Fortich/app/home/search" component={Search} />
-              <Route exact path="/TRA-Manolo-Fortich/app/home/inventory" component={Inventory} />
-              <Route exact path="/TRA-Manolo-Fortich/app/home/inventory/:id" component={Inventory} />
-              <Route exact path="/TRA-Manolo-Fortich/app/home">
-                <Redirect to="/TRA-Manolo-Fortich/app/home/product" />
+              <Route exact path="/it35-lab2/app/home/product" component={Product} />
+              <Route exact path="/it35-lab2/app/home/search" component={Search} />
+              <Route exact path="/it35-lab2/app/home/inventory" component={Inventory} />
+              <Route exact path="/it35-lab2/app/home/inventory/:id" component={Inventory} />
+              <Route exact path="/it35-lab2/app/home">
+                <Redirect to="/it35-lab2/app/home/product" />
               </Route>
             </IonRouterOutlet>
 

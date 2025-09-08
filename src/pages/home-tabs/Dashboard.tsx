@@ -26,33 +26,33 @@ interface Product {
   created_at?: string;
 }
 
-const Products: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+const Dashboard: React.FC = () => {
+  const [Dashboard, setDashboard] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch only available products (not out of stock) from Supabase
-  const fetchAvailableProducts = async () => {
+  // Fetch only available Dashboard (not out of stock) from Supabase
+  const fetchAvailableDashboard = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('products')
+        .from('Dashboard')
         .select('*')
         .eq('is_out_of_stock', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProducts(data || []);
+      setDashboard(data || []);
     } catch (err) {
-      setError('Failed to fetch available products');
-      console.error('Error fetching available products:', err);
+      setError('Failed to fetch available Dashboard');
+      console.error('Error fetching available Dashboard:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAvailableProducts();
+    fetchAvailableDashboard();
   }, []);
 
   return (
@@ -62,20 +62,20 @@ const Products: React.FC = () => {
           <IonButtons slot="start">
             <IonMenuButton />
           </IonButtons>
-          <IonTitle>Available Products</IonTitle>
+          <IonTitle>Available Dashboard</IonTitle>
         </IonToolbar>
       </IonHeader>
 
       <IonContent fullscreen>
         <div className="ion-padding">
-          {/* Products Table */}
-          <h2>Available Products</h2>
-          {loading && products.length === 0 ? (
-            <IonLoading isOpen={true} message="Loading available products..." />
+          {/* Dashboard Table */}
+          <h2>Available Dashboard</h2>
+          {loading && Dashboard.length === 0 ? (
+            <IonLoading isOpen={true} message="Loading available Dashboard..." />
           ) : error ? (
             <div style={{ color: 'red' }}>{error}</div>
-          ) : products.length === 0 ? (
-            <div>No available products found</div>
+          ) : Dashboard.length === 0 ? (
+            <div>No available Dashboard found</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -91,7 +91,7 @@ const Products: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map(product => (
+                  {Dashboard.map(product => (
                     <tr key={product.id} style={{ borderBottom: '1px solid #ddd' }}>
                       <td style={{ padding: '10px' }}>{product.name}</td>
                       <td style={{ padding: '10px' }}>{product.description}</td>
@@ -119,4 +119,4 @@ const Products: React.FC = () => {
   );
 };
 
-export default Products;
+export default Dashboard;

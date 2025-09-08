@@ -33,8 +33,8 @@ const Menu: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
 
   const path = [
-    {name:'Home', url: '/TRA-Manolo-Fortich/app/home', icon: homeOutline},
-    {name:'About', url: '/TRA-Manolo-Fortich/app/about', icon: rocketOutline},
+    {name:'Home', url: '/it35-lab2/app/home', icon: homeOutline},
+    {name:'About', url: '/it35-lab2/app/about', icon: rocketOutline},
   ];
 
   const handleLogout = async () => {
@@ -42,7 +42,7 @@ const Menu: React.FC = () => {
     if (!error) {
       setShowToast(true);
       setTimeout(() => {
-        navigation.push('/TRA-Manolo-Fortich', 'back', 'replace'); 
+        navigation.push('/it35-lab2', 'back', 'replace'); 
       }, 300); 
     } else {
       setErrorMessage(error.message);
@@ -78,12 +78,12 @@ const Menu: React.FC = () => {
         </IonMenu>
         
         <IonRouterOutlet id="main">
-          <Route exact path="/TRA-Manolo-Fortich/app/home" component={Home} />
-          <Route exact path="/TRA-Manolo-Fortich/app/home/details" component={Details} />
-          <Route exact path="/TRA-Manolo-Fortich/app/about" component={About} />
+          <Route exact path="/it35-lab2/app/home" component={Home} />
+          <Route exact path="/it35-lab2/app/home/details" component={Details} />
+          <Route exact path="/it35-lab2/app/about" component={About} />
           
-          <Route exact path="/TRA-Manolo-Fortich/app">
-            <Redirect to="/TRA-Manolo-Fortich/app/home"/>
+          <Route exact path="/it35-lab2/app">
+            <Redirect to="/it35-lab2/app/home"/>
           </Route>
         </IonRouterOutlet>
         

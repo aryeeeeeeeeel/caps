@@ -99,7 +99,7 @@ const Login: React.FC = () => {
 
       setShowToast(true);
       setTimeout(() => {
-        navigation.push('/TRA-Manolo-Fortich/app', 'forward', 'replace');
+        navigation.push('/it35-lab2/app', 'forward', 'replace');
       }, 500);
       
       setShowOtpModal(false);
@@ -172,7 +172,7 @@ const Login: React.FC = () => {
         </IonButton>
 
         <IonButton 
-          routerLink="/TRA-Manolo-Fortich/register" 
+          routerLink="/it35-lab/register" 
           expand="full" 
           fill="clear" 
           shape="round"

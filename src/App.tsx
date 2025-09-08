@@ -42,10 +42,10 @@ const App: React.FC = () => (
   <IonApp>
     <IonReactRouter>
       <IonRouterOutlet>
-        <Route exact path="/TRA-Manolo-Fortich" component={Login} />
-        <Route path="/TRA-Manolo-Fortich/app" component={Menu} />
-        <Route exact path="/TRA-Manolo-Fortich/register" component={Register} />
-        <Route exact path="/TRA-Manolo-Fortich/app/profile" component={Profile} />
+        <Route exact path="/it35-lab2" component={Login} />
+        <Route path="/it35-lab2/app" component={Menu} />
+        <Route exact path="/it35-lab2/register" component={Register} />
+        <Route exact path="/it35-lab2/app/profile" component={Profile} />
       </IonRouterOutlet>
     </IonReactRouter>
   </IonApp>
