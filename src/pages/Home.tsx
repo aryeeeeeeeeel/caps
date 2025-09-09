@@ -1,3 +1,4 @@
+// src/pages/Home.tsx
 import { 
   IonButton,
   IonButtons,
@@ -15,10 +16,14 @@ import {
   IonToolbar,
   IonAvatar,
   IonItem,
-  IonPopover
+  IonPopover,
+  IonCard,
+  IonCardContent,
+  IonText,
+  IonBadge
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import { bookOutline, search, star, personCircle } from 'ionicons/icons';
+import { homeOutline, addCircleOutline, listOutline, personCircle, notificationsOutline, logOutOutline, statsChartOutline, locationOutline } from 'ionicons/icons';
 import { Route, Redirect } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
@@ -29,31 +34,32 @@ import Dashboard from './home-tabs/Dashboard';
 
 const Home: React.FC = () => {
   const tabs = [
-    {name:'Dashboard', tab:'dashboard', url: '/it35-lab2/app/home/dashboard', icon: bookOutline},
-    {name:'Search', tab:'search', url: '/it35-lab2/app/home/search', icon: search},
-    {name:'Inventory', tab:'inventory', url: '/it35-lab2/app/home/inventory', icon: star},
+    {name:'Dashboard', tab:'dashboard', url: '/it35-lab2/app/home/dashboard', icon: homeOutline},
+    {name:'Report', tab:'report', url: '/it35-lab2/app/home/report', icon: addCircleOutline},
+    {name:'My Reports', tab:'reports', url: '/it35-lab2/app/home/reports', icon: listOutline},
   ];
 
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [showProfilePopover, setShowProfilePopover] = useState(false);
   const [popoverEvent, setPopoverEvent] = useState<any>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
-    // Get the current user session
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUser(user);
         
-        // Optionally fetch additional user data from your profiles table
+        // Fetch user profile from users table
         const { data: profile, error } = await supabase
-          .from('profiles')
+          .from('users')
           .select('*')
-          .eq('id', user.id)
+          .eq('user_email', user.email)
           .single();
           
         if (!error && profile) {
-          setUser((prev: any) => ({ ...prev, profile }));
+          setUserProfile(profile);
         }
       }
     };
@@ -87,67 +93,155 @@ const Home: React.FC = () => {
   return (
     <IonPage>
       <IonHeader>
-        <IonToolbar>
+        <IonToolbar style={{
+          '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          '--color': 'white'
+        } as any}>
           <IonButtons slot="start">
-            <IonMenuButton />
+            <IonMenuButton style={{ color: 'white' }} />
           </IonButtons>
-          <IonTitle>Home</IonTitle>
+          
+          <IonTitle style={{ 
+            fontWeight: 'bold',
+            fontSize: '20px'
+          }}>iAMUMA ta</IonTitle>
+          
           <IonButtons slot="end">
+            {/* Notifications Button */}
+            <IonButton fill="clear" style={{ color: 'white', position: 'relative' }}>
+              <IonIcon icon={notificationsOutline} slot="icon-only" />
+              {unreadNotifications > 0 && (
+                <IonBadge 
+                  style={{
+                    position: 'absolute',
+                    top: '4px',
+                    right: '4px',
+                    background: '#e53e3e',
+                    minWidth: '18px',
+                    height: '18px',
+                    fontSize: '10px'
+                  }}
+                >
+                  {unreadNotifications}
+                </IonBadge>
+              )}
+            </IonButton>
+            
+            {/* Profile Button */}
             {user ? (
-              <IonButton onClick={openProfilePopover}>
-                {user.user_metadata?.avatar_url ? (
+              <IonButton fill="clear" onClick={openProfilePopover} style={{ color: 'white' }}>
+                {userProfile?.avatar_url ? (
                   <IonAvatar slot="icon-only" style={{ width: '32px', height: '32px' }}>
-                    <img src={user.user_metadata.avatar_url} alt="Profile" />
+                    <img src={userProfile.avatar_url} alt="Profile" />
                   </IonAvatar>
                 ) : (
                   <IonIcon icon={personCircle} slot="icon-only" size="large" />
                 )}
               </IonButton>
             ) : (
-              <IonButton routerLink="/login">Login</IonButton>
+              <IonButton routerLink="/it35-lab2/user-login" fill="clear" style={{ color: 'white' }}>
+                Login
+              </IonButton>
             )}
           </IonButtons>
         </IonToolbar>
       </IonHeader>
 
+      {/* Enhanced Profile Popover */}
       <IonPopover
         isOpen={showProfilePopover}
         event={popoverEvent}
         onDidDismiss={() => setShowProfilePopover(false)}
       >
-        <IonContent className="ion-padding">
-          {user && (
-            <div style={{ textAlign: 'center' }}>
-              {user.user_metadata?.avatar_url ? (
-                <IonAvatar style={{ width: '80px', height: '80px', margin: '0 auto' }}>
-                  <img src={user.user_metadata.avatar_url} alt="Profile" />
-                </IonAvatar>
-              ) : (
-                <IonIcon icon={personCircle} size="large" style={{ fontSize: '80px' }} />
-              )}
-              
-              <h2>{user.email}</h2>
-              <p>{user.user_metadata?.full_name || 'User'}</p>
-              
-              <IonButton 
-               expand="block" 
-               fill="clear" 
-               routerLink="/it35-lab2/app/profile"
-               onClick={() => setShowProfilePopover(false)}
-              >
-               View Profile
-              </IonButton>
-              
-              <IonButton 
-                expand="block" 
-                fill="clear" 
-                color="danger" 
-                onClick={handleSignOut}
-              >
-                Sign Out
-              </IonButton>
-            </div>
-          )}
+        <IonContent>
+          <div style={{ padding: '0' }}>
+            {user && (
+              <>
+                {/* Profile Header */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  padding: '24px 20px',
+                  textAlign: 'center',
+                  color: 'white'
+                }}>
+                  {userProfile?.avatar_url ? (
+                    <IonAvatar style={{ width: '60px', height: '60px', margin: '0 auto 12px' }}>
+                      <img src={userProfile.avatar_url} alt="Profile" />
+                    </IonAvatar>
+                  ) : (
+                    <div style={{
+                      width: '60px',
+                      height: '60px',
+                      background: 'rgba(255,255,255,0.2)',
+                      borderRadius: '50%',
+                      margin: '0 auto 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <IonIcon icon={personCircle} style={{ fontSize: '40px' }} />
+                    </div>
+                  )}
+                  
+                  <h3 style={{ 
+                    margin: '0 0 4px 0', 
+                    fontSize: '18px',
+                    fontWeight: 'bold'
+                  }}>
+                    {userProfile ? `${userProfile.user_firstname} ${userProfile.user_lastname}` : 'User'}
+                  </h3>
+                  <p style={{ 
+                    margin: 0,
+                    fontSize: '14px',
+                    opacity: 0.9
+                  }}>
+                    {user.email}
+                  </p>
+                </div>
+                
+                {/* Profile Menu Items */}
+                <div style={{ padding: '12px 0' }}>
+                  <IonItem 
+                    button
+                    routerLink="/it35-lab2/app/profile"
+                    onClick={() => setShowProfilePopover(false)}
+                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
+                  >
+                    <IonIcon icon={personCircle} slot="start" color="primary" />
+                    <IonLabel>
+                      <h3>View Profile</h3>
+                      <p>Manage account settings</p>
+                    </IonLabel>
+                  </IonItem>
+                  
+                  <IonItem 
+                    button
+                    routerLink="/it35-lab2/app/reports"
+                    onClick={() => setShowProfilePopover(false)}
+                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
+                  >
+                    <IonIcon icon={statsChartOutline} slot="start" color="secondary" />
+                    <IonLabel>
+                      <h3>My Reports</h3>
+                      <p>View submitted incidents</p>
+                    </IonLabel>
+                  </IonItem>
+                  
+                  <IonItem 
+                    button
+                    onClick={handleSignOut}
+                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
+                  >
+                    <IonIcon icon={logOutOutline} slot="start" color="danger" />
+                    <IonLabel>
+                      <h3>Sign Out</h3>
+                      <p>Logout from account</p>
+                    </IonLabel>
+                  </IonItem>
+                </div>
+              </>
+            )}
+          </div>
         </IonContent>
       </IonPopover>
 
@@ -156,19 +250,48 @@ const Home: React.FC = () => {
           <IonTabs>
             <IonRouterOutlet>
               <Route exact path="/it35-lab2/app/home/dashboard" component={Dashboard} />
-              <Route exact path="/it35-lab2/app/home/search" component={Search} />
-              <Route exact path="/it35-lab2/app/home/inventory" component={Inventory} />
-              <Route exact path="/it35-lab2/app/home/inventory/:id" component={Inventory} />
+              <Route exact path="/it35-lab2/app/home/report" component={Search} />
+              <Route exact path="/it35-lab2/app/home/reports" component={Inventory} />
+              <Route exact path="/it35-lab2/app/home/reports/:id" component={Inventory} />
               <Route exact path="/it35-lab2/app/home">
                 <Redirect to="/it35-lab2/app/home/dashboard" />
               </Route>
             </IonRouterOutlet>
 
-            <IonTabBar slot="bottom">
+            {/* Enhanced Tab Bar */}
+            <IonTabBar 
+              slot="bottom" 
+              style={{
+                '--background': 'white',
+                '--border': '1px solid #e2e8f0',
+                height: '70px',
+                paddingTop: '8px',
+                paddingBottom: '8px'
+              } as any}
+            >
               {tabs.map((item, index) => (
-                <IonTabButton key={index} tab={item.tab} href={item.url}>
-                  <IonIcon icon={item.icon} />
-                  <IonLabel>{item.name}</IonLabel>
+                <IonTabButton 
+                  key={index} 
+                  tab={item.tab} 
+                  href={item.url}
+                  style={{
+                    '--color': '#94a3b8',
+                    '--color-selected': '#667eea'
+                  } as any}
+                >
+                  <IonIcon 
+                    icon={item.icon} 
+                    style={{
+                      marginBottom: '4px',
+                      fontSize: '24px'
+                    }}
+                  />
+                  <IonLabel style={{
+                    fontSize: '12px',
+                    fontWeight: '500'
+                  }}>
+                    {item.name}
+                  </IonLabel>
                 </IonTabButton>
               ))}
             </IonTabBar>
