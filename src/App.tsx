@@ -29,6 +29,7 @@ import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
 import Menu from './pages/Menu';
 import AdminLogin from "./pages/Adminlogin";
+import AdminDashboard from './pages/AdminDashboard';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 
@@ -42,6 +43,7 @@ const App: React.FC = () => (
         <Route exact path="/it35-lab2" component={LandingPage} />
         <Route path="/it35-lab2/user-login" component={Login} />
         <Route path="/it35-lab2/admin-login" component={AdminLogin} />
+        <Route exact path="/it35-lab2/admin-dashboard" component={AdminDashboard} />
         <Route path="/it35-lab2/app" component={Menu} />
         <Route exact path="/it35-lab2/register" component={Register} />
         <Route exact path="/it35-lab2/app/profile" component={Profile} />
