@@ -1,4 +1,4 @@
-// src/pages/Home.tsx
+// src/pages/Home.tsx - Complete User Dashboard
 import { 
   IonButton,
   IonButtons,
@@ -20,22 +20,41 @@ import {
   IonCard,
   IonCardContent,
   IonText,
-  IonBadge
+  IonBadge,
+  IonFab,
+  IonFabButton
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import { homeOutline, addCircleOutline, listOutline, personCircle, notificationsOutline, logOutOutline, statsChartOutline, locationOutline } from 'ionicons/icons';
+import { 
+  homeOutline, 
+  addCircleOutline, 
+  listOutline, 
+  personCircle, 
+  notificationsOutline, 
+  logOutOutline, 
+  statsChartOutline, 
+  locationOutline,
+  mapOutline,
+  chatbubbleOutline,
+  alertCircleOutline
+} from 'ionicons/icons';
 import { Route, Redirect } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
-import Inventory from './home-tabs/Inventory';
-import Search from './home-tabs/Search';
+// Import all the new components we'll need
 import Dashboard from './home-tabs/Dashboard';
+import SubmitHazards from './home-tabs/SubmitHazards';
+import ViewHazardMap from './home-tabs/ViewHazardMap';
+import MyReports from './home-tabs/MyReports';
+import Notifications from './home-tabs/Notifications';
+import GiveFeedback from './home-tabs/GiveFeedback';
 
 const Home: React.FC = () => {
   const tabs = [
     {name:'Dashboard', tab:'dashboard', url: '/it35-lab2/app/home/dashboard', icon: homeOutline},
-    {name:'Report', tab:'report', url: '/it35-lab2/app/home/report', icon: addCircleOutline},
+    {name:'Submit Hazard', tab:'submit', url: '/it35-lab2/app/home/submit', icon: addCircleOutline},
+    {name:'Hazard Map', tab:'map', url: '/it35-lab2/app/home/map', icon: mapOutline},
     {name:'My Reports', tab:'reports', url: '/it35-lab2/app/home/reports', icon: listOutline},
   ];
 
@@ -43,7 +62,9 @@ const Home: React.FC = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [showProfilePopover, setShowProfilePopover] = useState(false);
   const [popoverEvent, setPopoverEvent] = useState<any>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(3);
+  const [userReports, setUserReports] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -60,6 +81,14 @@ const Home: React.FC = () => {
           
         if (!error && profile) {
           setUserProfile(profile);
+        }
+
+        // Fetch user reports
+        if (user.email) {
+          fetchUserReports(user.email);
+          
+          // Fetch notifications
+          fetchNotifications(user.email);
         }
       }
     };
@@ -79,6 +108,40 @@ const Home: React.FC = () => {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  const fetchUserReports = async (email: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('hazard_reports')
+        .select('*')
+        .eq('reporter_email', email)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) {
+        setUserReports(data);
+      }
+    } catch (err) {
+      console.error('Error fetching user reports:', err);
+    }
+  };
+
+  const fetchNotifications = async (email: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_email', email)
+        .eq('read', false)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) {
+        setAlerts(data);
+        setUnreadNotifications(data.length);
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -108,7 +171,11 @@ const Home: React.FC = () => {
           
           <IonButtons slot="end">
             {/* Notifications Button */}
-            <IonButton fill="clear" style={{ color: 'white', position: 'relative' }}>
+            <IonButton 
+              fill="clear" 
+              routerLink="/it35-lab2/app/home/notifications"
+              style={{ color: 'white', position: 'relative' }}
+            >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
               {unreadNotifications > 0 && (
                 <IonBadge 
@@ -154,7 +221,7 @@ const Home: React.FC = () => {
         onDidDismiss={() => setShowProfilePopover(false)}
       >
         <IonContent>
-          <div style={{ padding: '0' }}>
+          <div style={{ padding: '0', minWidth: '280px' }}>
             {user && (
               <>
                 {/* Profile Header */}
@@ -188,15 +255,25 @@ const Home: React.FC = () => {
                     fontSize: '18px',
                     fontWeight: 'bold'
                   }}>
-                    {userProfile ? `${userProfile.user_firstname} ${userProfile.user_lastname}` : 'User'}
+                    {userProfile ? `${userProfile.user_firstname} ${userProfile.user_lastname}` : 'Community Member'}
                   </h3>
                   <p style={{ 
-                    margin: 0,
+                    margin: '0 0 8px 0',
                     fontSize: '14px',
                     opacity: 0.9
                   }}>
                     {user.email}
                   </p>
+                  <div style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    borderRadius: '12px',
+                    padding: '6px 12px',
+                    display: 'inline-block'
+                  }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600' }}>
+                      {userReports.length} Reports Submitted
+                    </span>
+                  </div>
                 </div>
                 
                 {/* Profile Menu Items */}
@@ -216,14 +293,44 @@ const Home: React.FC = () => {
                   
                   <IonItem 
                     button
-                    routerLink="/it35-lab2/app/reports"
+                    routerLink="/it35-lab2/app/home/reports"
                     onClick={() => setShowProfilePopover(false)}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
-                    <IonIcon icon={statsChartOutline} slot="start" color="secondary" />
+                    <IonIcon icon={listOutline} slot="start" color="secondary" />
                     <IonLabel>
                       <h3>My Reports</h3>
-                      <p>View submitted incidents</p>
+                      <p>View & edit submitted reports</p>
+                    </IonLabel>
+                    <IonBadge color="primary" slot="end">{userReports.length}</IonBadge>
+                  </IonItem>
+
+                  <IonItem 
+                    button
+                    routerLink="/it35-lab2/app/home/notifications"
+                    onClick={() => setShowProfilePopover(false)}
+                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
+                  >
+                    <IonIcon icon={notificationsOutline} slot="start" color="warning" />
+                    <IonLabel>
+                      <h3>Notifications</h3>
+                      <p>Alerts and updates</p>
+                    </IonLabel>
+                    {unreadNotifications > 0 && (
+                      <IonBadge color="danger" slot="end">{unreadNotifications}</IonBadge>
+                    )}
+                  </IonItem>
+
+                  <IonItem 
+                    button
+                    routerLink="/it35-lab2/app/home/feedback"
+                    onClick={() => setShowProfilePopover(false)}
+                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
+                  >
+                    <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
+                    <IonLabel>
+                      <h3>Give Feedback</h3>
+                      <p>Rate our response service</p>
                     </IonLabel>
                   </IonItem>
                   
@@ -249,10 +356,19 @@ const Home: React.FC = () => {
         <IonReactRouter>
           <IonTabs>
             <IonRouterOutlet>
+              {/* Main tab routes */}
               <Route exact path="/it35-lab2/app/home/dashboard" component={Dashboard} />
-              <Route exact path="/it35-lab2/app/home/report" component={Search} />
-              <Route exact path="/it35-lab2/app/home/reports" component={Inventory} />
-              <Route exact path="/it35-lab2/app/home/reports/:id" component={Inventory} />
+              <Route exact path="/it35-lab2/app/home/submit" component={SubmitHazards} />
+              <Route exact path="/it35-lab2/app/home/map" component={ViewHazardMap} />
+              <Route exact path="/it35-lab2/app/home/reports" component={MyReports} />
+              
+              {/* Additional feature routes */}
+              <Route exact path="/it35-lab2/app/home/notifications" component={Notifications} />
+              <Route exact path="/it35-lab2/app/home/feedback" component={GiveFeedback} />
+              
+              {/* Report detail routes */}
+              <Route exact path="/it35-lab2/app/home/reports/:id" component={MyReports} />
+              
               <Route exact path="/it35-lab2/app/home">
                 <Redirect to="/it35-lab2/app/home/dashboard" />
               </Route>
@@ -283,12 +399,12 @@ const Home: React.FC = () => {
                     icon={item.icon} 
                     style={{
                       marginBottom: '4px',
-                      fontSize: '24px'
+                      fontSize: '22px'
                     }}
                   />
                   <IonLabel style={{
-                    fontSize: '12px',
-                    fontWeight: '500'
+                    fontSize: '11px',
+                    fontWeight: '600'
                   }}>
                     {item.name}
                   </IonLabel>
@@ -297,6 +413,19 @@ const Home: React.FC = () => {
             </IonTabBar>
           </IonTabs>
         </IonReactRouter>
+
+        {/* Quick Action FAB for urgent reports */}
+        <IonFab vertical="bottom" horizontal="end" slot="fixed">
+          <IonFabButton 
+            routerLink="/it35-lab2/app/home/submit"
+            style={{
+              '--background': 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              '--color': 'white'
+            } as any}
+          >
+            <IonIcon icon={alertCircleOutline} />
+          </IonFabButton>
+        </IonFab>
       </IonContent>
     </IonPage>
   );
