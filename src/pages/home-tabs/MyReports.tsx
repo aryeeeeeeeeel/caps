@@ -12,10 +12,6 @@ import {
   IonLabel,
   IonChip,
   IonModal,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
   IonList,
   IonGrid,
   IonRow,
@@ -65,6 +61,7 @@ interface UserReport {
   updated_at: string;
   admin_response?: string;
   resolved_at?: string;
+  reporter_email?: string | null; // Add this field
 }
 
 const MyReports: React.FC = () => {
@@ -120,10 +117,11 @@ const MyReports: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // FIXED: Query for reports where reporter_email matches user email OR is null (anonymous)
       const { data, error } = await supabase
         .from('hazard_reports')
         .select('*')
-        .eq('reporter_email', user.email)
+        .or(`reporter_email.eq.${user.email},reporter_email.is.null`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -558,16 +556,6 @@ const MyReports: React.FC = () => {
 
       {/* View Report Modal */}
       <IonModal isOpen={showViewModal} onDidDismiss={() => setShowViewModal(false)}>
-        <IonHeader>
-          <IonToolbar>
-            <IonTitle>Report Details</IonTitle>
-            <IonButtons slot="end">
-              <IonButton fill="clear" onClick={() => setShowViewModal(false)}>
-                <IonIcon icon={closeCircle} />
-              </IonButton>
-            </IonButtons>
-          </IonToolbar>
-        </IonHeader>
         <IonContent>
           {selectedReport && (
             <div style={{ padding: '20px' }}>
@@ -749,16 +737,6 @@ const MyReports: React.FC = () => {
 
       {/* Edit Report Modal */}
       <IonModal isOpen={showEditModal} onDidDismiss={() => setShowEditModal(false)}>
-        <IonHeader>
-          <IonToolbar>
-            <IonTitle>Edit Report</IonTitle>
-            <IonButtons slot="end">
-              <IonButton fill="clear" onClick={() => setShowEditModal(false)}>
-                <IonIcon icon={closeCircle} />
-              </IonButton>
-            </IonButtons>
-          </IonToolbar>
-        </IonHeader>
         <IonContent>
           <div style={{ padding: '20px' }}>
             <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>

@@ -1,6 +1,7 @@
-import { Route } from 'react-router-dom';
+import { Route, Redirect } from 'react-router-dom';
 import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
+import { defineCustomElements } from '@ionic/pwa-elements/loader';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -27,20 +28,10 @@ import './theme/variables.css';
 /* Main Pages */
 import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
-import Menu from './pages/Menu';
 import AdminLogin from "./pages/Adminlogin";
 import AdminDashboard from './pages/AdminDashboard';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
-
-/* User Dashboard Pages */
-import Home from './pages/Home';
-import Dashboard from './pages/home-tabs/Dashboard';
-import SubmitHazards from './pages/home-tabs/SubmitHazards';
-import ViewHazardMap from './pages/home-tabs/ViewHazardMap';
-import MyReports from './pages/home-tabs/MyReports';
-import Notifications from './pages/home-tabs/Notifications';
-import GiveFeedback from './pages/home-tabs/GiveFeedback';
 
 /* Admin Pages */
 import AdminReports from './pages/admin-tabs/AdminReports';
@@ -48,8 +39,10 @@ import AdminMap from './pages/admin-tabs/AdminMap';
 import AdminUsers from './pages/admin-tabs/AdminUsers';
 import AdminSettings from './pages/admin-tabs/AdminSettings';
 import AdminAnalytics from './pages/admin-tabs/AdminAnalytics';
+import Home from './pages/Home';
 
 setupIonicReact();
+defineCustomElements(window);
 
 const App: React.FC = () => (
   <IonApp>
@@ -60,22 +53,24 @@ const App: React.FC = () => (
         <Route exact path="/it35-lab2/user-login" component={Login} />
         <Route exact path="/it35-lab2/admin-login" component={AdminLogin} />
         <Route exact path="/it35-lab2/register" component={Register} />
-        
-        {/* User App Routes */}
-        <Route path="/it35-lab2/app" component={Menu} />
+
+        {/* User App Routes - Direct routing without nested Home component */}
+        <Route exact path="/it35-lab2/app" render={() => {
+          return <Redirect to="/it35-lab2/app/dashboard" />;
+        }} />
+        {/* User App Routes - Using Home component with bottom tabs */}
+        <Route exact path="/it35-lab2/app" component={Home} />
+        <Route exact path="/it35-lab2/app/dashboard" component={Home} />
+        <Route exact path="/it35-lab2/app/submit" component={Home} />
+        <Route exact path="/it35-lab2/app/map" component={Home} />
+        <Route exact path="/it35-lab2/app/reports" component={Home} />
+        <Route exact path="/it35-lab2/app/notifications" component={Home} />
+        <Route exact path="/it35-lab2/app/feedback" component={Home} />
         <Route exact path="/it35-lab2/app/profile" component={Profile} />
-        
-        {/* User Dashboard Routes (Nested in Home component) */}
-        <Route path="/it35-lab2/app/home" component={Home} />
-        
-        {/* Individual Tab Routes (for direct access) */}
-        <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
-        <Route exact path="/it35-lab2/app/submit-hazard" component={SubmitHazards} />
-        <Route exact path="/it35-lab2/app/hazard-map" component={ViewHazardMap} />
-        <Route exact path="/it35-lab2/app/my-reports" component={MyReports} />
-        <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
-        <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
-        
+
+        {/* Report detail routes */}
+        <Route exact path="/it35-lab2/app/reports/:id" component={Home} />
+
         {/* Admin Dashboard Routes */}
         <Route exact path="/it35-lab2/admin-dashboard" component={AdminDashboard} />
         <Route exact path="/it35-lab2/admin/reports" component={AdminReports} />
@@ -83,10 +78,10 @@ const App: React.FC = () => (
         <Route exact path="/it35-lab2/admin/users" component={AdminUsers} />
         <Route exact path="/it35-lab2/admin/analytics" component={AdminAnalytics} />
         <Route exact path="/it35-lab2/admin/settings" component={AdminSettings} />
-        
-        {/* Report Detail Routes */}
-        <Route exact path="/it35-lab2/app/reports/:id" component={MyReports} />
         <Route exact path="/it35-lab2/admin/reports/:id" component={AdminReports} />
+
+        {/* Default redirect */}
+        <Route exact path="/" render={() => <Redirect to="/it35-lab2" />} />
       </IonRouterOutlet>
     </IonReactRouter>
   </IonApp>

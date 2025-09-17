@@ -65,7 +65,7 @@ const LandingPage: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      <IonContent fullscreen style={{ 
+      <IonContent style={{ 
         '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
       } as any}>
         {/* Hero Section */}

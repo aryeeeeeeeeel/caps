@@ -1,7 +1,7 @@
 // src/pages/Login.tsx
-import { 
+import {
   IonButton,
-  IonContent, 
+  IonContent,
   IonPage,
   IonInput,
   useIonRouter,
@@ -16,7 +16,7 @@ import {
   IonTitle
 } from '@ionic/react';
 import { personCircleOutline, mailOutline, lockClosedOutline, logInOutline, arrowBackOutline, peopleOutline } from 'ionicons/icons';
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
 const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
@@ -39,6 +39,19 @@ const Login: React.FC = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const emailInputRef = useRef<HTMLIonInputElement>(null);
+  const passwordInputRef = useRef<HTMLIonInputElement>(null);
+
+  // Focus on email input when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (emailInputRef.current) {
+        emailInputRef.current.setFocus();
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -57,6 +70,26 @@ const Login: React.FC = () => {
       if (error) throw error;
 
       setShowToast(true);
+
+      // Clear focus from inputs before navigation to prevent aria-hidden issues
+      if (emailInputRef.current) {
+        try {
+          const el = await emailInputRef.current.getInputElement();
+          el.blur();
+        } catch (err) {
+          console.warn('Could not blur email input:', err);
+        }
+      }
+
+      if (passwordInputRef.current) {
+        try {
+          const el = await passwordInputRef.current.getInputElement();
+          el.blur();
+        } catch (err) {
+          console.warn('Could not blur password input:', err);
+        }
+      }
+
       setTimeout(() => {
         navigation.push('/it35-lab2/app', 'forward', 'replace');
       }, 800);
@@ -66,7 +99,13 @@ const Login: React.FC = () => {
     } finally {
       setIsLoggingIn(false);
     }
-  };
+  }; // Removed the dependency array that was causing the error
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleLogin();
+    }
+  }, [handleLogin]);
 
   return (
     <IonPage>
@@ -75,9 +114,9 @@ const Login: React.FC = () => {
           '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           '--color': 'white'
         } as any}>
-          <IonButton 
-            slot="start" 
-            fill="clear" 
+          <IonButton
+            slot="start"
+            fill="clear"
             routerLink="/it35-lab2"
             style={{ color: 'white' }}
           >
@@ -90,7 +129,7 @@ const Login: React.FC = () => {
       <IonContent style={{
         '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
       } as any}>
-        <div style={{ 
+        <div style={{
           minHeight: '100vh',
           display: 'flex',
           alignItems: 'center',
@@ -122,7 +161,7 @@ const Login: React.FC = () => {
                 backgroundImage: `radial-gradient(circle at 70% 30%, rgba(255,255,255,0.1) 0%, transparent 50%)`,
                 pointerEvents: 'none'
               }}></div>
-              
+
               <div style={{ position: 'relative', zIndex: 1 }}>
                 <div style={{
                   width: '80px',
@@ -136,12 +175,12 @@ const Login: React.FC = () => {
                   backdropFilter: 'blur(10px)',
                   border: '2px solid rgba(255,255,255,0.3)'
                 }}>
-                  <IonIcon icon={peopleOutline} style={{ 
+                  <IonIcon icon={peopleOutline} style={{
                     fontSize: '36px',
                     color: 'white'
                   }} />
                 </div>
-                
+
                 <h1 style={{
                   fontSize: '28px',
                   fontWeight: 'bold',
@@ -149,7 +188,7 @@ const Login: React.FC = () => {
                   margin: '0 0 8px 0',
                   letterSpacing: '0.5px'
                 }}>Welcome Back</h1>
-                
+
                 <p style={{
                   fontSize: '14px',
                   color: 'rgba(255,255,255,0.9)',
@@ -177,11 +216,13 @@ const Login: React.FC = () => {
                   }}>Email Address</label>
                 </div>
                 <IonInput
+                  ref={emailInputRef}
                   fill="outline"
                   type="email"
                   placeholder="your.email@nbsc.edu.ph"
                   value={email}
                   onIonChange={e => setEmail(e.detail.value!)}
+                  onKeyPress={handleKeyPress}
                   style={{
                     '--border-radius': '12px',
                     '--border-color': '#e2e8f0',
@@ -210,11 +251,13 @@ const Login: React.FC = () => {
                   }}>Password</label>
                 </div>
                 <IonInput
+                  ref={passwordInputRef}
                   fill="outline"
                   type="password"
                   placeholder="Enter your password"
                   value={password}
                   onIonChange={e => setPassword(e.detail.value!)}
+                  onKeyPress={handleKeyPress}
                   style={{
                     '--border-radius': '12px',
                     '--border-color': '#e2e8f0',
@@ -227,7 +270,7 @@ const Login: React.FC = () => {
                 </IonInput>
               </div>
 
-              <IonButton 
+              <IonButton
                 onClick={handleLogin}
                 expand="block"
                 size="large"
@@ -269,7 +312,7 @@ const Login: React.FC = () => {
                 }}></div>
               </div>
 
-              <IonButton 
+              <IonButton
                 routerLink="/it35-lab2/register"
                 expand="block"
                 fill="outline"
@@ -313,12 +356,12 @@ const Login: React.FC = () => {
           </IonCard>
         </div>
 
-        <AlertBox 
-          message={alertMessage} 
-          isOpen={showAlert} 
-          onClose={() => setShowAlert(false)} 
+        <AlertBox
+          message={alertMessage}
+          isOpen={showAlert}
+          onClose={() => setShowAlert(false)}
         />
-        
+
         <IonToast
           isOpen={showToast}
           onDidDismiss={() => setShowToast(false)}

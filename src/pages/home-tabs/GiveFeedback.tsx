@@ -1,4 +1,4 @@
-// src/pages/user-tabs/GiveFeedback.tsx
+// src/pages/home-tabs/GiveFeedback.tsx
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -19,15 +19,7 @@ import {
   IonList,
   IonAlert,
   IonToast,
-  IonGrid,
-  IonRow,
-  IonCol,
-  IonRange,
-  IonModal,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons
+  IonModal 
 } from '@ionic/react';
 import {
   chatbubbleOutline,
@@ -38,7 +30,6 @@ import {
   closeCircle,
   thumbsUpOutline,
   thumbsDownOutline,
-  timeOutline,
   refreshOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
@@ -60,7 +51,6 @@ interface UserReport {
   title: string;
   status: string;
   created_at: string;
-  resolved_at?: string;
 }
 
 const GiveFeedback: React.FC = () => {
@@ -110,10 +100,10 @@ const GiveFeedback: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch resolved or investigated reports for feedback
+      // Fetch resolved or investigated reports for feedback - removed resolved_at column
       const { data, error } = await supabase
         .from('hazard_reports')
-        .select('id, title, status, created_at, resolved_at')
+        .select('id, title, status, created_at')
         .eq('reporter_email', user.email)
         .in('status', ['resolved', 'investigating'])
         .order('created_at', { ascending: false });
@@ -155,28 +145,27 @@ const GiveFeedback: React.FC = () => {
         }}>
           {label}
         </p>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {[1, 2, 3, 4, 5].map((star) => (
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          {[1, 2, 3, 4, 5].map((starNumber) => (
             <IonButton
-              key={star}
+              key={starNumber}
               fill="clear"
               size="small"
-              onClick={() => onChange(star)}
+              onClick={() => onChange(starNumber)}
               style={{ 
-                '--color': star <= rating ? '#fbbf24' : '#d1d5db',
+                '--color': starNumber <= rating ? '#fbbf24' : '#d1d5db',
                 margin: 0,
                 minHeight: '36px',
                 minWidth: '36px'
               }}
             >
-              <IonIcon icon={star <= rating ? starOutline : starOutline} />
+              <IonIcon icon={starNumber <= rating ? star : starOutline} />
             </IonButton>
           ))}
           <span style={{
             fontSize: '14px',
             color: '#6b7280',
-            marginLeft: '8px',
-            alignSelf: 'center'
+            marginLeft: '8px'
           }}>
             {rating > 0 ? `${rating}/5` : 'No rating'}
           </span>
@@ -296,7 +285,6 @@ const GiveFeedback: React.FC = () => {
                 </p>
                 <IonButton 
                   fill="outline" 
-                  routerLink="/it35-lab2/app/home/submit"
                   onClick={fetchUserReports}
                 >
                   <IonIcon icon={refreshOutline} slot="start" />
@@ -421,14 +409,14 @@ const GiveFeedback: React.FC = () => {
                   onIonChange={e => setFeedbackData(prev => ({...prev, would_recommend: e.detail.value}))}
                 >
                   <IonItem style={{ '--padding-start': '0' } as any}>
+                    <IonRadio slot="start" value={true} />
                     <IonIcon icon={thumbsUpOutline} style={{ color: '#10b981', marginRight: '12px' }} />
                     <IonLabel>Yes, I would recommend</IonLabel>
-                    <IonRadio slot="start" value={true} />
                   </IonItem>
                   <IonItem style={{ '--padding-start': '0' } as any}>
+                    <IonRadio slot="start" value={false} />
                     <IonIcon icon={thumbsDownOutline} style={{ color: '#ef4444', marginRight: '12px' }} />
                     <IonLabel>No, I would not recommend</IonLabel>
-                    <IonRadio slot="start" value={false} />
                   </IonItem>
                 </IonRadioGroup>
               </IonCardContent>
@@ -501,19 +489,6 @@ const GiveFeedback: React.FC = () => {
 
       {/* Success Modal */}
       <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
-        <IonHeader>
-          <IonToolbar style={{
-            '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            '--color': 'white'
-          } as any}>
-            <IonTitle>Feedback Submitted</IonTitle>
-            <IonButtons slot="end">
-              <IonButton fill="clear" onClick={() => setShowSuccessModal(false)}>
-                <IonIcon icon={closeCircle} style={{ color: 'white' }} />
-              </IonButton>
-            </IonButtons>
-          </IonToolbar>
-        </IonHeader>
         <IonContent>
           <div style={{
             display: 'flex',

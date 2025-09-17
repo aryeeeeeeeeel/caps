@@ -1,55 +1,85 @@
 // src/pages/Menu.tsx
-import { 
-  IonAlert,
-  IonButton,
-  IonButtons,
-  IonContent, 
-  IonHeader, 
-  IonIcon, 
-  IonItem, 
-  IonMenu, 
-  IonMenuButton, 
-  IonMenuToggle, 
-  IonPage, 
-  IonRouterOutlet, 
-  IonSplitPane, 
-  IonTitle, 
-  IonToast, 
-  IonToolbar,
-  IonAvatar,
-  IonLabel,
-  IonList,
-  IonListHeader,
-  IonBadge,
-  useIonRouter
-} from '@ionic/react';
-
+import React, { useState, useEffect } from 'react';
 import {
-  homeOutline, 
-  logOutOutline, 
-  personCircle, 
-  informationCircleOutline,
-  statsChartOutline,
+  IonMenu,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonList,
+  IonItem,
+  IonIcon,
+  IonLabel,
+  IonMenuToggle,
+  IonSplitPane,
+  IonRouterOutlet,
+  IonCard,
+  IonCardContent,
+  IonAvatar,
+  IonButton
+} from '@ionic/react';
+import { Route, Redirect, useHistory } from 'react-router-dom';
+import {
+  homeOutline,
   addCircleOutline,
   listOutline,
-  settingsOutline,
-  helpCircleOutline,
-  locationOutline
+  mapOutline,
+  informationCircleOutline,
+  personCircleOutline,
+  logOutOutline,
+  locationOutline,
+  notificationsOutline,
+  chatbubbleOutline
 } from 'ionicons/icons';
-import { Redirect, Route } from 'react-router';
-import Home from './Home';
-import About from './About';
-import Details from './Details';
+
 import { supabase } from '../utils/supabaseClient';
-import { useState, useEffect } from 'react';
+
+// Import components directly
+import Dashboard from './home-tabs/Dashboard';
+import SubmitHazards from './home-tabs/SubmitHazards';
+import ViewHazardMap from './home-tabs/ViewHazardMap';
+import MyReports from './home-tabs/MyReports';
+import Notifications from './home-tabs/Notifications';
+import GiveFeedback from './home-tabs/GiveFeedback';
+import Profile from './Profile';
 
 const Menu: React.FC = () => {
-  const navigation = useIonRouter();
-  const [showAlert, setShowAlert] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [showToast, setShowToast] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const history = useHistory();
+
+  const appPages = [
+    {
+      title: 'Dashboard',
+      url: '/it35-lab2/app/dashboard',
+      icon: homeOutline
+    },
+    {
+      title: 'Report Incident',
+      url: '/it35-lab2/app/submit',
+      icon: addCircleOutline
+    },
+    {
+      title: 'My Reports',
+      url: '/it35-lab2/app/reports',
+      icon: listOutline
+    },
+    {
+      title: 'Hazard Map',
+      url: '/it35-lab2/app/map',
+      icon: mapOutline
+    },
+    {
+      title: 'Notifications',
+      url: '/it35-lab2/app/notifications',
+      icon: notificationsOutline
+    },
+    {
+      title: 'Give Feedback',
+      url: '/it35-lab2/app/feedback',
+      icon: chatbubbleOutline
+    }
+  ];
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -58,13 +88,13 @@ const Menu: React.FC = () => {
         setUser(user);
         
         // Fetch user profile
-        const { data: profile, error } = await supabase
+        const { data: profile } = await supabase
           .from('users')
           .select('*')
           .eq('user_email', user.email)
           .single();
           
-        if (!error && profile) {
+        if (profile) {
           setUserProfile(profile);
         }
       }
@@ -73,312 +103,248 @@ const Menu: React.FC = () => {
     fetchUser();
   }, []);
 
-  const mainMenuItems = [
-    {name: 'Dashboard', url: '/it35-lab2/app/home/dashboard', icon: homeOutline, description: 'Overview and stats'},
-    {name: 'Report Incident', url: '/it35-lab2/app/home/report', icon: addCircleOutline, description: 'Report new hazard'},
-    {name: 'My Reports', url: '/it35-lab2/app/home/reports', icon: listOutline, description: 'View submitted reports'},
-    {name: 'Statistics', url: '/it35-lab2/app/home/stats', icon: statsChartOutline, description: 'Community insights'},
-  ];
-
-  const secondaryMenuItems = [
-    {name: 'About iAMUMA ta', url: '/it35-lab2/app/about', icon: informationCircleOutline, description: 'Learn about the app'},
-    {name: 'Profile', url: '/it35-lab2/app/profile', icon: personCircle, description: 'Account settings'},
-    {name: 'Help & Support', url: '/it35-lab2/app/help', icon: helpCircleOutline, description: 'Get assistance'},
-  ];
-
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (!error) {
-      setShowToast(true);
-      setTimeout(() => {
-        navigation.push('/it35-lab2', 'back', 'replace'); 
-      }, 300); 
-    } else {
-      setErrorMessage(error.message);
-      setShowAlert(true);
+  const handleSignOut = async () => {
+    try {
+      // Sign out
+      await supabase.auth.signOut();
+      
+      // Redirect to landing page
+      history.push('/it35-lab2');
+    } catch (error) {
+      console.error('Error signing out:', error);
     }
   };
 
+  const handleMenuItemClick = (url: string) => {
+    // Navigate to the URL
+    history.push(url);
+  };
+
+  const handleProfileClick = () => {
+    history.push('/it35-lab2/app/profile');
+  };
+
   return (
-    <IonPage>
-      <IonSplitPane contentId="main">
-        <IonMenu contentId="main">
-          <IonHeader>
-            <IonToolbar style={{
-              '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              '--color': 'white'
-            } as any}>
-              <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta</IonTitle>
-            </IonToolbar>
-          </IonHeader>
-          
-          <IonContent>
-            {/* User Profile Section */}
-            {user && (
-              <div style={{
-                background: 'linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%)',
-                padding: '20px',
+    <IonSplitPane contentId="main" when="lg">
+      <IonMenu contentId="main" type="overlay">
+        <IonHeader>
+          <IonToolbar style={{
+            '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            '--color': 'white'
+          } as any}>
+            <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta</IonTitle>
+          </IonToolbar>
+        </IonHeader>
+        
+        <IonContent style={{ '--background': '#1a1a2e' }}>
+          {/* User Profile Section */}
+          {user && (
+            <IonCard 
+              style={{ 
                 margin: '16px',
                 borderRadius: '12px',
-                border: '1px solid #e2e8f0'
-              }}>
-                <div style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white'
+              }}
+              button
+              onClick={handleProfileClick}
+            >
+              <IonCardContent style={{ padding: '16px', textAlign: 'center' }}>
+                <IonAvatar style={{ 
+                  width: '60px', 
+                  height: '60px', 
+                  margin: '0 auto 12px auto',
+                  background: 'rgba(255,255,255,0.2)',
                   display: 'flex',
                   alignItems: 'center',
-                  marginBottom: '12px'
+                  justifyContent: 'center'
                 }}>
                   {userProfile?.avatar_url ? (
-                    <IonAvatar style={{ width: '50px', height: '50px', marginRight: '12px' }}>
-                      <img src={userProfile.avatar_url} alt="Profile" />
-                    </IonAvatar>
+                    <img src={userProfile.avatar_url} alt="Profile" />
                   ) : (
-                    <div style={{
-                      width: '50px',
-                      height: '50px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: '12px'
-                    }}>
-                      <IonIcon icon={personCircle} style={{ fontSize: '30px', color: 'white' }} />
-                    </div>
+                    <IonIcon icon={personCircleOutline} style={{ fontSize: '40px' }} />
                   )}
-                  
-                  <div>
-                    <h3 style={{
-                      margin: '0 0 4px 0',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      color: '#2d3748'
-                    }}>
-                      {userProfile ? `${userProfile.user_firstname} ${userProfile.user_lastname}` : 'Community Member'}
-                    </h3>
-                    <p style={{
-                      margin: 0,
-                      fontSize: '12px',
-                      color: '#718096'
-                    }}>
-                      Active Reporter
-                    </p>
-                  </div>
-                </div>
-                
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'white',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0'
-                }}>
-                  <IonIcon icon={locationOutline} style={{
-                    fontSize: '14px',
-                    color: '#667eea',
-                    marginRight: '6px'
-                  }} />
-                  <span style={{
-                    fontSize: '12px',
-                    color: '#4a5568',
-                    fontWeight: '500'
-                  }}>
+                </IonAvatar>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 'bold' }}>
+                  {userProfile ? `${userProfile.user_firstname} ${userProfile.user_lastname}` : 'Community Member'}
+                </h3>
+                <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>
+                  Active Reporter
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '8px' }}>
+                  <IonIcon icon={locationOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
+                  <span style={{ fontSize: '11px', opacity: 0.8 }}>
                     Manolo Fortich, Bukidnon
                   </span>
                 </div>
-              </div>
-            )}
+                <div style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  borderRadius: '8px',
+                  padding: '4px 8px',
+                  marginTop: '8px',
+                  display: 'inline-block'
+                }}>
+                  <span style={{ fontSize: '10px', fontWeight: '600' }}>
+                    Community Member
+                  </span>
+                </div>
+              </IonCardContent>
+            </IonCard>
+          )}
 
-            {/* Main Navigation */}
-            <IonList>
-              <IonListHeader style={{
-                fontSize: '14px',
-                fontWeight: 'bold',
-                color: '#4a5568',
-                marginTop: '8px'
-              }}>
-                MAIN MENU
-              </IonListHeader>
-              
-              {mainMenuItems.map((item, index) => (
+          {/* Main Menu */}
+          <div style={{ padding: '0 8px' }}>
+            <h6 style={{ 
+              color: '#8892b0', 
+              fontSize: '12px', 
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              margin: '20px 16px 8px 16px'
+            }}>
+              MAIN MENU
+            </h6>
+            
+            <IonList style={{ background: 'transparent' }}>
+              {appPages.map((appPage, index) => (
                 <IonMenuToggle key={index} autoHide={false}>
-                  <IonItem 
-                    routerLink={item.url} 
-                    routerDirection="forward"
-                    style={{
-                      '--padding-start': '20px',
-                      '--inner-padding-end': '20px',
-                      margin: '4px 8px',
-                      borderRadius: '8px',
-                      '--background': 'transparent'
-                    } as any}
+                  <IonItem
                     button
-                    className="menu-item"
+                    onClick={() => handleMenuItemClick(appPage.url)}
+                    style={{
+                      '--background': 'transparent',
+                      '--color': '#ccd6f6',
+                      '--border-radius': '8px',
+                      margin: '4px 8px',
+                      '--padding-start': '16px',
+                      '--inner-padding-end': '16px'
+                    } as any}
                   >
                     <IonIcon 
-                      icon={item.icon} 
+                      icon={appPage.icon} 
                       slot="start" 
-                      style={{ color: '#667eea', fontSize: '20px' }}
+                      style={{ color: '#64ffda', marginRight: '16px' }}
                     />
                     <IonLabel>
-                      <h3 style={{
-                        fontSize: '15px',
-                        fontWeight: '600',
-                        color: '#2d3748',
-                        margin: '0 0 2px 0'
+                      <h3 style={{ 
+                        color: '#ccd6f6', 
+                        fontSize: '14px',
+                        fontWeight: '500'
                       }}>
-                        {item.name}
+                        {appPage.title}
                       </h3>
-                      <p style={{
+                      <p style={{ 
+                        color: '#8892b0', 
                         fontSize: '12px',
-                        color: '#718096',
-                        margin: 0
+                        margin: '2px 0 0 0'
                       }}>
-                        {item.description}
+                        {appPage.title === 'Dashboard' && 'Overview and stats'}
+                        {appPage.title === 'Report Incident' && 'Report new hazard'}
+                        {appPage.title === 'My Reports' && 'View submitted reports'}
+                        {appPage.title === 'Hazard Map' && 'Community insights'}
+                        {appPage.title === 'Notifications' && 'View alerts and updates'}
+                        {appPage.title === 'Give Feedback' && 'Rate our service'}
                       </p>
                     </IonLabel>
                   </IonItem>
                 </IonMenuToggle>
               ))}
             </IonList>
+          </div>
 
-            {/* Secondary Navigation */}
-            <IonList>
-              <IonListHeader style={{
-                fontSize: '14px',
-                fontWeight: 'bold',
-                color: '#4a5568',
-                marginTop: '20px'
-              }}>
-                MORE OPTIONS
-              </IonListHeader>
-              
-              {secondaryMenuItems.map((item, index) => (
-                <IonMenuToggle key={index} autoHide={false}>
-                  <IonItem 
-                    routerLink={item.url} 
-                    routerDirection="forward"
-                    style={{
-                      '--padding-start': '20px',
-                      '--inner-padding-end': '20px',
-                      margin: '4px 8px',
-                      borderRadius: '8px',
-                      '--background': 'transparent'
-                    } as any}
-                    button
-                    className="menu-item"
-                  >
-                    <IonIcon 
-                      icon={item.icon} 
-                      slot="start" 
-                      style={{ color: '#9CA3AF', fontSize: '20px' }}
-                    />
-                    <IonLabel>
-                      <h3 style={{
-                        fontSize: '15px',
-                        fontWeight: '600',
-                        color: '#2d3748',
-                        margin: '0 0 2px 0'
-                      }}>
-                        {item.name}
-                      </h3>
-                      <p style={{
-                        fontSize: '12px',
-                        color: '#718096',
-                        margin: 0
-                      }}>
-                        {item.description}
-                      </p>
-                    </IonLabel>
-                  </IonItem>
-                </IonMenuToggle>
-              ))}
-            </IonList>
-
-            {/* Logout Button */}
-            <div style={{ padding: '20px 16px', marginTop: 'auto' }}>
-              <IonButton 
-                expand="block" 
-                fill="outline"
-                onClick={handleLogout}
+          {/* More Options */}
+          <div style={{ padding: '0 8px', marginTop: '20px' }}>
+            <h6 style={{ 
+              color: '#8892b0', 
+              fontSize: '12px', 
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              margin: '20px 16px 8px 16px'
+            }}>
+              ACCOUNT
+            </h6>
+            
+            <IonList style={{ background: 'transparent' }}>
+              <IonItem
+                button
+                onClick={() => handleMenuItemClick('/it35-lab2/app/profile')}
                 style={{
-                  '--border-radius': '12px',
-                  '--border-color': '#e53e3e',
-                  '--color': '#e53e3e',
-                  '--padding-top': '12px',
-                  '--padding-bottom': '12px',
-                  fontWeight: '600'
+                  '--background': 'transparent',
+                  '--color': '#ccd6f6',
+                  '--border-radius': '8px',
+                  margin: '4px 8px',
+                  '--padding-start': '16px',
+                  '--inner-padding-end': '16px'
                 } as any}
               >
-                <IonIcon icon={logOutOutline} slot="start" />
-                Sign Out
-              </IonButton>
-            </div>
+                <IonIcon 
+                  icon={personCircleOutline} 
+                  slot="start" 
+                  style={{ color: '#64ffda', marginRight: '16px' }}
+                />
+                <IonLabel>
+                  <h3 style={{ 
+                    color: '#ccd6f6', 
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}>
+                    My Profile
+                  </h3>
+                  <p style={{ 
+                    color: '#8892b0', 
+                    fontSize: '12px',
+                    margin: '2px 0 0 0'
+                  }}>
+                    Manage account settings
+                  </p>
+                </IonLabel>
+              </IonItem>
+            </IonList>
+          </div>
 
-            {/* App Info Footer */}
-            <div style={{
-              padding: '16px',
-              textAlign: 'center',
-              borderTop: '1px solid #e2e8f0',
-              background: '#f7fafc'
-            }}>
-              <p style={{
-                fontSize: '11px',
-                color: '#9ca3af',
-                margin: '0 0 4px 0'
-              }}>
-                iAMUMA ta v1.0
-              </p>
-              <p style={{
-                fontSize: '10px',
-                color: '#6b7280',
-                margin: 0
-              }}>
-                Northern Bukidnon State College
-              </p>
-            </div>
-          </IonContent>
-        </IonMenu>
-        
-        <IonRouterOutlet id="main">
-          <Route exact path="/it35-lab2/app/home" component={Home} />
-          <Route exact path="/it35-lab2/app/home/details" component={Details} />
-          <Route exact path="/it35-lab2/app/about" component={About} />
-          
-          <Route exact path="/it35-lab2/app">
-            <Redirect to="/it35-lab2/app/home"/>
-          </Route>
-        </IonRouterOutlet>
-        
-        {/* Error Alert */}
-        <IonAlert
-          isOpen={showAlert}
-          onDidDismiss={() => setShowAlert(false)}
-          header="Sign Out Failed"
-          message={errorMessage}
-          buttons={['OK']}
-        />
-        
-        {/* Success Toast */}
-        <IonToast
-          isOpen={showToast}
-          onDidDismiss={() => setShowToast(false)}
-          message="Successfully signed out. Goodbye!"
-          duration={2000}
-          position="top"
-          color="success"
-        />
+          {/* Sign Out Button */}
+          <div style={{ 
+            position: 'absolute', 
+            bottom: '20px', 
+            left: '16px', 
+            right: '16px'
+          }}>
+            <IonButton
+              expand="block"
+              fill="clear"
+              onClick={handleSignOut}
+              style={{
+                '--color': '#ff6b6b',
+                '--border-color': '#ff6b6b',
+                '--border-radius': '8px',
+                '--padding-top': '12px',
+                '--padding-bottom': '12px',
+                border: '1px solid #ff6b6b'
+              } as any}
+            >
+              <IonIcon icon={logOutOutline} slot="start" />
+              Sign Out
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonMenu>
 
-        {/* Custom Styles */}
-        <style>{`
-          .menu-item:hover {
-            --background: rgba(102, 126, 234, 0.05) !important;
-            transform: translateX(4px);
-            transition: all 0.2s ease;
-          }
-        `}</style>
-      </IonSplitPane>
-    </IonPage>
+      <IonRouterOutlet id="main">
+        {/* Direct route mapping without nested routing */}
+        <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
+        <Route exact path="/it35-lab2/app/submit" component={SubmitHazards} />
+        <Route exact path="/it35-lab2/app/map" component={ViewHazardMap} />
+        <Route exact path="/it35-lab2/app/reports" component={MyReports} />
+        <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
+        <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
+        <Route exact path="/it35-lab2/app/profile" component={Profile} />
+        <Route exact path="/it35-lab2/app/reports/:id" component={MyReports} />
+        <Route exact path="/it35-lab2/app">
+          <Redirect to="/it35-lab2/app/dashboard" />
+        </Route>
+      </IonRouterOutlet>
+    </IonSplitPane>
   );
 };
 

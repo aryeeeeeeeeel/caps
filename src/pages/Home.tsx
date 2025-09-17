@@ -1,48 +1,38 @@
-// src/pages/Home.tsx - Complete User Dashboard
-import { 
-  IonButton,
-  IonButtons,
-  IonContent, 
+// src/pages/Home.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  IonContent,
   IonHeader,
-  IonIcon, 
-  IonLabel, 
-  IonMenuButton, 
   IonPage,
-  IonRouterOutlet, 
-  IonTabBar, 
-  IonTabButton, 
-  IonTabs,  
-  IonTitle, 
+  IonTitle,
   IonToolbar,
+  IonButtons,
+  IonButton,
+  IonIcon,
+  IonLabel,
+  IonTabBar,
+  IonTabButton,
+  IonTabs,
+  IonRouterOutlet,
   IonAvatar,
-  IonItem,
   IonPopover,
-  IonCard,
-  IonCardContent,
-  IonText,
   IonBadge,
-  IonFab,
-  IonFabButton
+  IonItem
 } from '@ionic/react';
-import { IonReactRouter } from '@ionic/react-router';
-import { 
-  homeOutline, 
-  addCircleOutline, 
-  listOutline, 
-  personCircle, 
-  notificationsOutline, 
-  logOutOutline, 
-  statsChartOutline, 
-  locationOutline,
-  mapOutline,
+import { Route, Redirect, useHistory, useLocation } from 'react-router-dom';
+import {
+  personCircle,
+  notificationsOutline,
+  logOutOutline,
   chatbubbleOutline,
-  alertCircleOutline
+  homeOutline,
+  addCircleOutline,
+  listOutline,
+  mapOutline
 } from 'ionicons/icons';
-import { Route, Redirect } from 'react-router-dom';
-import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
-// Import all the new components we'll need
+// Import all page components
 import Dashboard from './home-tabs/Dashboard';
 import SubmitHazards from './home-tabs/SubmitHazards';
 import ViewHazardMap from './home-tabs/ViewHazardMap';
@@ -51,20 +41,21 @@ import Notifications from './home-tabs/Notifications';
 import GiveFeedback from './home-tabs/GiveFeedback';
 
 const Home: React.FC = () => {
-  const tabs = [
-    {name:'Dashboard', tab:'dashboard', url: '/it35-lab2/app/home/dashboard', icon: homeOutline},
-    {name:'Submit Hazard', tab:'submit', url: '/it35-lab2/app/home/submit', icon: addCircleOutline},
-    {name:'Hazard Map', tab:'map', url: '/it35-lab2/app/home/map', icon: mapOutline},
-    {name:'My Reports', tab:'reports', url: '/it35-lab2/app/home/reports', icon: listOutline},
-  ];
-
+  const history = useHistory();
+  const location = useLocation();
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [showProfilePopover, setShowProfilePopover] = useState(false);
   const [popoverEvent, setPopoverEvent] = useState<any>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(3);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [userReports, setUserReports] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
+
+  const tabs = [
+    { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
+    { name: 'Submit Hazard', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
+    { name: 'Hazard Map', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
+    { name: 'My Reports', tab: 'reports', url: '/it35-lab2/app/reports', icon: listOutline },
+  ];
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -86,27 +77,12 @@ const Home: React.FC = () => {
         // Fetch user reports
         if (user.email) {
           fetchUserReports(user.email);
-          
-          // Fetch notifications
           fetchNotifications(user.email);
         }
       }
     };
 
     fetchUser();
-    
-    // Listen for auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-      } else {
-        setUser(null);
-      }
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
   }, []);
 
   const fetchUserReports = async (email: string) => {
@@ -135,7 +111,6 @@ const Home: React.FC = () => {
         .order('created_at', { ascending: false });
       
       if (!error && data) {
-        setAlerts(data);
         setUnreadNotifications(data.length);
       }
     } catch (err) {
@@ -146,11 +121,24 @@ const Home: React.FC = () => {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setShowProfilePopover(false);
+    history.push('/it35-lab2');
   };
 
   const openProfilePopover = (e: any) => {
     setPopoverEvent(e);
     setShowProfilePopover(true);
+  };
+
+  const handlePopoverNavigation = (route: string) => {
+    setShowProfilePopover(false);
+    setTimeout(() => {
+      history.push(route);
+    }, 100);
+  };
+
+  // Function to handle tab navigation
+  const handleTabNavigation = (route: string) => {
+    history.push(route);
   };
 
   return (
@@ -161,7 +149,7 @@ const Home: React.FC = () => {
           '--color': 'white'
         } as any}>
           <IonButtons slot="start">
-            <IonMenuButton style={{ color: 'white' }} />
+            {/* Remove menu button since we're using bottom tabs */}
           </IonButtons>
           
           <IonTitle style={{ 
@@ -173,7 +161,7 @@ const Home: React.FC = () => {
             {/* Notifications Button */}
             <IonButton 
               fill="clear" 
-              routerLink="/it35-lab2/app/home/notifications"
+              onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
               style={{ color: 'white', position: 'relative' }}
             >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
@@ -206,7 +194,7 @@ const Home: React.FC = () => {
                 )}
               </IonButton>
             ) : (
-              <IonButton routerLink="/it35-lab2/user-login" fill="clear" style={{ color: 'white' }}>
+              <IonButton onClick={() => history.push('/it35-lab2/user-login')} fill="clear" style={{ color: 'white' }}>
                 Login
               </IonButton>
             )}
@@ -214,7 +202,7 @@ const Home: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      {/* Enhanced Profile Popover */}
+      {/* Profile Popover */}
       <IonPopover
         isOpen={showProfilePopover}
         event={popoverEvent}
@@ -239,7 +227,7 @@ const Home: React.FC = () => {
                     <div style={{
                       width: '60px',
                       height: '60px',
-                      background: 'rgba(255,255,255,0.2)',
+                      background: 'rg�(255,255,255,0.2)',
                       borderRadius: '50%',
                       margin: '0 auto 12px',
                       display: 'flex',
@@ -280,8 +268,7 @@ const Home: React.FC = () => {
                 <div style={{ padding: '12px 0' }}>
                   <IonItem 
                     button
-                    routerLink="/it35-lab2/app/profile"
-                    onClick={() => setShowProfilePopover(false)}
+                    onClick={() => handlePopoverNavigation('/it35-lab2/app/profile')}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
                     <IonIcon icon={personCircle} slot="start" color="primary" />
@@ -293,8 +280,7 @@ const Home: React.FC = () => {
                   
                   <IonItem 
                     button
-                    routerLink="/it35-lab2/app/home/reports"
-                    onClick={() => setShowProfilePopover(false)}
+                    onClick={() => handlePopoverNavigation('/it35-lab2/app/reports')}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
                     <IonIcon icon={listOutline} slot="start" color="secondary" />
@@ -307,8 +293,7 @@ const Home: React.FC = () => {
 
                   <IonItem 
                     button
-                    routerLink="/it35-lab2/app/home/notifications"
-                    onClick={() => setShowProfilePopover(false)}
+                    onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
                     <IonIcon icon={notificationsOutline} slot="start" color="warning" />
@@ -323,8 +308,7 @@ const Home: React.FC = () => {
 
                   <IonItem 
                     button
-                    routerLink="/it35-lab2/app/home/feedback"
-                    onClick={() => setShowProfilePopover(false)}
+                    onClick={() => handlePopoverNavigation('/it35-lab2/app/feedback')}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
                     <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
@@ -353,79 +337,59 @@ const Home: React.FC = () => {
       </IonPopover>
 
       <IonContent fullscreen>
-        <IonReactRouter>
-          <IonTabs>
-            <IonRouterOutlet>
-              {/* Main tab routes */}
-              <Route exact path="/it35-lab2/app/home/dashboard" component={Dashboard} />
-              <Route exact path="/it35-lab2/app/home/submit" component={SubmitHazards} />
-              <Route exact path="/it35-lab2/app/home/map" component={ViewHazardMap} />
-              <Route exact path="/it35-lab2/app/home/reports" component={MyReports} />
-              
-              {/* Additional feature routes */}
-              <Route exact path="/it35-lab2/app/home/notifications" component={Notifications} />
-              <Route exact path="/it35-lab2/app/home/feedback" component={GiveFeedback} />
-              
-              {/* Report detail routes */}
-              <Route exact path="/it35-lab2/app/home/reports/:id" component={MyReports} />
-              
-              <Route exact path="/it35-lab2/app/home">
-                <Redirect to="/it35-lab2/app/home/dashboard" />
-              </Route>
-            </IonRouterOutlet>
+        <IonTabs>
+          <IonRouterOutlet>
+            <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
+            <Route exact path="/it35-lab2/app/submit" component={SubmitHazards} />
+            <Route exact path="/it35-lab2/app/map" component={ViewHazardMap} />
+            <Route exact path="/it35-lab2/app/reports" component={MyReports} />
+            <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
+            <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
+            <Route exact path="/it35-lab2/app/reports/:id" component={MyReports} />
+            <Route exact path="/it35-lab2/app">
+              <Redirect to="/it35-lab2/app/dashboard" />
+            </Route>
+          </IonRouterOutlet>
 
-            {/* Enhanced Tab Bar */}
-            <IonTabBar 
-              slot="bottom" 
-              style={{
-                '--background': 'white',
-                '--border': '1px solid #e2e8f0',
-                height: '70px',
-                paddingTop: '8px',
-                paddingBottom: '8px'
-              } as any}
-            >
-              {tabs.map((item, index) => (
-                <IonTabButton 
-                  key={index} 
-                  tab={item.tab} 
-                  href={item.url}
-                  style={{
-                    '--color': '#94a3b8',
-                    '--color-selected': '#667eea'
-                  } as any}
-                >
-                  <IonIcon 
-                    icon={item.icon} 
-                    style={{
-                      marginBottom: '4px',
-                      fontSize: '22px'
-                    }}
-                  />
-                  <IonLabel style={{
-                    fontSize: '11px',
-                    fontWeight: '600'
-                  }}>
-                    {item.name}
-                  </IonLabel>
-                </IonTabButton>
-              ))}
-            </IonTabBar>
-          </IonTabs>
-        </IonReactRouter>
-
-        {/* Quick Action FAB for urgent reports */}
-        <IonFab vertical="bottom" horizontal="end" slot="fixed">
-          <IonFabButton 
-            routerLink="/it35-lab2/app/home/submit"
+          {/* Bottom Tab Bar - FIXED NAVIGATION */}
+          <IonTabBar 
+            slot="bottom" 
             style={{
-              '--background': 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-              '--color': 'white'
+              '--background': 'white',
+              '--border': '1px solid #e2e8f0',
+              height: '70px',
+              paddingTop: '8px',
+              paddingBottom: '8px'
             } as any}
           >
-            <IonIcon icon={alertCircleOutline} />
-          </IonFabButton>
-        </IonFab>
+            {tabs.map((item, index) => (
+              <IonTabButton 
+                key={index} 
+                tab={item.tab}
+                selected={location.pathname === item.url}
+                onClick={() => handleTabNavigation(item.url)}
+                style={{
+                  '--color': '#94a3b8',
+                  '--color-selected': '#667eea'
+                } as any}
+              >
+                <IonIcon 
+                  icon={item.icon} 
+                  style={{
+                    marginBottom: '4px',
+                    fontSize: '22px'
+                  }}
+                />
+                <IonLabel style={{
+                  fontSize: '11px',
+                  fontWeight: '600'
+                }}>
+                  {item.name}
+                </IonLabel>
+              </IonTabButton>
+            ))}
+          </IonTabBar>
+        </IonTabs>
       </IonContent>
     </IonPage>
   );
