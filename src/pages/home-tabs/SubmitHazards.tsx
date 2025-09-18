@@ -65,37 +65,196 @@ interface ExifData {
   gpsAltitude?: number;
   make?: string;
   model?: string;
-  [key: string]: any; // Allow additional properties
+  [key: string]: any;
+}
+
+interface BarangayPolygon {
+  points: { lat: number; lng: number }[];
+  centroid: { lat: number; lng: number };
 }
 
 const isNativePlatform = () => {
   return Capacitor.isNativePlatform();
 };
 
-// Updated accurate coordinates for Manolo Fortich barangays based on official data
-const barangayCoordinates: { [key: string]: { lat: number, lng: number, radius: number } } = {
-  'Agusan Canyon': { lat: 8.3457, lng: 124.8234, radius: 0.025 },
-  'Alae': { lat: 8.4102, lng: 124.8856, radius: 0.02 },
-  'Dahilayan': { lat: 8.4289, lng: 124.8734, radius: 0.03 },
-  'Dalirig': { lat: 8.3923, lng: 124.8912, radius: 0.02 },
-  'Damilag': { lat: 8.3693, lng: 124.8564, radius: 0.025 }, // Municipal center (confirmed)
-  'Diclum': { lat: 8.4234, lng: 124.9123, radius: 0.02 },
-  'Guilang-guilang': { lat: 8.3812, lng: 124.8423, radius: 0.02 },
-  'Kalugmanan': { lat: 8.4156, lng: 124.8967, radius: 0.02 },
-  'Lindaban': { lat: 8.3567, lng: 124.8145, radius: 0.025 },
-  'Lingion': { lat: 8.3234, lng: 124.7923, radius: 0.02 },
-  'Lunocan': { lat: 8.3145, lng: 124.7834, radius: 0.02 },
-  'Maluko': { lat: 8.2923, lng: 124.7656, radius: 0.02 },
-  'Mambatangan': { lat: 8.2812, lng: 124.7534, radius: 0.02 },
-  'Mampayag': { lat: 8.3345, lng: 124.8089, radius: 0.02 },
-  'Mantibugao': { lat: 8.3456, lng: 124.8234, radius: 0.02 },
-  'Minsuro': { lat: 8.3678, lng: 124.8456, radius: 0.02 },
-  'San Miguel': { lat: 8.3823, lng: 124.8678, radius: 0.02 },
-  'Sankanan': { lat: 8.3945, lng: 124.8789, radius: 0.02 },
-  'Santiago': { lat: 8.4067, lng: 124.8923, radius: 0.02 },
-  'Santo Niño': { lat: 8.4189, lng: 124.9056, radius: 0.02 },
-  'Tankulan': { lat: 8.4312, lng: 124.9189, radius: 0.02 },
-  'Ticala': { lat: 8.4445, lng: 124.9323, radius: 0.02 }
+// Updated coordinates for all Manolo Fortich barangays as polygons (pentagons)
+const barangayPolygons: { [key: string]: BarangayPolygon } = {
+  'Agusan Canyon': {
+    points: [
+      { lat: 8.3557, lng: 124.8334 }, { lat: 8.3557, lng: 124.8134 },
+      { lat: 8.3357, lng: 124.8134 }, { lat: 8.3257, lng: 124.8334 },
+      { lat: 8.3357, lng: 124.8534 }
+    ],
+    centroid: { lat: 8.3417, lng: 124.8294 }
+  },
+  'Alae': {
+    points: [
+      { lat: 8.4202, lng: 124.8956 }, { lat: 8.4202, lng: 124.8756 },
+      { lat: 8.4002, lng: 124.8756 }, { lat: 8.3902, lng: 124.8956 },
+      { lat: 8.4002, lng: 124.9156 }
+    ],
+    centroid: { lat: 8.4062, lng: 124.8916 }
+  },
+  'Dahilayan': {
+    points: [
+      { lat: 8.4389, lng: 124.8834 }, { lat: 8.4389, lng: 124.8634 },
+      { lat: 8.4189, lng: 124.8634 }, { lat: 8.4089, lng: 124.8834 },
+      { lat: 8.4189, lng: 124.9034 }
+    ],
+    centroid: { lat: 8.4249, lng: 124.8794 }
+  },
+  'Dalirig': {
+    points: [
+      { lat: 8.4023, lng: 124.9012 }, { lat: 8.4023, lng: 124.8812 },
+      { lat: 8.3823, lng: 124.8812 }, { lat: 8.3723, lng: 124.9012 },
+      { lat: 8.3823, lng: 124.9212 }
+    ],
+    centroid: { lat: 8.3883, lng: 124.8972 }
+  },
+  'Damilag': {
+    points: [
+      { lat: 8.3793, lng: 124.8664 }, { lat: 8.3793, lng: 124.8464 },
+      { lat: 8.3593, lng: 124.8464 }, { lat: 8.3493, lng: 124.8664 },
+      { lat: 8.3593, lng: 124.8864 }
+    ],
+    centroid: { lat: 8.3653, lng: 124.8624 }
+  },
+  'Diclum': {
+    points: [
+      { lat: 8.4334, lng: 124.9223 }, { lat: 8.4334, lng: 124.9023 },
+      { lat: 8.4134, lng: 124.9023 }, { lat: 8.4034, lng: 124.9223 },
+      { lat: 8.4134, lng: 124.9423 }
+    ],
+    centroid: { lat: 8.4194, lng: 124.9183 }
+  },
+  'Guilang-guilang': {
+    points: [
+      { lat: 8.3912, lng: 124.8523 }, { lat: 8.3912, lng: 124.8323 },
+      { lat: 8.3712, lng: 124.8323 }, { lat: 8.3612, lng: 124.8523 },
+      { lat: 8.3712, lng: 124.8723 }
+    ],
+    centroid: { lat: 8.3772, lng: 124.8483 }
+  },
+  'Kalugmanan': {
+    points: [
+      { lat: 8.4256, lng: 124.9067 }, { lat: 8.4256, lng: 124.8867 },
+      { lat: 8.4056, lng: 124.8867 }, { lat: 8.3956, lng: 124.9067 },
+      { lat: 8.4056, lng: 124.9267 }
+    ],
+    centroid: { lat: 8.4116, lng: 124.9027 }
+  },
+  'Lindaban': {
+    points: [
+      { lat: 8.3667, lng: 124.8245 }, { lat: 8.3667, lng: 124.8045 },
+      { lat: 8.3467, lng: 124.8045 }, { lat: 8.3367, lng: 124.8245 },
+      { lat: 8.3467, lng: 124.8445 }
+    ],
+    centroid: { lat: 8.3527, lng: 124.8205 }
+  },
+  'Lingion': {
+    points: [
+      { lat: 8.3334, lng: 124.8023 }, { lat: 8.3334, lng: 124.7823 },
+      { lat: 8.3134, lng: 124.7823 }, { lat: 8.3034, lng: 124.8023 },
+      { lat: 8.3134, lng: 124.8223 }
+    ],
+    centroid: { lat: 8.3194, lng: 124.7983 }
+  },
+  'Lunocan': {
+    points: [
+      { lat: 8.3245, lng: 124.7934 }, { lat: 8.3245, lng: 124.7734 },
+      { lat: 8.3045, lng: 124.7734 }, { lat: 8.2945, lng: 124.7934 },
+      { lat: 8.3045, lng: 124.8134 }
+    ],
+    centroid: { lat: 8.3105, lng: 124.7894 }
+  },
+  'Maluko': {
+    points: [
+      { lat: 8.3023, lng: 124.7756 }, { lat: 8.3023, lng: 124.7556 },
+      { lat: 8.2823, lng: 124.7556 }, { lat: 8.2723, lng: 124.7756 },
+      { lat: 8.2823, lng: 124.7956 }
+    ],
+    centroid: { lat: 8.2883, lng: 124.7716 }
+  },
+  'Mambatangan': {
+    points: [
+      { lat: 8.2912, lng: 124.7634 }, { lat: 8.2912, lng: 124.7434 },
+      { lat: 8.2712, lng: 124.7434 }, { lat: 8.2612, lng: 124.7634 },
+      { lat: 8.2712, lng: 124.7834 }
+    ],
+    centroid: { lat: 8.2772, lng: 124.7594 }
+  },
+  'Mampayag': {
+    points: [
+      { lat: 8.3445, lng: 124.8189 }, { lat: 8.3445, lng: 124.7989 },
+      { lat: 8.3245, lng: 124.7989 }, { lat: 8.3145, lng: 124.8189 },
+      { lat: 8.3245, lng: 124.8389 }
+    ],
+    centroid: { lat: 8.3305, lng: 124.8149 }
+  },
+  'Mantibugao': {
+    points: [
+      { lat: 8.3556, lng: 124.8334 }, { lat: 8.3556, lng: 124.8134 },
+      { lat: 8.3356, lng: 124.8134 }, { lat: 8.3256, lng: 124.8334 },
+      { lat: 8.3356, lng: 124.8534 }
+    ],
+    centroid: { lat: 8.3416, lng: 124.8294 }
+  },
+  'Minsuro': {
+    points: [
+      { lat: 8.3778, lng: 124.8556 }, { lat: 8.3778, lng: 124.8356 },
+      { lat: 8.3578, lng: 124.8356 }, { lat: 8.3478, lng: 124.8556 },
+      { lat: 8.3578, lng: 124.8756 }
+    ],
+    centroid: { lat: 8.3638, lng: 124.8516 }
+  },
+  'San Miguel': {
+    points: [
+      { lat: 8.3923, lng: 124.8778 }, { lat: 8.3923, lng: 124.8578 },
+      { lat: 8.3723, lng: 124.8578 }, { lat: 8.3623, lng: 124.8778 },
+      { lat: 8.3723, lng: 124.8978 }
+    ],
+    centroid: { lat: 8.3783, lng: 124.8738 }
+  },
+  'Sankanan': {
+    points: [
+      { lat: 8.4045, lng: 124.8889 }, { lat: 8.4045, lng: 124.8689 },
+      { lat: 8.3845, lng: 124.8689 }, { lat: 8.3745, lng: 124.8889 },
+      { lat: 8.3845, lng: 124.9089 }
+    ],
+    centroid: { lat: 8.3905, lng: 124.8849 }
+  },
+  'Santiago': {
+    points: [
+      { lat: 8.4167, lng: 124.9023 }, { lat: 8.4167, lng: 124.8823 },
+      { lat: 8.3967, lng: 124.8823 }, { lat: 8.3867, lng: 124.9023 },
+      { lat: 8.3967, lng: 124.9223 }
+    ],
+    centroid: { lat: 8.4027, lng: 124.8983 }
+  },
+  'Santo Niño': {
+    points: [
+      { lat: 8.4289, lng: 124.9156 }, { lat: 8.4289, lng: 124.8956 },
+      { lat: 8.4089, lng: 124.8956 }, { lat: 8.3989, lng: 124.9156 },
+      { lat: 8.4089, lng: 124.9356 }
+    ],
+    centroid: { lat: 8.4149, lng: 124.9116 }
+  },
+  'Tankulan': {
+    points: [
+      { lat: 8.4412, lng: 124.9289 }, { lat: 8.4412, lng: 124.9089 },
+      { lat: 8.4212, lng: 124.9089 }, { lat: 8.4112, lng: 124.9289 },
+      { lat: 8.4212, lng: 124.9489 }
+    ],
+    centroid: { lat: 8.4272, lng: 124.9249 }
+  },
+  'Ticala': {
+    points: [
+      { lat: 8.4545, lng: 124.9423 }, { lat: 8.4545, lng: 124.9223 },
+      { lat: 8.4345, lng: 124.9223 }, { lat: 8.4245, lng: 124.9423 },
+      { lat: 8.4345, lng: 124.9623 }
+    ],
+    centroid: { lat: 8.4405, lng: 124.9383 }
+  }
 };
 
 const optimizeImage = (blob: Blob, maxSize: number = 1024, quality: number = 0.8): Promise<Blob> => {
@@ -227,21 +386,39 @@ const convertExifGpsToDecimal = (degrees: number, minutes: number, seconds: numb
   return decimal;
 };
 
-// Function to detect barangay from coordinates with improved accuracy
+// Helper function to check if a point is inside a polygon
+const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng: number }[]): boolean => {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lat;
+    const yi = polygon[i].lng;
+    const xj = polygon[j].lat;
+    const yj = polygon[j].lng;
+    
+    const intersect = ((yi > lng) !== (yj > lng)) &&
+        (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+// Function to detect barangay from coordinates using polygon detection
 const detectBarangayFromCoordinates = (lat: number, lng: number): string | null => {
   let closestBarangay = null;
   let minDistance = Infinity;
 
-  for (const [barangay, coords] of Object.entries(barangayCoordinates)) {
-    // Calculate distance using Haversine formula approximation
-    const latDiff = lat - coords.lat;
-    const lngDiff = lng - coords.lng;
-    const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
-
-    // Check if within radius and closer than previous matches
-    if (distance <= coords.radius && distance < minDistance) {
-      minDistance = distance;
-      closestBarangay = barangay;
+  for (const [barangay, polygon] of Object.entries(barangayPolygons)) {
+    // Check if point is inside the polygon
+    if (isPointInPolygon(lat, lng, polygon.points)) {
+      // Calculate distance to centroid for prioritization if multiple matches
+      const latDiff = lat - polygon.centroid.lat;
+      const lngDiff = lng - polygon.centroid.lng;
+      const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestBarangay = barangay;
+      }
     }
   }
 
@@ -355,7 +532,7 @@ const SubmitHazards: React.FC = () => {
   ];
 
   // Updated barangay list for Manolo Fortich
-  const barangayList = Object.keys(barangayCoordinates);
+  const barangayList = Object.keys(barangayPolygons);
 
   // Process image and extract EXIF data with enhanced handling
   const processImage = async (imageBlob: Blob, source: string): Promise<{ file: File; exif: ExifData | null }> => {
