@@ -98,7 +98,7 @@ const ViewHazardMap: React.FC = () => {
   // Updated barangay list for Manolo Fortich with correct coordinates
   const barangayList = [
     'Agusan Canyon', 'Alae', 'Dahilayan', 'Dalirig', 'Damilag',
-    'Diclum', 'Guilang-guilang', 'Kalugmanan', 'Lindaban', 'Lingion',
+    'Dicklum', 'Guilang-guilang', 'Kalugmanan', 'Lindaban', 'Lingion',
     'Lunocan', 'Maluko', 'Mambatangan', 'Mampayag', 'Mantibugao',
     'Minsuro', 'San Miguel', 'Sankanan', 'Santiago', 'Santo Niño',
     'Tankulan', 'Ticala'

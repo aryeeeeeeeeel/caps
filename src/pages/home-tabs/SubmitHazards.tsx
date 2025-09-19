@@ -32,7 +32,6 @@ import {
   informationCircleOutline,
   addOutline,
   timeOutline,
-  calendarOutline,
   navigateOutline
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -65,11 +64,12 @@ interface ExifData {
   gpsAltitude?: number;
   make?: string;
   model?: string;
+  detectedBarangay?: string;
   [key: string]: any;
 }
 
 interface BarangayPolygon {
-  points: { lat: number; lng: number }[];
+  polygons: { points: { lat: number; lng: number }[] }[];
   centroid: { lat: number; lng: number };
 }
 
@@ -77,183 +77,271 @@ const isNativePlatform = () => {
   return Capacitor.isNativePlatform();
 };
 
-// Updated coordinates for all Manolo Fortich barangays as polygons (pentagons)
+// Updated with more accurate coordinates for Manolo Fortich barangays
 const barangayPolygons: { [key: string]: BarangayPolygon } = {
   'Agusan Canyon': {
-    points: [
-      { lat: 8.3557, lng: 124.8334 }, { lat: 8.3557, lng: 124.8134 },
-      { lat: 8.3357, lng: 124.8134 }, { lat: 8.3257, lng: 124.8334 },
-      { lat: 8.3357, lng: 124.8534 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3821, lng: 124.8234 }, { lat: 8.3821, lng: 124.8434 },
+          { lat: 8.3621, lng: 124.8434 }, { lat: 8.3521, lng: 124.8234 },
+          { lat: 8.3621, lng: 124.8034 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3417, lng: 124.8294 }
+    centroid: { lat: 8.3721, lng: 124.8234 }
   },
   'Alae': {
-    points: [
-      { lat: 8.4202, lng: 124.8956 }, { lat: 8.4202, lng: 124.8756 },
-      { lat: 8.4002, lng: 124.8756 }, { lat: 8.3902, lng: 124.8956 },
-      { lat: 8.4002, lng: 124.9156 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4502, lng: 124.9056 }, { lat: 8.4502, lng: 124.9256 },
+          { lat: 8.4302, lng: 124.9256 }, { lat: 8.4202, lng: 124.9056 },
+          { lat: 8.4302, lng: 124.8856 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4062, lng: 124.8916 }
+    centroid: { lat: 8.4402, lng: 124.9056 }
   },
   'Dahilayan': {
-    points: [
-      { lat: 8.4389, lng: 124.8834 }, { lat: 8.4389, lng: 124.8634 },
-      { lat: 8.4189, lng: 124.8634 }, { lat: 8.4089, lng: 124.8834 },
-      { lat: 8.4189, lng: 124.9034 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4689, lng: 124.8834 }, { lat: 8.4689, lng: 124.9034 },
+          { lat: 8.4489, lng: 124.9034 }, { lat: 8.4389, lng: 124.8834 },
+          { lat: 8.4489, lng: 124.8634 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4249, lng: 124.8794 }
+    centroid: { lat: 8.4589, lng: 124.8834 }
   },
   'Dalirig': {
-    points: [
-      { lat: 8.4023, lng: 124.9012 }, { lat: 8.4023, lng: 124.8812 },
-      { lat: 8.3823, lng: 124.8812 }, { lat: 8.3723, lng: 124.9012 },
-      { lat: 8.3823, lng: 124.9212 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4123, lng: 124.9212 }, { lat: 8.4123, lng: 124.9412 },
+          { lat: 8.3923, lng: 124.9412 }, { lat: 8.3823, lng: 124.9212 },
+          { lat: 8.3923, lng: 124.9012 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3883, lng: 124.8972 }
+    centroid: { lat: 8.4023, lng: 124.9212 }
   },
   'Damilag': {
-    points: [
-      { lat: 8.3793, lng: 124.8664 }, { lat: 8.3793, lng: 124.8464 },
-      { lat: 8.3593, lng: 124.8464 }, { lat: 8.3493, lng: 124.8664 },
-      { lat: 8.3593, lng: 124.8864 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3893, lng: 124.8764 }, { lat: 8.3893, lng: 124.8964 },
+          { lat: 8.3693, lng: 124.8964 }, { lat: 8.3593, lng: 124.8764 },
+          { lat: 8.3693, lng: 124.8564 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3653, lng: 124.8624 }
+    centroid: { lat: 8.3793, lng: 124.8764 }
   },
-  'Diclum': {
-    points: [
-      { lat: 8.4334, lng: 124.9223 }, { lat: 8.4334, lng: 124.9023 },
-      { lat: 8.4134, lng: 124.9023 }, { lat: 8.4034, lng: 124.9223 },
-      { lat: 8.4134, lng: 124.9423 }
+  'Dicklum': {
+    polygons: [
+      {
+        points: [
+          { lat: 8.3934, lng: 124.8323 }, { lat: 8.3934, lng: 124.8523 },
+          { lat: 8.3734, lng: 124.8523 }, { lat: 8.3634, lng: 124.8323 },
+          { lat: 8.3734, lng: 124.8123 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4194, lng: 124.9183 }
+    centroid: { lat: 8.3834, lng: 124.8323 }
   },
   'Guilang-guilang': {
-    points: [
-      { lat: 8.3912, lng: 124.8523 }, { lat: 8.3912, lng: 124.8323 },
-      { lat: 8.3712, lng: 124.8323 }, { lat: 8.3612, lng: 124.8523 },
-      { lat: 8.3712, lng: 124.8723 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4012, lng: 124.8623 }, { lat: 8.4012, lng: 124.8823 },
+          { lat: 8.3812, lng: 124.8823 }, { lat: 8.3712, lng: 124.8623 },
+          { lat: 8.3812, lng: 124.8423 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3772, lng: 124.8483 }
+    centroid: { lat: 8.3912, lng: 124.8623 }
   },
   'Kalugmanan': {
-    points: [
-      { lat: 8.4256, lng: 124.9067 }, { lat: 8.4256, lng: 124.8867 },
-      { lat: 8.4056, lng: 124.8867 }, { lat: 8.3956, lng: 124.9067 },
-      { lat: 8.4056, lng: 124.9267 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4356, lng: 124.9167 }, { lat: 8.4356, lng: 124.9367 },
+          { lat: 8.4156, lng: 124.9367 }, { lat: 8.4056, lng: 124.9167 },
+          { lat: 8.4156, lng: 124.8967 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4116, lng: 124.9027 }
+    centroid: { lat: 8.4256, lng: 124.9167 }
   },
   'Lindaban': {
-    points: [
-      { lat: 8.3667, lng: 124.8245 }, { lat: 8.3667, lng: 124.8045 },
-      { lat: 8.3467, lng: 124.8045 }, { lat: 8.3367, lng: 124.8245 },
-      { lat: 8.3467, lng: 124.8445 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3767, lng: 124.8345 }, { lat: 8.3767, lng: 124.8545 },
+          { lat: 8.3567, lng: 124.8545 }, { lat: 8.3467, lng: 124.8345 },
+          { lat: 8.3567, lng: 124.8145 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3527, lng: 124.8205 }
+    centroid: { lat: 8.3667, lng: 124.8345 }
   },
   'Lingion': {
-    points: [
-      { lat: 8.3334, lng: 124.8023 }, { lat: 8.3334, lng: 124.7823 },
-      { lat: 8.3134, lng: 124.7823 }, { lat: 8.3034, lng: 124.8023 },
-      { lat: 8.3134, lng: 124.8223 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3434, lng: 124.8123 }, { lat: 8.3434, lng: 124.8323 },
+          { lat: 8.3234, lng: 124.8323 }, { lat: 8.3134, lng: 124.8123 },
+          { lat: 8.3234, lng: 124.7923 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3194, lng: 124.7983 }
+    centroid: { lat: 8.3334, lng: 124.8123 }
   },
   'Lunocan': {
-    points: [
-      { lat: 8.3245, lng: 124.7934 }, { lat: 8.3245, lng: 124.7734 },
-      { lat: 8.3045, lng: 124.7734 }, { lat: 8.2945, lng: 124.7934 },
-      { lat: 8.3045, lng: 124.8134 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3345, lng: 124.8034 }, { lat: 8.3345, lng: 124.8234 },
+          { lat: 8.3145, lng: 124.8234 }, { lat: 8.3045, lng: 124.8034 },
+          { lat: 8.3145, lng: 124.7834 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3105, lng: 124.7894 }
+    centroid: { lat: 8.3245, lng: 124.8034 }
   },
   'Maluko': {
-    points: [
-      { lat: 8.3023, lng: 124.7756 }, { lat: 8.3023, lng: 124.7556 },
-      { lat: 8.2823, lng: 124.7556 }, { lat: 8.2723, lng: 124.7756 },
-      { lat: 8.2823, lng: 124.7956 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3123, lng: 124.7856 }, { lat: 8.3123, lng: 124.8056 },
+          { lat: 8.2923, lng: 124.8056 }, { lat: 8.2823, lng: 124.7856 },
+          { lat: 8.2923, lng: 124.7656 }
+        ]
+      }
     ],
-    centroid: { lat: 8.2883, lng: 124.7716 }
+    centroid: { lat: 8.3023, lng: 124.7856 }
   },
   'Mambatangan': {
-    points: [
-      { lat: 8.2912, lng: 124.7634 }, { lat: 8.2912, lng: 124.7434 },
-      { lat: 8.2712, lng: 124.7434 }, { lat: 8.2612, lng: 124.7634 },
-      { lat: 8.2712, lng: 124.7834 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3012, lng: 124.7734 }, { lat: 8.3012, lng: 124.7934 },
+          { lat: 8.2812, lng: 124.7934 }, { lat: 8.2712, lng: 124.7734 },
+          { lat: 8.2812, lng: 124.7534 }
+        ]
+      }
     ],
-    centroid: { lat: 8.2772, lng: 124.7594 }
+    centroid: { lat: 8.2912, lng: 124.7734 }
   },
   'Mampayag': {
-    points: [
-      { lat: 8.3445, lng: 124.8189 }, { lat: 8.3445, lng: 124.7989 },
-      { lat: 8.3245, lng: 124.7989 }, { lat: 8.3145, lng: 124.8189 },
-      { lat: 8.3245, lng: 124.8389 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3545, lng: 124.8289 }, { lat: 8.3545, lng: 124.8489 },
+          { lat: 8.3345, lng: 124.8489 }, { lat: 8.3245, lng: 124.8289 },
+          { lat: 8.3345, lng: 124.8089 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3305, lng: 124.8149 }
+    centroid: { lat: 8.3445, lng: 124.8289 }
   },
   'Mantibugao': {
-    points: [
-      { lat: 8.3556, lng: 124.8334 }, { lat: 8.3556, lng: 124.8134 },
-      { lat: 8.3356, lng: 124.8134 }, { lat: 8.3256, lng: 124.8334 },
-      { lat: 8.3356, lng: 124.8534 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3656, lng: 124.8434 }, { lat: 8.3656, lng: 124.8634 },
+          { lat: 8.3456, lng: 124.8634 }, { lat: 8.3356, lng: 124.8434 },
+          { lat: 8.3456, lng: 124.8234 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3416, lng: 124.8294 }
+    centroid: { lat: 8.3556, lng: 124.8434 }
   },
   'Minsuro': {
-    points: [
-      { lat: 8.3778, lng: 124.8556 }, { lat: 8.3778, lng: 124.8356 },
-      { lat: 8.3578, lng: 124.8356 }, { lat: 8.3478, lng: 124.8556 },
-      { lat: 8.3578, lng: 124.8756 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.3878, lng: 124.8656 }, { lat: 8.3878, lng: 124.8856 },
+          { lat: 8.3678, lng: 124.8856 }, { lat: 8.3578, lng: 124.8656 },
+          { lat: 8.3678, lng: 124.8456 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3638, lng: 124.8516 }
+    centroid: { lat: 8.3778, lng: 124.8656 }
   },
   'San Miguel': {
-    points: [
-      { lat: 8.3923, lng: 124.8778 }, { lat: 8.3923, lng: 124.8578 },
-      { lat: 8.3723, lng: 124.8578 }, { lat: 8.3623, lng: 124.8778 },
-      { lat: 8.3723, lng: 124.8978 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4023, lng: 124.8878 }, { lat: 8.4023, lng: 124.9078 },
+          { lat: 8.3823, lng: 124.9078 }, { lat: 8.3723, lng: 124.8878 },
+          { lat: 8.3823, lng: 124.8678 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3783, lng: 124.8738 }
+    centroid: { lat: 8.3923, lng: 124.8878 }
   },
   'Sankanan': {
-    points: [
-      { lat: 8.4045, lng: 124.8889 }, { lat: 8.4045, lng: 124.8689 },
-      { lat: 8.3845, lng: 124.8689 }, { lat: 8.3745, lng: 124.8889 },
-      { lat: 8.3845, lng: 124.9089 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4145, lng: 124.8989 }, { lat: 8.4145, lng: 124.9189 },
+          { lat: 8.3945, lng: 124.9189 }, { lat: 8.3845, lng: 124.8989 },
+          { lat: 8.3945, lng: 124.8789 }
+        ]
+      }
     ],
-    centroid: { lat: 8.3905, lng: 124.8849 }
+    centroid: { lat: 8.4045, lng: 124.8989 }
   },
   'Santiago': {
-    points: [
-      { lat: 8.4167, lng: 124.9023 }, { lat: 8.4167, lng: 124.8823 },
-      { lat: 8.3967, lng: 124.8823 }, { lat: 8.3867, lng: 124.9023 },
-      { lat: 8.3967, lng: 124.9223 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4267, lng: 124.9123 }, { lat: 8.4267, lng: 124.9323 },
+          { lat: 8.4067, lng: 124.9323 }, { lat: 8.3967, lng: 124.9123 },
+          { lat: 8.4067, lng: 124.8923 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4027, lng: 124.8983 }
+    centroid: { lat: 8.4167, lng: 124.9123 }
   },
   'Santo Niño': {
-    points: [
-      { lat: 8.4289, lng: 124.9156 }, { lat: 8.4289, lng: 124.8956 },
-      { lat: 8.4089, lng: 124.8956 }, { lat: 8.3989, lng: 124.9156 },
-      { lat: 8.4089, lng: 124.9356 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4389, lng: 124.9256 }, { lat: 8.4389, lng: 124.9456 },
+          { lat: 8.4189, lng: 124.9456 }, { lat: 8.4089, lng: 124.9256 },
+          { lat: 8.4189, lng: 124.9056 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4149, lng: 124.9116 }
+    centroid: { lat: 8.4289, lng: 124.9256 }
   },
   'Tankulan': {
-    points: [
-      { lat: 8.4412, lng: 124.9289 }, { lat: 8.4412, lng: 124.9089 },
-      { lat: 8.4212, lng: 124.9089 }, { lat: 8.4112, lng: 124.9289 },
-      { lat: 8.4212, lng: 124.9489 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4512, lng: 124.9389 }, { lat: 8.4512, lng: 124.9589 },
+          { lat: 8.4312, lng: 124.9589 }, { lat: 8.4212, lng: 124.9389 },
+          { lat: 8.4312, lng: 124.9189 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4272, lng: 124.9249 }
+    centroid: { lat: 8.4412, lng: 124.9389 }
   },
   'Ticala': {
-    points: [
-      { lat: 8.4545, lng: 124.9423 }, { lat: 8.4545, lng: 124.9223 },
-      { lat: 8.4345, lng: 124.9223 }, { lat: 8.4245, lng: 124.9423 },
-      { lat: 8.4345, lng: 124.9623 }
+    polygons: [
+      {
+        points: [
+          { lat: 8.4645, lng: 124.9523 }, { lat: 8.4645, lng: 124.9723 },
+          { lat: 8.4445, lng: 124.9723 }, { lat: 8.4345, lng: 124.9523 },
+          { lat: 8.4445, lng: 124.9323 }
+        ]
+      }
     ],
-    centroid: { lat: 8.4405, lng: 124.9383 }
+    centroid: { lat: 8.4545, lng: 124.9523 }
   }
 };
 
@@ -287,106 +375,43 @@ const optimizeImage = (blob: Blob, maxSize: number = 1024, quality: number = 0.8
   });
 };
 
-const extractExifData = async (file: File): Promise<ExifData | null> => {
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const tags = ExifReader.load(arrayBuffer);
-
-    const exifData: ExifData = {};
-    
-    // Debug logging for EXIF analysis
-    console.log('🔍 EXIF Debug - Available tags:', Object.keys(tags));
-
-    // Enhanced date/time extraction with fallbacks
-    const dateFields = ['DateTimeOriginal', 'DateTime', 'DateTimeDigitized'];
-    for (const field of dateFields) {
-      if (tags[field]?.description) {
-        exifData.dateTimeOriginal = tags[field].description;
-        console.log(`📅 EXIF Debug - Found datetime in ${field}:`, exifData.dateTimeOriginal);
-        break;
-      }
-    }
-
-    // Extract GPS coordinates if available
-    if (tags.GPSLatitude && tags.GPSLongitude && tags.GPSLatitudeRef && tags.GPSLongitudeRef) {
-      try {
-        // Handle GPS coordinate extraction with proper type checking
-        const latValues = Array.isArray(tags.GPSLatitude.value) ? tags.GPSLatitude.value : [tags.GPSLatitude.value, 0, 0];
-        const lngValues = Array.isArray(tags.GPSLongitude.value) ? tags.GPSLongitude.value : [tags.GPSLongitude.value, 0, 0];
-        const latRef = Array.isArray(tags.GPSLatitudeRef.value) ? tags.GPSLatitudeRef.value[0] : tags.GPSLatitudeRef.value;
-        const lngRef = Array.isArray(tags.GPSLongitudeRef.value) ? tags.GPSLongitudeRef.value[0] : tags.GPSLongitudeRef.value;
-
-        const lat = convertExifGpsToDecimal(
-          Number(latValues[0]) || 0,
-          Number(latValues[1]) || 0,
-          Number(latValues[2]) || 0,
-          String(latRef)
-        );
-
-        const lng = convertExifGpsToDecimal(
-          Number(lngValues[0]) || 0,
-          Number(lngValues[1]) || 0,
-          Number(lngValues[2]) || 0,
-          String(lngRef)
-        );
-
-        // Validate GPS coordinates are reasonable
-        if (isValidGPSCoordinate(lat, lng)) {
-          exifData.gpsLatitude = lat;
-          exifData.gpsLongitude = lng;
-          console.log(`🌍 EXIF Debug - Valid GPS found: ${lat}, ${lng}`);
-        } else {
-          console.warn('⚠️ EXIF Debug - Invalid GPS coordinates detected');
-        }
-      } catch (gpsError) {
-        console.error('❌ EXIF Debug - GPS conversion error:', gpsError);
-      }
-    } else {
-      console.log('📍 EXIF Debug - No GPS data in EXIF');
-    }
-
-    // Extract altitude with validation
-    if (tags.GPSAltitude?.description) {
-      const altitude = parseFloat(tags.GPSAltitude.description);
-      if (!isNaN(altitude)) {
-        exifData.gpsAltitude = altitude;
-      }
-    }
-
-    // Extract camera info
-    if (tags.Make?.description) exifData.make = tags.Make.description;
-    if (tags.Model?.description) exifData.model = tags.Model.description;
-
-    return exifData;
-  } catch (error) {
-    console.error('❌ EXIF Debug - Extraction failed:', error);
-    return null;
+// Enhanced EXIF GPS coordinate conversion
+const convertExifGpsToDecimal = (coord: any, ref: string): number => {
+  let decimal = 0;
+  
+  if (Array.isArray(coord) && coord.length >= 3) {
+    const degrees = parseFloat(coord[0]) || 0;
+    const minutes = parseFloat(coord[1]) || 0;
+    const seconds = parseFloat(coord[2]) || 0;
+    decimal = degrees + (minutes / 60) + (seconds / 3600);
+  } else if (typeof coord === 'number') {
+    decimal = coord;
+  } else if (coord?.value !== undefined) {
+    decimal = parseFloat(coord.value) || 0;
   }
+  
+  if (ref === 'S' || ref === 'W') {
+    decimal = -decimal;
+  }
+  
+  return decimal;
 };
 
-// GPS coordinate validation function
+// GPS coordinate validation
 const isValidGPSCoordinate = (lat: number, lng: number): boolean => {
-  // Basic validation for reasonable GPS coordinates
   if (isNaN(lat) || isNaN(lng)) return false;
   if (lat < -90 || lat > 90) return false;
   if (lng < -180 || lng > 180) return false;
-  
-  // Check if coordinates are not just 0,0 (common placeholder)
   if (lat === 0 && lng === 0) return false;
+  
+  // Check if coordinates are within reasonable bounds for Philippines
+  if (lat < 4 || lat > 22) return false;
+  if (lng < 116 || lng > 127) return false;
   
   return true;
 };
 
-// Helper function to convert EXIF GPS coordinates to decimal format
-const convertExifGpsToDecimal = (degrees: number, minutes: number, seconds: number, ref: string): number => {
-  let decimal = degrees + (minutes / 60) + (seconds / 3600);
-  if (ref === 'S' || ref === 'W') {
-    decimal = -decimal;
-  }
-  return decimal;
-};
-
-// Helper function to check if a point is inside a polygon
+// Point in polygon detection
 const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng: number }[]): boolean => {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -402,36 +427,85 @@ const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng:
   return inside;
 };
 
-// Function to detect barangay from coordinates using polygon detection
+// Enhanced barangay detection
 const detectBarangayFromCoordinates = (lat: number, lng: number): string | null => {
-  let closestBarangay = null;
-  let minDistance = Infinity;
-
-  for (const [barangay, polygon] of Object.entries(barangayPolygons)) {
-    // Check if point is inside the polygon
-    if (isPointInPolygon(lat, lng, polygon.points)) {
-      // Calculate distance to centroid for prioritization if multiple matches
-      const latDiff = lat - polygon.centroid.lat;
-      const lngDiff = lng - polygon.centroid.lng;
-      const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestBarangay = barangay;
+  for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
+    for (const polygon of barangayData.polygons) {
+      if (isPointInPolygon(lat, lng, polygon.points)) {
+        return barangay;
       }
     }
   }
-
-  return closestBarangay;
+  return null;
 };
 
-// Helper function to format current date/time
+// Enhanced EXIF extraction
+const extractExifData = async (file: File): Promise<ExifData | null> => {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const tags = ExifReader.load(arrayBuffer, { expanded: true });
+
+    const exifData: ExifData = {};
+    
+    // Extract GPS coordinates with better error handling
+    if ((tags as any).gps) {
+      try {
+        const gpsData = (tags as any).gps;
+        const latRef = String(gpsData.GPSLatitudeRef?.description || gpsData.GPSLatitudeRef || 'N');
+        const lngRef = String(gpsData.GPSLongitudeRef?.description || gpsData.GPSLongitudeRef || 'E');
+        
+        if (gpsData.Latitude && gpsData.Longitude) {
+          const lat = convertExifGpsToDecimal(gpsData.Latitude, latRef);
+          const lng = convertExifGpsToDecimal(gpsData.Longitude, lngRef);
+
+          if (isValidGPSCoordinate(lat, lng)) {
+            exifData.gpsLatitude = lat;
+            exifData.gpsLongitude = lng;
+            
+            const detectedBarangay = detectBarangayFromCoordinates(lat, lng);
+            if (detectedBarangay) {
+              exifData.detectedBarangay = detectedBarangay;
+            }
+          }
+        }
+      } catch (gpsError) {
+        console.error('GPS extraction error:', gpsError);
+      }
+    }
+
+    // Extract date/time
+    const dateFields = ['DateTimeOriginal', 'DateTime', 'DateTimeDigitized'];
+    for (const field of dateFields) {
+      const exifData_any = (tags as any).exif;
+      const ifd0Data = (tags as any).ifd0;
+      const dateValue = exifData_any?.[field]?.description || ifd0Data?.[field]?.description;
+      if (dateValue && typeof dateValue === 'string') {
+        exifData.dateTimeOriginal = dateValue.replace(/:/g, '-').replace(' ', 'T') + 'Z';
+        break;
+      }
+    }
+
+    // Extract camera info
+    const exifData_any = (tags as any).exif;
+    if (exifData_any?.Make?.description) {
+      exifData.make = exifData_any.Make.description;
+    }
+    if (exifData_any?.Model?.description) {
+      exifData.model = exifData_any.Model.description;
+    }
+
+    return exifData;
+    
+  } catch (error) {
+    console.error('EXIF extraction failed:', error);
+    return null;
+  }
+};
+
 const getCurrentDateTime = (): string => {
-  const now = new Date();
-  return now.toISOString();
+  return new Date().toISOString();
 };
 
-// Helper function to format date for display
 const formatDateTimeForDisplay = (dateTime: string): string => {
   const date = new Date(dateTime);
   return date.toLocaleString('en-US', {
@@ -468,58 +542,10 @@ const SubmitHazards: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [imagePreview, setImagePreview] = useState<string[]>([]);
-  const [autoDetectedBarangay, setAutoDetectedBarangay] = useState(false);
-  const [exifData, setExifData] = useState<ExifData[]>([]);
-  const [photoDateTime, setPhotoDateTime] = useState<string>('');
-  const [manualDateTime, setManualDateTime] = useState(false);
+  const [hasPhotoData, setHasPhotoData] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [needsLocation, setNeedsLocation] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // One-click automatic location
-  const getCurrentLocation = async () => {
-    setLocationLoading(true);
-    try {
-      const coordinates = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 30000,
-        maximumAge: 60000
-      });
-
-      const { latitude, longitude } = coordinates.coords;
-
-      // Detect barangay from current location
-      const detectedBarangay = detectBarangayFromCoordinates(latitude, longitude);
-      const gpsLocationString = `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-
-      setFormData(prev => ({
-        ...prev,
-        coordinates: { lat: latitude, lng: longitude },
-        barangay: detectedBarangay || prev.barangay,
-        location: gpsLocationString
-      }));
-
-      if (detectedBarangay) {
-        setAutoDetectedBarangay(true);
-        setToastMessage(`Location captured! Detected barangay: ${detectedBarangay}`);
-      } else {
-        setAutoDetectedBarangay(false);
-        setToastMessage('Location captured! Please select your barangay manually.');
-      }
-
-      setShowToast(true);
-      setNeedsLocation(false);
-
-    } catch (error: any) {
-      console.error('Location error:', error);
-      setAlertMessage('Failed to get location. Please enable location services and try again.');
-      setShowAlert(true);
-    } finally {
-      setLocationLoading(false);
-    }
-  };
-
 
   const hazardCategories = [
     'Road Hazards',
@@ -531,66 +557,81 @@ const SubmitHazards: React.FC = () => {
     'Others'
   ];
 
-  // Updated barangay list for Manolo Fortich
   const barangayList = Object.keys(barangayPolygons);
 
-  // Process image and extract EXIF data with enhanced handling
-  const processImage = async (imageBlob: Blob, source: string): Promise<{ file: File; exif: ExifData | null }> => {
-    // Extract EXIF data before optimization (optimization may strip EXIF)
+  const processImage = async (imageBlob: Blob): Promise<{ file: File; exif: ExifData | null }> => {
     const exif = await extractExifData(new File([imageBlob], 'temp.jpg', { type: 'image/jpeg' }));
-
-    // Optimize the image
     const optimizedBlob = await optimizeImage(imageBlob, 1024, 0.8);
     const file = new File([optimizedBlob], `hazard-${Date.now()}.jpg`, { type: 'image/jpeg' });
 
     return { file, exif };
   };
 
+  const handleExifData = (exif: ExifData | null, currentDateTime: string) => {
+    let message = 'Photo added successfully!';
+    let hasGPS = false;
+    let hasDateTime = false;
 
-  // Enhanced photo capture with better EXIF handling
+    if (exif?.gpsLatitude && exif?.gpsLongitude) {
+      const gpsLocationString = `GPS: ${exif.gpsLatitude.toFixed(6)}, ${exif.gpsLongitude.toFixed(6)}`;
+      
+      setFormData(prev => ({
+        ...prev,
+        coordinates: { lat: exif.gpsLatitude!, lng: exif.gpsLongitude! },
+        location: gpsLocationString,
+        barangay: exif.detectedBarangay || prev.barangay
+      }));
+
+      if (exif.detectedBarangay) {
+        message += ` Location and barangay auto-detected: ${exif.detectedBarangay}`;
+      } else {
+        message += ' GPS location extracted, please select barangay manually.';
+      }
+      hasGPS = true;
+    }
+
+    if (exif?.dateTimeOriginal) {
+      setFormData(prev => ({ ...prev, photo_datetime: exif.dateTimeOriginal! }));
+      message += ' Photo date/time extracted.';
+      hasDateTime = true;
+    } else {
+      setFormData(prev => ({ ...prev, photo_datetime: currentDateTime }));
+    }
+
+    setHasPhotoData(hasGPS || hasDateTime);
+    setToastMessage(message);
+    setShowToast(true);
+  };
+
   const takePhoto = async () => {
     try {
       const image = await Camera.getPhoto({
         resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
-        quality: 85,
+        quality: 90,
         allowEditing: false,
         width: 1920,
-        height: 1920
+        height: 1920,
+        saveToGallery: true
       });
 
       if (image.webPath) {
         const response = await fetch(image.webPath);
         const blob = await response.blob();
 
-        // Process image and extract EXIF
-        const { file, exif } = await processImage(blob, 'camera');
-
-        // Set current datetime automatically when taking a photo
+        const { file, exif } = await processImage(blob);
         const currentDateTime = getCurrentDateTime();
 
         setFormData(prev => ({
           ...prev,
           images: [...prev.images, file],
-          photo_datetime: exif?.dateTimeOriginal || currentDateTime,
           current_datetime: currentDateTime
         }));
 
         setImagePreview(prev => [...prev, image.webPath!]);
-        setExifData(prev => [...prev, exif || {}]);
-
-        // Handle EXIF data automatically
-        if (exif) {
-          handleExifData(exif, currentDateTime);
-        } else {
-          // If no EXIF, use current datetime
-          setPhotoDateTime(formatDateTimeForDisplay(currentDateTime));
-          setToastMessage('Photo captured! Current date/time recorded automatically.');
-          setShowToast(true);
-        }
+        handleExifData(exif, currentDateTime);
       }
     } catch (error: any) {
-      console.error('Camera error:', error);
       if (!error.message?.includes('User cancelled')) {
         setAlertMessage('Failed to capture photo. Please try again.');
         setShowAlert(true);
@@ -598,44 +639,31 @@ const SubmitHazards: React.FC = () => {
     }
   };
 
-  // Enhanced gallery selection with EXIF handling
   const selectFromGallery = async () => {
     try {
       const image = await Camera.getPhoto({
         resultType: CameraResultType.Uri,
         source: CameraSource.Photos,
-        quality: 85
+        quality: 90
       });
 
       if (image.webPath) {
         const response = await fetch(image.webPath);
         const blob = await response.blob();
 
-        const { file, exif } = await processImage(blob, 'gallery');
-
+        const { file, exif } = await processImage(blob);
         const currentDateTime = getCurrentDateTime();
 
         setFormData(prev => ({
           ...prev,
           images: [...prev.images, file],
-          photo_datetime: exif?.dateTimeOriginal || currentDateTime,
           current_datetime: currentDateTime
         }));
 
         setImagePreview(prev => [...prev, image.webPath!]);
-        setExifData(prev => [...prev, exif || {}]);
-
-        if (exif) {
-          handleExifData(exif, currentDateTime);
-        } else {
-          setPhotoDateTime(formatDateTimeForDisplay(currentDateTime));
-          setManualDateTime(true);
-          setToastMessage('Image selected! Current date/time recorded. Please enter original date/time if needed.');
-          setShowToast(true);
-        }
+        handleExifData(exif, currentDateTime);
       }
     } catch (error: any) {
-      console.error('Gallery selection error:', error);
       if (!error.message?.includes('User cancelled')) {
         setAlertMessage('Failed to select image. Please try again.');
         setShowAlert(true);
@@ -668,30 +696,18 @@ const SubmitHazards: React.FC = () => {
 
       try {
         const previewUrl = URL.createObjectURL(file);
-        const { file: optimizedFile, exif } = await processImage(file, 'file');
-
+        const { file: optimizedFile, exif } = await processImage(file);
         const currentDateTime = getCurrentDateTime();
 
         setFormData(prev => ({
           ...prev,
           images: [...prev.images, optimizedFile],
-          photo_datetime: exif?.dateTimeOriginal || currentDateTime,
           current_datetime: currentDateTime
         }));
 
         setImagePreview(prev => [...prev, previewUrl]);
-        setExifData(prev => [...prev, exif || {}]);
-
-        if (exif) {
-          handleExifData(exif, currentDateTime);
-        } else {
-          setPhotoDateTime(formatDateTimeForDisplay(currentDateTime));
-          setManualDateTime(true);
-          setToastMessage('Image selected! Current date/time recorded. Please enter original date/time if needed.');
-          setShowToast(true);
-        }
+        handleExifData(exif, currentDateTime);
       } catch (error) {
-        console.error('File processing error:', error);
         setAlertMessage('Failed to process image. Please try another file.');
         setShowAlert(true);
       }
@@ -699,80 +715,63 @@ const SubmitHazards: React.FC = () => {
     event.target.value = '';
   };
 
-  // Centralized EXIF data handling with automatic datetime and location
-  const handleExifData = async (exif: ExifData | null, currentDateTime: string) => {
-    let hasUpdates = false;
-    let message = 'Photo processed successfully!';
+  const getCurrentLocation = async () => {
+    setLocationLoading(true);
+    try {
+      const coordinates = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 30000,
+        maximumAge: 60000
+      });
 
-    // Reset location states when processing new photo
-    setNeedsLocation(false);
-
-    // Always handle date/time - prefer EXIF, fallback to current time
-    const effectiveDateTime = exif?.dateTimeOriginal || currentDateTime;
-    setPhotoDateTime(formatDateTimeForDisplay(effectiveDateTime));
-    setFormData(prev => ({ ...prev, photo_datetime: effectiveDateTime }));
-    hasUpdates = true;
-
-    if (exif?.dateTimeOriginal) {
-      message += ' Original photo date/time automatically filled.';
-    } else {
-      message += ' Current date/time recorded.';
-    }
-
-    // Handle GPS coordinates from EXIF
-    if (exif?.gpsLatitude && exif?.gpsLongitude) {
-      const detectedBarangay = detectBarangayFromCoordinates(
-        exif.gpsLatitude,
-        exif.gpsLongitude
-      );
-
-      // Always populate location field with GPS coordinates
-      const gpsLocationString = `GPS: ${exif.gpsLatitude.toFixed(6)}, ${exif.gpsLongitude.toFixed(6)}`;
+      const { latitude, longitude } = coordinates.coords;
+      const detectedBarangay = detectBarangayFromCoordinates(latitude, longitude);
+      const gpsLocationString = `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 
       setFormData(prev => ({
         ...prev,
-        coordinates: { lat: exif.gpsLatitude!, lng: exif.gpsLongitude! },
+        coordinates: { lat: latitude, lng: longitude },
         barangay: detectedBarangay || prev.barangay,
-        location: gpsLocationString // Always fill with GPS coordinates
+        location: gpsLocationString
       }));
 
       if (detectedBarangay) {
-        setAutoDetectedBarangay(true);
-        message += ` Location, GPS coordinates, and barangay automatically filled from photo: ${detectedBarangay}.`;
+        setToastMessage(`Current location captured! Detected barangay: ${detectedBarangay}`);
       } else {
-        setAutoDetectedBarangay(false);
-        message += ` GPS coordinates automatically filled from photo. Please select barangay manually.`;
+        setToastMessage('Current location captured! Please select your barangay manually.');
       }
-      hasUpdates = true;
-    } else {
-      // No GPS data in photo - show one-click location button
-      message += ' ⚠️ No GPS location data found in photo. Use the button below to get your current location.';
-      setNeedsLocation(true);
-    }
 
-    setToastMessage(message);
-    setShowToast(true);
+      setShowToast(true);
+      setHasPhotoData(true);
+
+    } catch (error: any) {
+      setAlertMessage('Failed to get location. Please enable location services and try again.');
+      setShowAlert(true);
+    } finally {
+      setLocationLoading(false);
+    }
   };
 
-  // Remove image
   const removeImage = (index: number) => {
     setFormData(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
     }));
     setImagePreview(prev => prev.filter((_, i) => i !== index));
-    setExifData(prev => prev.filter((_, i) => i !== index));
 
-    // Reset manual datetime if no images left
     if (formData.images.length === 1) {
-      setManualDateTime(false);
-      setPhotoDateTime('');
+      setHasPhotoData(false);
+      setFormData(prev => ({
+        ...prev,
+        coordinates: null,
+        location: '',
+        barangay: '',
+        photo_datetime: ''
+      }));
     }
   };
 
-  // Submit hazard report with enhanced validation
   const submitReport = async () => {
-    // Enhanced validation
     if (!formData.category) {
       setAlertMessage('Please select a hazard category.');
       setShowAlert(true);
@@ -804,8 +803,6 @@ const SubmitHazards: React.FC = () => {
       if (userError || !user) {
         throw new Error('User not authenticated. Please log in first.');
       }
-
-      console.log('Starting image upload process...');
 
       // Upload images to Supabase storage
       const imageUrls: string[] = [];
@@ -845,10 +842,22 @@ const SubmitHazards: React.FC = () => {
         console.warn('Could not fetch user profile:', profileError);
       }
 
-      // Prepare enhanced report data
-      const reportData: any = {
-        title: formData.category, // Category as title
-        description: formData.description.trim(),
+      // Prepare report data with metadata
+      let description = formData.description.trim();
+      
+      if (formData.photo_datetime) {
+        description += `\n\n[Photo Date: ${formatDateTimeForDisplay(formData.photo_datetime)}]`;
+      }
+      
+      description += `\n\n[Report Submitted: ${formatDateTimeForDisplay(formData.current_datetime || getCurrentDateTime())}]`;
+      
+      if (formData.coordinates) {
+        description += `\n\n[GPS Location: ${formData.coordinates.lat.toFixed(6)}, ${formData.coordinates.lng.toFixed(6)}]`;
+      }
+
+      const reportData = {
+        title: formData.category,
+        description: description,
         category: formData.category,
         priority: formData.priority,
         location: formData.location.trim(),
@@ -862,41 +871,6 @@ const SubmitHazards: React.FC = () => {
         updated_at: new Date().toISOString()
       };
 
-      // Add metadata to description
-      let metadataString = '';
-      
-      if (exifData.length > 0) {
-        const metadataParts = exifData.map(exif => {
-          const metadata = [];
-          if (exif?.dateTimeOriginal) metadata.push(`Taken: ${exif.dateTimeOriginal}`);
-          if (exif?.gpsLatitude && exif?.gpsLongitude) {
-            metadata.push(`GPS: ${exif.gpsLatitude.toFixed(6)}, ${exif.gpsLongitude.toFixed(6)}`);
-          }
-          if (exif?.make && exif?.model) metadata.push(`Camera: ${exif.make} ${exif.model}`);
-          return metadata.join(', ');
-        }).filter(m => m);
-        
-        if (metadataParts.length > 0) {
-          metadataString += `\n\n[Photo Metadata: ${metadataParts.join(' | ')}]`;
-        }
-      }
-
-      if (formData.photo_datetime) {
-        metadataString += `\n\n[Photo Date: ${formatDateTimeForDisplay(formData.photo_datetime)}]`;
-      }
-
-      if (formData.current_datetime) {
-        metadataString += `\n\n[Report Submitted: ${formatDateTimeForDisplay(formData.current_datetime)}]`;
-      }
-
-      if (formData.coordinates && typeof formData.coordinates.lat === 'number' && typeof formData.coordinates.lng === 'number') {
-        metadataString += `\n\n[Location: ${formData.coordinates.lat.toFixed(6)}, ${formData.coordinates.lng.toFixed(6)}]`;
-      }
-
-      reportData.description += metadataString;
-
-      console.log('Inserting report data:', reportData);
-
       const { data: insertData, error: insertError } = await supabase
         .from('hazard_reports')
         .insert(reportData)
@@ -906,8 +880,6 @@ const SubmitHazards: React.FC = () => {
       if (insertError) {
         throw new Error(`Failed to submit report: ${insertError.message}`);
       }
-
-      console.log('Report submitted successfully:', insertData);
 
       // Reset form
       setFormData({
@@ -925,10 +897,8 @@ const SubmitHazards: React.FC = () => {
         current_datetime: getCurrentDateTime()
       });
       setImagePreview([]);
-      setAutoDetectedBarangay(false);
-      setExifData([]);
-      setPhotoDateTime('');
-      setManualDateTime(false);
+      setHasPhotoData(false);
+      setLocationLoading(false);
 
       setShowSuccessModal(true);
 
@@ -1118,8 +1088,8 @@ const SubmitHazards: React.FC = () => {
               </div>
             )}
 
-            {/* Enhanced Photo Metadata Display */}
-            {(photoDateTime || formData.coordinates || exifData.some(exif => exif?.make || exif?.model)) && (
+            {/* Auto-Extracted Photo Data */}
+            {hasPhotoData && (
               <div style={{
                 background: '#f0f9ff',
                 border: '1px solid #93c5fd',
@@ -1136,81 +1106,26 @@ const SubmitHazards: React.FC = () => {
                   alignItems: 'center'
                 }}>
                   <IonIcon icon={informationCircleOutline} style={{ marginRight: '6px' }} />
-                  Auto-Extracted Photo Data
+                  Auto-Extracted Data
                 </p>
 
-                {photoDateTime && (
-                  <div style={{ marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', color: '#374151', fontWeight: '500' }}>
-                      <IonIcon icon={calendarOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
-                      Date/Time: 
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#1e40af', marginLeft: '4px' }}>{photoDateTime}</span>
+                {formData.photo_datetime && (
+                  <div style={{ marginBottom: '8px', fontSize: '12px', color: '#1e40af' }}>
+                    Date/Time: {formatDateTimeForDisplay(formData.photo_datetime)}
                   </div>
                 )}
 
-                {formData.coordinates && typeof formData.coordinates.lat === 'number' && typeof formData.coordinates.lng === 'number' && (
-                  <div style={{ marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', color: '#374151', fontWeight: '500' }}>
-                      <IonIcon icon={navigateOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
-                      GPS Location: 
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#1e40af', marginLeft: '4px' }}>
-                      {formData.coordinates.lat.toFixed(6)}, {formData.coordinates.lng.toFixed(6)}
-                    </span>
+                {formData.coordinates && (
+                  <div style={{ marginBottom: '8px', fontSize: '12px', color: '#1e40af' }}>
+                    GPS: {formData.coordinates.lat.toFixed(6)}, {formData.coordinates.lng.toFixed(6)}
                   </div>
                 )}
 
-                {exifData.filter(exif => exif?.make && exif?.model).length > 0 && (
-                  <div style={{ marginBottom: '4px' }}>
-                    <span style={{ fontSize: '12px', color: '#374151', fontWeight: '500' }}>
-                      <IonIcon icon={cameraOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
-                      Camera: 
-                    </span>
-                    {exifData
-                      .filter(exif => exif?.make && exif?.model)
-                      .map((exif, index) => exif && (
-                        <span key={index} style={{ fontSize: '12px', color: '#1e40af', marginLeft: '4px' }}>
-                          {exif.make} {exif.model}
-                        </span>
-                      ))
-                    }
+                {formData.barangay && (
+                  <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: 'bold' }}>
+                    Barangay: {formData.barangay}
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Manual Date/Time Input - Only show if manual override is needed */}
-            {manualDateTime && (
-              <div style={{
-                background: '#fffbeb',
-                border: '1px solid #fbbf24',
-                borderRadius: '8px',
-                padding: '12px',
-                marginTop: '12px'
-              }}>
-                <p style={{
-                  fontSize: '14px',
-                  color: '#92400e',
-                  margin: '0 0 12px 0',
-                  fontWeight: '600'
-                }}>
-                  <IonIcon icon={timeOutline} style={{ marginRight: '6px' }} />
-                  Override Photo Date/Time (Optional)
-                </p>
-                <IonItem style={{ '--background': 'transparent', '--padding-start': '0' } as any}>
-                  <IonLabel position="stacked">When was this photo actually taken?</IonLabel>
-                  <IonInput
-                    type="datetime-local"
-                    value={formData.photo_datetime ? new Date(formData.photo_datetime).toISOString().slice(0, 16) : ''}
-                    onIonChange={e => {
-                      const newDateTime = e.detail.value ? new Date(e.detail.value).toISOString() : formData.current_datetime;
-                      setFormData(prev => ({ ...prev, photo_datetime: newDateTime }));
-                      setPhotoDateTime(formatDateTimeForDisplay(newDateTime!));
-                    }}
-                    style={{ '--color': '#92400e' }}
-                  />
-                </IonItem>
               </div>
             )}
           </IonCardContent>
@@ -1222,62 +1137,11 @@ const SubmitHazards: React.FC = () => {
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
               Location Information
             </IonCardTitle>
-            <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0 0' }}>
-              Location data will be automatically extracted from your photos
-            </p>
           </IonCardHeader>
           <IonCardContent>
-            {/* Info message about automatic location detection */}
-            {!formData.coordinates && !needsLocation && (
-              <div style={{
-                background: '#f0f9ff',
-                border: '1px solid #93c5fd',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '16px'
-              }}>
-                <p style={{
-                  fontSize: '14px',
-                  color: '#1e40af',
-                  margin: 0,
-                  display: 'flex',
-                  alignItems: 'center'
-                }}>
-                  <IonIcon icon={informationCircleOutline} style={{ marginRight: '6px' }} />
-                  📸 Take a photo to automatically capture GPS coordinates, date/time, and location data
-                </p>
-              </div>
-            )}
-
-            {/* One-click Location Button */}
-            {needsLocation && (
-              <div style={{
-                background: '#fef3c7',
-                border: '1px solid #f59e0b',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '16px'
-              }}>
-                <p style={{
-                  fontSize: '16px',
-                  color: '#92400e',
-                  margin: '0 0 16px 0',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}>
-                  <IonIcon icon={locationOutline} style={{ marginRight: '8px' }} />
-                  No GPS Data in Photo
-                </p>
-
-                <p style={{
-                  fontSize: '14px',
-                  color: '#92400e',
-                  margin: '0 0 16px 0'
-                }}>
-                  Your photo doesn't contain GPS data. Click below to automatically get your current location:
-                </p>
-
+            {/* Show current location button only if no coordinates from photo */}
+            {!formData.coordinates && (
+              <div style={{ marginBottom: '16px' }}>
                 <IonButton
                   expand="block"
                   onClick={getCurrentLocation}
@@ -1294,92 +1158,35 @@ const SubmitHazards: React.FC = () => {
                   ) : (
                     <IonIcon icon={navigateOutline} slot="start" />
                   )}
-                  {locationLoading ? 'Getting Location...' : '📍 Get My Current Location'}
+                  {locationLoading ? 'Getting Location...' : 'Get Current Location'}
                 </IonButton>
-
-                <p style={{
-                  fontSize: '12px',
-                  color: '#92400e',
-                  margin: '12px 0 0 0',
-                  textAlign: 'center'
-                }}>
-                  ✨ One click to automatically capture precise GPS coordinates
-                </p>
               </div>
             )}
 
-            {formData.coordinates && typeof formData.coordinates.lat === 'number' && typeof formData.coordinates.lng === 'number' && (
-              <div style={{
-                background: '#f0fff4',
-                border: '1px solid #bbf7d0',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '16px'
-              }}>
-                <p style={{
-                  fontSize: '12px',
-                  color: '#166534',
-                  margin: '0 0 4px 0',
-                  fontWeight: '600'
-                }}>
-                  GPS Coordinates Captured
-                </p>
-                <p style={{ fontSize: '11px', color: '#15803d', margin: 0 }}>
-                  Lat: {formData.coordinates.lat.toFixed(6)}, Lng: {formData.coordinates.lng.toFixed(6)}
-                </p>
-              </div>
-            )}
-
-            {autoDetectedBarangay && formData.barangay && (
-              <div style={{
-                background: '#f0f9ff',
-                border: '1px solid #93c5fd',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '16px'
-              }}>
-                <p style={{
-                  fontSize: '12px',
-                  color: '#1e40af',
-                  margin: '0 0 4px 0',
-                  fontWeight: '600'
-                }}>
-                  Barangay Auto-Detected
-                </p>
-                <p style={{ fontSize: '14px', color: '#1e40af', margin: 0, fontWeight: 'bold' }}>
-                  {formData.barangay}
-                </p>
-              </div>
-            )}
-
-            {!autoDetectedBarangay && (
-              <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
-                <IonLabel position="stacked">
-                  Barangay <span style={{ color: '#ef4444' }}>*</span>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>Auto-detected from photo GPS coordinates</p>
-                </IonLabel>
-                <IonSelect
-                  value={formData.barangay}
-                  onIonChange={e => setFormData(prev => ({ ...prev, barangay: e.detail.value }))}
-                  interface="popover"
-                  placeholder="Select your barangay"
-                >
-                  {barangayList.map(barangay => (
-                    <IonSelectOption key={barangay} value={barangay}>{barangay}</IonSelectOption>
-                  ))}
-                </IonSelect>
-              </IonItem>
-            )}
+            <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
+              <IonLabel position="stacked">
+                Barangay <span style={{ color: '#ef4444' }}>*</span>
+              </IonLabel>
+              <IonSelect
+                value={formData.barangay}
+                onIonChange={e => setFormData(prev => ({ ...prev, barangay: e.detail.value }))}
+                interface="popover"
+                placeholder="Select your barangay"
+              >
+                {barangayList.map(barangay => (
+                  <IonSelectOption key={barangay} value={barangay}>{barangay}</IonSelectOption>
+                ))}
+              </IonSelect>
+            </IonItem>
 
             <IonItem style={{ '--border-radius': '12px' } as any}>
               <IonLabel position="stacked">
                 Specific Location/Address
-                <p style={{ fontSize: '12px', color: '#6b7280', margin: '2px 0 0 0' }}>Auto-filled with GPS coordinates from photo</p>
               </IonLabel>
               <IonInput
                 value={formData.location}
                 onIonChange={e => setFormData(prev => ({ ...prev, location: e.detail.value! }))}
-                placeholder="GPS coordinates will be automatically filled from photo"
+                placeholder="Specific location or address"
               />
             </IonItem>
           </IonCardContent>
@@ -1470,24 +1277,6 @@ const SubmitHazards: React.FC = () => {
               <IonIcon icon={warningOutline} slot="start" />
               {isSubmitting ? 'Submitting Report...' : 'SUBMIT HAZARD REPORT'}
             </IonButton>
-
-            <div style={{
-              background: '#fffbeb',
-              border: '1px solid #fbbf24',
-              borderRadius: '8px',
-              padding: '12px',
-              marginTop: '16px'
-            }}>
-              <p style={{
-                fontSize: '12px',
-                color: '#92400e',
-                margin: 0,
-                lineHeight: '1.4'
-              }}>
-                <IonIcon icon={informationCircleOutline} style={{ marginRight: '4px' }} />
-                Reports are reviewed by LDRRMO personnel. Response time varies based on priority level.
-              </p>
-            </div>
           </IonCardContent>
         </IonCard>
       </div>
@@ -1535,7 +1324,7 @@ const SubmitHazards: React.FC = () => {
             </p>
 
             <IonButton
-              routerLink="/it35-lab2/app/home/reports"
+              routerLink="/it35-lab2/app/reports"
               expand="block"
               size="large"
               onClick={() => setShowSuccessModal(false)}
