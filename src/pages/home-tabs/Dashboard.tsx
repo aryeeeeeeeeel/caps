@@ -135,14 +135,14 @@ const Dashboard: React.FC = () => {
       if (!user) {
         // Use mock data when no user is logged in
         setStats({
-          totalReports: 25,
-          pendingReports: 8,
-          investigatingReports: 12,
-          resolvedReports: 5,
-          myReports: 3,
-          recentActivity: mockRecentActivity
+          totalReports: 0,
+          pendingReports: 0,
+          investigatingReports: 0,
+          resolvedReports: 0,
+          myReports: 0,
+          recentActivity: []
         });
-        setRecentReports(mockReports);
+        setRecentReports([]);
         setIsLoading(false);
         return;
       }
@@ -182,45 +182,32 @@ const Dashboard: React.FC = () => {
         setRecentReports(allReports?.slice(0, 3) || []);
 
       } catch (reportsError) {
-        console.warn('Database not available, using mock data:', reportsError);
-        // Use mock data when database is not available
+        console.warn('Database not available:', reportsError);
         setStats({
-          totalReports: 25,
-          pendingReports: 8,
-          investigatingReports: 12,
-          resolvedReports: 5,
-          myReports: 3,
-          recentActivity: mockRecentActivity
+          totalReports: 0,
+          pendingReports: 0,
+          investigatingReports: 0,
+          resolvedReports: 0,
+          myReports: 0,
+          recentActivity: []
         });
-        setRecentReports(mockReports);
+        setRecentReports([]);
       }
 
-      // Set weather info (mock for development)
-      setWeatherInfo({
-        temperature: '28°C',
-        condition: 'Partly Cloudy',
-        humidity: '75%',
-        windSpeed: '12 km/h'
-      });
-
+      setWeatherInfo(null);
     } catch (error) {
       console.warn('Error in fetchDashboardData, using fallback data:', error);
-      // Use mock data as final fallback
+      // Remove all mock data fallback
       setStats({
-        totalReports: 25,
-        pendingReports: 8,
-        investigatingReports: 12,
-        resolvedReports: 5,
-        myReports: 3,
-        recentActivity: mockRecentActivity
+        totalReports: 0,
+        pendingReports: 0,
+        investigatingReports: 0,
+        resolvedReports: 0,
+        myReports: 0,
+        recentActivity: []
       });
-      setRecentReports(mockReports);
-      setWeatherInfo({
-        temperature: '28°C',
-        condition: 'Partly Cloudy',
-        humidity: '75%',
-        windSpeed: '12 km/h'
-      });
+      setRecentReports([]);
+      setWeatherInfo(null);
     } finally {
       setIsLoading(false);
     }
@@ -236,52 +223,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const mockReports = [
-    {
-      id: '1',
-      title: 'Pothole on Main Road',
-      status: 'investigating',
-      created_at: new Date().toISOString(),
-      location: 'Main Street',
-      barangay: 'Poblacion',
-      priority: 'medium'
-    },
-    {
-      id: '2',
-      title: 'Fallen Tree Branch',
-      status: 'resolved',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      location: 'Park Avenue',
-      barangay: 'Damilag',
-      priority: 'low'
-    },
-    {
-      id: '3',
-      title: 'Broken Street Light',
-      status: 'pending',
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-      location: 'School Road',
-      barangay: 'San Miguel',
-      priority: 'high'
-    }
-  ];
-
-  const mockRecentActivity = [
-    {
-      id: '1',
-      title: 'New hazard report submitted',
-      description: 'Pothole reported on Main Street',
-      timestamp: new Date().toISOString(),
-      type: 'report'
-    },
-    {
-      id: '2',
-      title: 'Report status updated',
-      description: 'Fallen tree issue has been resolved',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      type: 'update'
-    }
-  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {

@@ -34,9 +34,9 @@ import { supabase } from '../utils/supabaseClient';
 
 // Import all page components
 import Dashboard from './home-tabs/Dashboard';
-import SubmitHazards from './home-tabs/SubmitHazards';
+import IncidentReport from './home-tabs/IncidentReport';
 import ViewHazardMap from './home-tabs/ViewHazardMap';
-import MyReports from './home-tabs/MyReports';
+import History from './home-tabs/History';
 import Notifications from './home-tabs/Notifications';
 import GiveFeedback from './home-tabs/GiveFeedback';
 
@@ -52,9 +52,9 @@ const Home: React.FC = () => {
 
   const tabs = [
     { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
-    { name: 'Submit Hazard', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
-    { name: 'Hazard Map', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
-    { name: 'My Reports', tab: 'reports', url: '/it35-lab2/app/reports', icon: listOutline },
+    { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
+    { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
+    { name: 'History', tab: 'reports', url: '/it35-lab2/app/reports', icon: listOutline },
   ];
 
   useEffect(() => {
@@ -227,7 +227,7 @@ const Home: React.FC = () => {
                     <div style={{
                       width: '60px',
                       height: '60px',
-                      background: 'rg�(255,255,255,0.2)',
+                      background: 'rgba(255,255,255,0.2)',
                       borderRadius: '50%',
                       margin: '0 auto 12px',
                       display: 'flex',
@@ -336,16 +336,16 @@ const Home: React.FC = () => {
         </IonContent>
       </IonPopover>
 
-      <IonContent fullscreen>
+      <IonContent>
         <IonTabs>
           <IonRouterOutlet>
             <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
-            <Route exact path="/it35-lab2/app/submit" component={SubmitHazards} />
+            <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
             <Route exact path="/it35-lab2/app/map" component={ViewHazardMap} />
-            <Route exact path="/it35-lab2/app/reports" component={MyReports} />
+            <Route exact path="/it35-lab2/app/reports" component={History} />
             <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
             <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
-            <Route exact path="/it35-lab2/app/reports/:id" component={MyReports} />
+            
             <Route exact path="/it35-lab2/app">
               <Redirect to="/it35-lab2/app/dashboard" />
             </Route>

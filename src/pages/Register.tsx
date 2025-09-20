@@ -24,7 +24,7 @@ import {
 } from '@ionic/react';
 import { supabase } from '../utils/supabaseClient';
 import bcrypt from 'bcryptjs';
-import { personAddOutline, mailOutline, lockClosedOutline, personOutline, checkmarkCircleOutline, arrowBackOutline, schoolOutline } from 'ionicons/icons';
+import { personAddOutline, mailOutline, lockClosedOutline, personOutline, checkmarkCircleOutline, arrowBackOutline, schoolOutline, callOutline, locationOutline } from 'ionicons/icons';
 
 // Reusable Alert Component
 const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
@@ -43,6 +43,8 @@ const Register: React.FC = () => {
     const [username, setUsername] = useState('');
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
+    const [address, setAddress] = useState('');
+    const [contactNumber, setContactNumber] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -65,14 +67,36 @@ const Register: React.FC = () => {
             return;
         }
 
-        if (!email.endsWith("@nbsc.edu.ph")) {
-            setAlertMessage("Only @nbsc.edu.ph institutional emails are allowed to register for community safety reporting.");
+        if (!address.trim()) {
+            setAlertMessage("Please enter your address.");
             setShowAlert(true);
             return;
         }
 
-        if (password.length < 6) {
-            setAlertMessage("Password must be at least 6 characters long.");
+        if (!contactNumber.trim()) {
+            setAlertMessage("Please enter your contact number.");
+            setShowAlert(true);
+            return;
+        }
+
+        if (!email.trim()) {
+            setAlertMessage("Please enter your email address.");
+            setShowAlert(true);
+            return;
+        }
+
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setAlertMessage("Please enter a valid email address.");
+            setShowAlert(true);
+            return;
+        }
+
+        // Password validation regex: At least 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special symbol
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            setAlertMessage("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special symbol.");
             setShowAlert(true);
             return;
         }
@@ -109,6 +133,8 @@ const Register: React.FC = () => {
                     user_email: email,
                     user_firstname: firstName,
                     user_lastname: lastName,
+                    user_address: address,
+                    user_contact_number: contactNumber,
                     user_password: hashedPassword,
                 },
             ]);
@@ -341,14 +367,80 @@ const Register: React.FC = () => {
                                         fontSize: '13px',
                                         fontWeight: '600',
                                         color: '#2d3748'
-                                    }}>NBSC Email Address</label>
+                                    }}>Email Address</label>
                                 </div>
                                 <IonInput
                                     fill="outline"
                                     type="email"
-                                    placeholder="your.name@nbsc.edu.ph"
+                                    placeholder="your.name@example.com"
                                     value={email}
                                     onIonChange={e => setEmail(e.detail.value!)}
+                                    style={{
+                                        '--border-radius': '10px',
+                                        '--border-color': '#e2e8f0',
+                                        '--padding-start': '12px',
+                                        '--padding-end': '12px',
+                                        fontSize: '15px'
+                                    } as any}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    marginBottom: '8px'
+                                }}>
+                                    <IonIcon icon={locationOutline} style={{
+                                        fontSize: '16px',
+                                        color: '#4a5568',
+                                        marginRight: '6px'
+                                    }} />
+                                    <label style={{
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        color: '#2d3748'
+                                    }}>Address</label>
+                                </div>
+                                <IonInput
+                                    fill="outline"
+                                    type="text"
+                                    placeholder="Your full address"
+                                    value={address}
+                                    onIonChange={e => setAddress(e.detail.value!)}
+                                    style={{
+                                        '--border-radius': '10px',
+                                        '--border-color': '#e2e8f0',
+                                        '--padding-start': '12px',
+                                        '--padding-end': '12px',
+                                        fontSize: '15px'
+                                    } as any}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    marginBottom: '8px'
+                                }}>
+                                    <IonIcon icon={callOutline} style={{
+                                        fontSize: '16px',
+                                        color: '#4a5568',
+                                        marginRight: '6px'
+                                    }} />
+                                    <label style={{
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        color: '#2d3748'
+                                    }}>Contact Number</label>
+                                </div>
+                                <IonInput
+                                    fill="outline"
+                                    type="tel"
+                                    placeholder="e.g., +639123456789"
+                                    value={contactNumber}
+                                    onIonChange={e => setContactNumber(e.detail.value!)}
                                     style={{
                                         '--border-radius': '10px',
                                         '--border-color': '#e2e8f0',
@@ -382,7 +474,7 @@ const Register: React.FC = () => {
                                             <IonInput
                                                 fill="outline"
                                                 type="password"
-                                                placeholder="Min. 6 characters"
+                                                placeholder="Create a password"
                                                 value={password}
                                                 onIonChange={e => setPassword(e.detail.value!)}
                                                 style={{
@@ -418,7 +510,7 @@ const Register: React.FC = () => {
                                             <IonInput
                                                 fill="outline"
                                                 type="password"
-                                                placeholder="Repeat password"
+                                                placeholder="Confirm your password"
                                                 value={confirmPassword}
                                                 onIonChange={e => setConfirmPassword(e.detail.value!)}
                                                 style={{
@@ -436,33 +528,17 @@ const Register: React.FC = () => {
                                 </IonRow>
                             </IonGrid>
 
-                            {/* NBSC Notice */}
-                            <div style={{
-                                background: 'linear-gradient(135deg, #fef5e7 0%, #fed7aa 100%)',
-                                border: '1px solid #fbbf24',
-                                borderRadius: '12px',
-                                padding: '12px 16px',
-                                marginBottom: '24px'
+                            {/* Password Requirements Info */}
+                            <div style={{ 
+                                fontSize: '12px', 
+                                color: '#3182ce', 
+                                marginBottom: '20px',
+                                padding: '12px',
+                                backgroundColor: '#f0f9ff',
+                                borderRadius: '8px',
+                                border: '1px solid #bfdbfe'
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <IonIcon icon={schoolOutline} style={{
-                                        fontSize: '16px',
-                                        color: '#d69e2e',
-                                        marginRight: '8px'
-                                    }} />
-                                    <p style={{
-                                        fontSize: '12px',
-                                        color: '#744210',
-                                        margin: 0,
-                                        fontWeight: '600'
-                                    }}>NBSC Community Access Only</p>
-                                </div>
-                                <p style={{
-                                    fontSize: '11px',
-                                    color: '#975a16',
-                                    margin: '4px 0 0 24px',
-                                    lineHeight: '1.4'
-                                }}>Registration is restricted to Northern Bukidnon State College institutional email addresses to ensure community authenticity.</p>
+                                Password must be at least 8 characters and include: uppercase letter, lowercase letter, number, and special symbol (!@#$%^&*)
                             </div>
 
                             <IonButton 
@@ -610,7 +686,7 @@ const Register: React.FC = () => {
                                         }}>{username}</p>
                                     </div>
 
-                                    <div style={{ marginBottom: '32px' }}>
+                                    <div style={{ marginBottom: '20px' }}>
                                         <p style={{
                                             fontSize: '13px',
                                             fontWeight: '600',
@@ -623,6 +699,36 @@ const Register: React.FC = () => {
                                             color: '#2d3748',
                                             margin: 0
                                         }}>{email}</p>
+                                    </div>
+
+                                    <div style={{ marginBottom: '20px' }}>
+                                        <p style={{
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            color: '#4a5568',
+                                            marginBottom: '4px'
+                                        }}>Address</p>
+                                        <p style={{
+                                            fontSize: '16px',
+                                            fontWeight: 'bold',
+                                            color: '#2d3748',
+                                            margin: 0
+                                        }}>{address}</p>
+                                    </div>
+
+                                    <div style={{ marginBottom: '32px' }}>
+                                        <p style={{
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            color: '#4a5568',
+                                            marginBottom: '4px'
+                                        }}>Contact Number</p>
+                                        <p style={{
+                                            fontSize: '16px',
+                                            fontWeight: 'bold',
+                                            color: '#2d3748',
+                                            margin: 0
+                                        }}>{contactNumber}</p>
                                     </div>
                                     
                                     <IonButton 

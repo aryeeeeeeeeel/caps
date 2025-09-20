@@ -51,7 +51,6 @@ interface HazardReport {
   images: File[];
   reporter_email: string;
   reporter_name: string;
-  anonymous: boolean;
   exif_data?: any;
   photo_datetime?: string;
   current_datetime?: string;
@@ -519,7 +518,7 @@ const formatDateTimeForDisplay = (dateTime: string): string => {
   });
 };
 
-const SubmitHazards: React.FC = () => {
+const IncidentReport: React.FC = () => {
   const [formData, setFormData] = useState<HazardReport>({
     category: '',
     description: '',
@@ -530,7 +529,6 @@ const SubmitHazards: React.FC = () => {
     images: [],
     reporter_email: '',
     reporter_name: '',
-    anonymous: false,
     photo_datetime: '',
     current_datetime: getCurrentDateTime()
   });
@@ -864,8 +862,8 @@ const SubmitHazards: React.FC = () => {
         barangay: formData.barangay,
         coordinates: formData.coordinates ? JSON.stringify(formData.coordinates) : null,
         image_urls: imageUrls,
-        reporter_email: formData.anonymous ? null : user.email,
-        reporter_name: formData.anonymous ? 'Anonymous' : `${profile?.user_firstname || ''} ${profile?.user_lastname || ''}`.trim() || user.email,
+        reporter_email: user.email,
+        reporter_name: `${profile?.user_firstname || ''} ${profile?.user_lastname || ''}`.trim() || user.email,
         status: 'pending',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -892,7 +890,6 @@ const SubmitHazards: React.FC = () => {
         images: [],
         reporter_email: '',
         reporter_name: '',
-        anonymous: false,
         photo_datetime: '',
         current_datetime: getCurrentDateTime()
       });
@@ -936,7 +933,7 @@ const SubmitHazards: React.FC = () => {
               </div>
               <div>
                 <IonCardTitle style={{ color: '#1f2937', fontSize: '20px', margin: '0 0 4px 0' }}>
-                  Report Hazard
+                  Report an Incident
                 </IonCardTitle>
                 <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
                   Help keep your community safe by reporting incidents
@@ -1181,12 +1178,12 @@ const SubmitHazards: React.FC = () => {
 
             <IonItem style={{ '--border-radius': '12px' } as any}>
               <IonLabel position="stacked">
-                Specific Location/Address
+                Location (auto-filled from GPS)
               </IonLabel>
               <IonInput
                 value={formData.location}
-                onIonChange={e => setFormData(prev => ({ ...prev, location: e.detail.value! }))}
-                placeholder="Specific location or address"
+                readonly={true}
+                placeholder="GPS coordinates will appear here"
               />
             </IonItem>
           </IonCardContent>
@@ -1237,18 +1234,6 @@ const SubmitHazards: React.FC = () => {
                 rows={3}
                 maxlength={500}
               />
-            </IonItem>
-
-            <IonItem style={{ '--padding-start': '0' } as any}>
-              <IonCheckbox
-                checked={formData.anonymous}
-                onIonChange={e => setFormData(prev => ({ ...prev, anonymous: e.detail.checked }))}
-                style={{ marginRight: '12px' }}
-              />
-              <IonLabel>
-                <h3>Submit Anonymously</h3>
-                <p>Your name and email will not be shared with the report</p>
-              </IonLabel>
             </IonItem>
           </IonCardContent>
         </IonCard>
@@ -1373,4 +1358,4 @@ const SubmitHazards: React.FC = () => {
   );
 };
 
-export default SubmitHazards;
+export default IncidentReport;

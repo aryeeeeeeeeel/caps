@@ -1,23 +1,25 @@
 // src/pages/Login.tsx
 import {
-  IonButton,
-  IonContent,
-  IonPage,
-  IonInput,
-  useIonRouter,
-  IonInputPasswordToggle,
-  IonAlert,
-  IonToast,
-  IonIcon,
-  IonCard,
-  IonCardContent,
-  IonHeader,
-  IonToolbar,
-  IonTitle
+    IonButton,
+    IonContent,
+    IonPage,
+    IonInput,
+    useIonRouter,
+    IonInputPasswordToggle,
+    IonAlert,
+    IonToast,
+    IonIcon,
+    IonCard,
+    IonCardContent,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonModal
 } from '@ionic/react';
-import { personCircleOutline, mailOutline, lockClosedOutline, logInOutline, arrowBackOutline, peopleOutline } from 'ionicons/icons';
+import { personCircleOutline, mailOutline, lockClosedOutline, logInOutline, arrowBackOutline, peopleOutline, phonePortraitOutline } from 'ionicons/icons';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { IonCheckbox, IonLabel } from '@ionic/react';
 
 const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
   return (
@@ -33,20 +35,23 @@ const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void
 
 const Login: React.FC = () => {
   const navigation = useIonRouter();
-  const [email, setEmail] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [showAlert, setShowAlert] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const emailInputRef = useRef<HTMLIonInputElement>(null);
+  const loginIdentifierInputRef = useRef<HTMLIonInputElement>(null);
   const passwordInputRef = useRef<HTMLIonInputElement>(null);
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [twoFACode, setTwoFACode] = useState('');
 
-  // Focus on email input when component mounts
+  // Focus on login identifier input when component mounts
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (emailInputRef.current) {
-        emailInputRef.current.setFocus();
+      if (loginIdentifierInputRef.current) {
+        loginIdentifierInputRef.current.setFocus();
       }
     }, 300);
 
@@ -54,30 +59,58 @@ const Login: React.FC = () => {
   }, []);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      setAlertMessage('Please enter both email and password');
+    if (!loginIdentifier || !password) {
+      setAlertMessage('Please enter both email/username and password');
       setShowAlert(true);
       return;
     }
 
     setIsLoggingIn(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      let userEmail = loginIdentifier;
+
+      // Check if the loginIdentifier is an email or a username
+      if (!loginIdentifier.includes('@')) {
+        // Assume it's a username, query the users table to get the email
+        const { data, error } = await supabase
+          .from('users')
+          .select('user_email')
+          .eq('username', loginIdentifier)
+          .single();
+
+        if (error || !data) {
+          throw new Error('Username not found or an error occurred.');
+        }
+        userEmail = data.user_email;
+      }
+
+      // Supabase handles session persistence by default.
+      // The 'rememberMe' checkbox can be used to control session duration if needed,
+      // but for now, we'll proceed with standard login.
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: userEmail,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Placeholder for 2FA check. In a real scenario, Supabase would return a specific error
+        // or status indicating that 2FA is required.
+        if (error.message.includes('A new device has been detected')) { // Example error message
+          setShow2FAModal(true);
+          return;
+        }
+        throw error;
+      }
 
       setShowToast(true);
 
       // Clear focus from inputs before navigation to prevent aria-hidden issues
-      if (emailInputRef.current) {
+      if (loginIdentifierInputRef.current) {
         try {
-          const el = await emailInputRef.current.getInputElement();
+          const el = await loginIdentifierInputRef.current.getInputElement();
           el.blur();
         } catch (err) {
-          console.warn('Could not blur email input:', err);
+          console.warn('Could not blur login identifier input:', err);
         }
       }
 
@@ -99,7 +132,7 @@ const Login: React.FC = () => {
     } finally {
       setIsLoggingIn(false);
     }
-  }; // Removed the dependency array that was causing the error
+  };
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -213,15 +246,15 @@ const Login: React.FC = () => {
                     fontSize: '14px',
                     fontWeight: '600',
                     color: '#2d3748'
-                  }}>Email Address</label>
+                  }}>Email or Username</label>
                 </div>
                 <IonInput
-                  ref={emailInputRef}
+                  ref={loginIdentifierInputRef}
                   fill="outline"
-                  type="email"
-                  placeholder="your.email@nbsc.edu.ph"
-                  value={email}
-                  onIonChange={e => setEmail(e.detail.value!)}
+                  type="text"
+                  placeholder="your.email@example.com or username"
+                  value={loginIdentifier}
+                  onIonChange={e => setLoginIdentifier((e.detail.value ?? ""))}
                   onKeyPress={handleKeyPress}
                   style={{
                     '--border-radius': '12px',
@@ -256,7 +289,7 @@ const Login: React.FC = () => {
                   type="password"
                   placeholder="Enter your password"
                   value={password}
-                  onIonChange={e => setPassword(e.detail.value!)}
+                  onIonChange={e => setPassword((e.detail.value ?? ""))}
                   onKeyPress={handleKeyPress}
                   style={{
                     '--border-radius': '12px',
@@ -268,6 +301,15 @@ const Login: React.FC = () => {
                 >
                   <IonInputPasswordToggle slot="end" />
                 </IonInput>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '32px' }}>
+                <IonCheckbox
+                  checked={rememberMe}
+                  onIonChange={e => setRememberMe(e.detail.checked)}
+                  style={{ '--checkbox-background-checked': '#667eea', '--border-color-checked': '#667eea', marginRight: '8px' }}
+                />
+                <IonLabel style={{ fontSize: '14px', color: '#4a5568' }}>Remember Me</IonLabel>
               </div>
 
               <IonButton
@@ -370,6 +412,118 @@ const Login: React.FC = () => {
           position="top"
           color="success"
         />
+
+        {/* 2FA Modal Placeholder */}
+        <IonModal isOpen={show2FAModal} onDidDismiss={() => setShow2FAModal(false)}>
+          <IonContent style={{
+            '--background': 'linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)',
+          } as any}>
+            <div style={{
+              minHeight: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px'
+            }}>
+              <IonCard style={{
+                maxWidth: '450px',
+                width: '100%',
+                borderRadius: '20px',
+                boxShadow: '0 20px 64px rgba(0,0,0,0.15)',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  padding: '30px 24px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{
+                    width: '60px',
+                    height: '60px',
+                    background: 'rgba(255,255,255,0.2)',
+                    borderRadius: '50%',
+                    margin: '0 auto 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <IonIcon icon={phonePortraitOutline} style={{
+                      fontSize: '28px',
+                      color: 'white'
+                    }} />
+                  </div>
+                  <h2 style={{
+                    fontSize: '22px',
+                    fontWeight: 'bold',
+                    color: 'white',
+                    margin: '0 0 8px 0'
+                  }}>Two-Factor Authentication</h2>
+                  <p style={{
+                    fontSize: '14px',
+                    color: 'rgba(255,255,255,0.9)',
+                    margin: 0
+                  }}>Please enter the code sent to your registered device.</p>
+                </div>
+
+                <IonCardContent style={{ padding: '32px 24px' }}>
+                  <div style={{ marginBottom: '32px' }}>
+                    <IonInput
+                      fill="outline"
+                      type="text"
+                      placeholder="Enter 6-digit code"
+                      value={twoFACode}
+                      onIonChange={e => setTwoFACode(e.detail.value!)}
+                      style={{
+                        '--border-radius': '12px',
+                        '--border-color': '#e2e8f0',
+                        '--padding-start': '16px',
+                        '--padding-end': '16px',
+                        fontSize: '16px',
+                        textAlign: 'center'
+                      } as any}
+                    />
+                  </div>
+
+                  <IonButton
+                    onClick={() => {
+                      // Placeholder for 2FA verification logic
+                      setAlertMessage('2FA verification is not fully implemented in this demo.');
+                      setShowAlert(true);
+                      setShow2FAModal(false);
+                    }}
+                    expand="block"
+                    size="large"
+                    style={{
+                      '--border-radius': '12px',
+                      '--padding-top': '16px',
+                      '--padding-bottom': '16px',
+                      fontWeight: '600',
+                      fontSize: '16px',
+                      height: '52px',
+                      '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      '--color': 'white',
+                      marginBottom: '12px'
+                    } as any}
+                  >
+                    VERIFY CODE
+                  </IonButton>
+
+                  <IonButton
+                    expand="block"
+                    fill="clear"
+                    onClick={() => setShow2FAModal(false)}
+                    style={{
+                      color: '#718096',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Cancel
+                  </IonButton>
+                </IonCardContent>
+              </IonCard>
+            </div>
+          </IonContent>
+        </IonModal>
       </IonContent>
     </IonPage>
   );
