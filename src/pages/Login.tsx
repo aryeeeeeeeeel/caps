@@ -47,6 +47,30 @@ const Login: React.FC = () => {
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [twoFACode, setTwoFACode] = useState('');
 
+  // Add global Enter key handler
+useEffect(() => {
+  const handleGlobalKeyPress = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      // Check if we're NOT focused on any input field
+      const activeElement = document.activeElement;
+      const isFocusedOnInput = activeElement?.tagName === 'INPUT' || 
+                              activeElement?.tagName === 'ION-INPUT' ||
+                              activeElement?.closest('ion-input');
+      
+      // Only trigger login if we're NOT focused on an input field
+      if (!isFocusedOnInput) {
+        handleLogin();
+      }
+    }
+  };
+
+  window.addEventListener('keypress', handleGlobalKeyPress);
+  
+  return () => {
+    window.removeEventListener('keypress', handleGlobalKeyPress);
+  };
+}, [loginIdentifier, password]);
+
   // Focus on login identifier input when component mounts
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -59,86 +83,94 @@ const Login: React.FC = () => {
   }, []);
 
   const handleLogin = async () => {
-    if (!loginIdentifier || !password) {
-      setAlertMessage('Please enter both email/username and password');
-      setShowAlert(true);
-      return;
+  if (!loginIdentifier || !password) {
+    setAlertMessage('Please enter both email/username and password');
+    setShowAlert(true);
+    return;
+  }
+
+  setIsLoggingIn(true);
+  try {
+    let userEmail = loginIdentifier;
+
+    // Check if the loginIdentifier is an email or a username
+    if (!loginIdentifier.includes('@')) {
+      // Assume it's a username, query the users table to get the email
+      const { data, error } = await supabase
+        .from('users')
+        .select('user_email')
+        .eq('username', loginIdentifier)
+        .single();
+
+      if (error || !data) {
+        // Show specific error for invalid username
+        throw new Error('Invalid username. Please check your credentials.');
+      }
+      userEmail = data.user_email;
     }
 
-    setIsLoggingIn(true);
-    try {
-      let userEmail = loginIdentifier;
+    // Supabase handles session persistence by default.
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: userEmail,
+      password,
+    });
 
-      // Check if the loginIdentifier is an email or a username
-      if (!loginIdentifier.includes('@')) {
-        // Assume it's a username, query the users table to get the email
-        const { data, error } = await supabase
-          .from('users')
-          .select('user_email')
-          .eq('username', loginIdentifier)
-          .single();
-
-        if (error || !data) {
-          throw new Error('Username not found or an error occurred.');
-        }
-        userEmail = data.user_email;
+    if (error) {
+      // Handle specific error cases
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Invalid email/username or password. Please try again.');
+      } else if (error.message.includes('Email not confirmed')) {
+        throw new Error('Please verify your email address before logging in.');
+      } else if (error.message.includes('A new device has been detected')) {
+        setShow2FAModal(true);
+        return;
+      } else {
+        throw new Error(error.message);
       }
-
-      // Supabase handles session persistence by default.
-      // The 'rememberMe' checkbox can be used to control session duration if needed,
-      // but for now, we'll proceed with standard login.
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: userEmail,
-        password,
-      });
-
-      if (error) {
-        // Placeholder for 2FA check. In a real scenario, Supabase would return a specific error
-        // or status indicating that 2FA is required.
-        if (error.message.includes('A new device has been detected')) { // Example error message
-          setShow2FAModal(true);
-          return;
-        }
-        throw error;
-      }
-
-      setShowToast(true);
-
-      // Clear focus from inputs before navigation to prevent aria-hidden issues
-      if (loginIdentifierInputRef.current) {
-        try {
-          const el = await loginIdentifierInputRef.current.getInputElement();
-          el.blur();
-        } catch (err) {
-          console.warn('Could not blur login identifier input:', err);
-        }
-      }
-
-      if (passwordInputRef.current) {
-        try {
-          const el = await passwordInputRef.current.getInputElement();
-          el.blur();
-        } catch (err) {
-          console.warn('Could not blur password input:', err);
-        }
-      }
-
-      setTimeout(() => {
-        navigation.push('/it35-lab2/app', 'forward', 'replace');
-      }, 800);
-    } catch (error: any) {
-      setAlertMessage(error.message || 'Login failed. Please check your credentials and try again.');
-      setShowAlert(true);
-    } finally {
-      setIsLoggingIn(false);
     }
-  };
 
-  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+    setShowToast(true);
+
+    // Clear focus from inputs before navigation to prevent aria-hidden issues
+    if (loginIdentifierInputRef.current) {
+      try {
+        const el = await loginIdentifierInputRef.current.getInputElement();
+        el.blur();
+      } catch (err) {
+        console.warn('Could not blur login identifier input:', err);
+      }
+    }
+
+    if (passwordInputRef.current) {
+      try {
+        const el = await passwordInputRef.current.getInputElement();
+        el.blur();
+      } catch (err) {
+        console.warn('Could not blur password input:', err);
+      }
+    }
+
+    setTimeout(() => {
+      navigation.push('/it35-lab2/app', 'forward', 'replace');
+    }, 800);
+  } catch (error: any) {
+    // Show the actual error message instead of generic one
+    setAlertMessage(error.message || 'Login failed. Please check your credentials and try again.');
+    setShowAlert(true);
+  } finally {
+    setIsLoggingIn(false);
+  }
+};
+
+const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleLogin();
+        if (e.currentTarget === loginIdentifierInputRef.current) {
+            passwordInputRef.current?.setFocus();
+        } else if (e.currentTarget === passwordInputRef.current) {
+            handleLogin();
+        }
     }
-  }, [handleLogin]);
+};
 
   return (
     <IonPage>

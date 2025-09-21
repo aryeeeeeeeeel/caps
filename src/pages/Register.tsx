@@ -94,7 +94,7 @@ const Register: React.FC = () => {
         }
 
         // Password validation regex: At least 8 characters, 1 uppercase, 1 lowercase, 1 number, 1 special symbol
-        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$/;
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
         if (!passwordRegex.test(password)) {
             setAlertMessage("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special symbol.");
             setShowAlert(true);
@@ -818,6 +818,7 @@ const Register: React.FC = () => {
                                     routerLink="/it35-lab2/user-login" 
                                     expand="block"
                                     size="large"
+                                    onClick={() => setShowSuccessModal(false)}
                                     style={{
                                         '--border-radius': '12px',
                                         '--padding-top': '16px',
