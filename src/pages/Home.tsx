@@ -35,7 +35,7 @@ import { supabase } from '../utils/supabaseClient';
 // Import all page components
 import Dashboard from './home-tabs/Dashboard';
 import IncidentReport from './home-tabs/IncidentReport';
-import ViewHazardMap from './home-tabs/ViewHazardMap';
+import MyReports from './home-tabs/MyReports';
 import History from './home-tabs/History';
 import Notifications from './home-tabs/Notifications';
 import GiveFeedback from './home-tabs/GiveFeedback';
@@ -341,7 +341,7 @@ const Home: React.FC = () => {
           <IonRouterOutlet>
             <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
             <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
-            <Route exact path="/it35-lab2/app/map" component={ViewHazardMap} />
+            <Route exact path="/it35-lab2/app/map" component={MyReports} />
             <Route exact path="/it35-lab2/app/reports" component={History} />
             <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
             <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />

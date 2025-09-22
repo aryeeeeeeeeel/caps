@@ -1,4 +1,4 @@
-// src/pages/home-tabs/ViewHazardMap.tsx - Fixed version
+// src/pages/home-tabs/MyReports.tsx - Fixed version
 import React, { useState, useEffect, useRef } from 'react';
 import {
   IonContent,
@@ -72,7 +72,7 @@ interface HazardReport {
   admin_response?: string;
 }
 
-const ViewHazardMap: React.FC = () => {
+const MyReports: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -1497,4 +1497,4 @@ const ViewHazardMap: React.FC = () => {
   );
 };
 
-export default ViewHazardMap;
+export default MyReports;

@@ -41,7 +41,6 @@ interface DashboardStats {
   investigatingReports: number;
   resolvedReports: number;
   myReports: number;
-  recentActivity: any[];
 }
 
 const Dashboard: React.FC = () => {
@@ -53,12 +52,10 @@ const Dashboard: React.FC = () => {
     pendingReports: 0,
     investigatingReports: 0,
     resolvedReports: 0,
-    myReports: 0,
-    recentActivity: []
+    myReports: 0
   });
   const [recentReports, setRecentReports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [weatherInfo, setWeatherInfo] = useState<any>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [userReports, setUserReports] = useState<any[]>([]);
 
@@ -133,96 +130,71 @@ const Dashboard: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        // Use mock data when no user is logged in
+        // User not logged in - show empty state
         setStats({
           totalReports: 0,
           pendingReports: 0,
           investigatingReports: 0,
           resolvedReports: 0,
-          myReports: 0,
-          recentActivity: []
+          myReports: 0
         });
         setRecentReports([]);
         setIsLoading(false);
         return;
       }
 
-      // Try to create tables if they don't exist (development mode)
-      try {
-        await createTablesIfNotExists();
-      } catch (tableError) {
-        console.log('Tables creation skipped - may already exist or need manual setup');
-      }
+      // Fetch all reports statistics
+      const { data: allReports, error: allReportsError } = await supabase
+        .from('hazard_reports')
+        .select('*');
 
-      // Fetch all reports statistics with error handling
-      try {
-        const { data: allReports, error: allReportsError } = await supabase
-          .from('hazard_reports')
-          .select('*');
-
-        if (allReportsError) {
-          throw allReportsError;
-        }
-
-        // Process real data
-        const pending = allReports?.filter(r => r.status === 'pending').length || 0;
-        const investigating = allReports?.filter(r => r.status === 'investigating').length || 0;
-        const resolved = allReports?.filter(r => r.status === 'resolved').length || 0;
-        const myReports = allReports?.filter(r => r.reporter_email === user.email).length || 0;
-
-        setStats({
-          totalReports: allReports?.length || 0,
-          pendingReports: pending,
-          investigatingReports: investigating,
-          resolvedReports: resolved,
-          myReports: myReports,
-          recentActivity: allReports?.slice(0, 5) || []
-        });
-
-        setRecentReports(allReports?.slice(0, 3) || []);
-
-      } catch (reportsError) {
-        console.warn('Database not available:', reportsError);
+      if (allReportsError) {
+        console.error('Error fetching reports:', allReportsError);
+        // Set empty data on error
         setStats({
           totalReports: 0,
           pendingReports: 0,
           investigatingReports: 0,
           resolvedReports: 0,
-          myReports: 0,
-          recentActivity: []
+          myReports: 0
         });
         setRecentReports([]);
+        setIsLoading(false);
+        return;
       }
 
-      setWeatherInfo(null);
+      // Process real data from database
+      const pending = allReports?.filter(r => r.status === 'pending').length || 0;
+      const investigating = allReports?.filter(r => r.status === 'investigating').length || 0;
+      const resolved = allReports?.filter(r => r.status === 'resolved').length || 0;
+      const myReports = allReports?.filter(r => r.reporter_email === user.email).length || 0;
+
+      setStats({
+        totalReports: allReports?.length || 0,
+        pendingReports: pending,
+        investigatingReports: investigating,
+        resolvedReports: resolved,
+        myReports: myReports
+      });
+
+      // Set recent reports (last 3)
+      setRecentReports(allReports?.slice(0, 3) || []);
+
     } catch (error) {
-      console.warn('Error in fetchDashboardData, using fallback data:', error);
-      // Remove all mock data fallback
+      console.error('Error in fetchDashboardData:', error);
+      // Set empty data on error
       setStats({
         totalReports: 0,
         pendingReports: 0,
         investigatingReports: 0,
         resolvedReports: 0,
-        myReports: 0,
-        recentActivity: []
+        myReports: 0
       });
       setRecentReports([]);
-      setWeatherInfo(null);
     } finally {
       setIsLoading(false);
     }
   };
-
-  const createTablesIfNotExists = async () => {
-    try {
-      // Create hazard_reports table
-      await supabase.rpc('create_hazard_reports_table');
-    } catch (error) {
-      // Table might already exist or RPC not available
-      console.log('Tables might already exist or need to be created manually');
-    }
-  };
-
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -300,7 +272,7 @@ const Dashboard: React.FC = () => {
                 Help keep Manolo Fortich safe by reporting hazards in your community
               </p>
 
-              {weatherInfo && (
+              {userProfile && (
                 <div style={{
                   background: 'rgba(255,255,255,0.15)',
                   borderRadius: '12px',
@@ -310,12 +282,12 @@ const Dashboard: React.FC = () => {
                   justifyContent: 'space-between'
                 }}>
                   <div>
-                    <p style={{ fontSize: '14px', margin: 0, opacity: 0.8 }}>Current Weather</p>
+                    <p style={{ fontSize: '14px', margin: 0, opacity: 0.8 }}>Welcome back</p>
                     <p style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
-                      {weatherInfo.temperature} - {weatherInfo.condition}
+                      {userProfile.user_firstname} {userProfile.user_lastname}
                     </p>
                   </div>
-                  <IonIcon icon={statsChartOutline} style={{ fontSize: '24px', opacity: 0.8 }} />
+                  <IonIcon icon={homeOutline} style={{ fontSize: '24px', opacity: 0.8 }} />
                 </div>
               )}
             </IonCardContent>
@@ -530,7 +502,7 @@ const Dashboard: React.FC = () => {
               ) : recentReports.length === 0 ? (
                 <div style={{ padding: '40px 20px', textAlign: 'center' }}>
                   <IonIcon icon={homeOutline} style={{ fontSize: '48px', color: '#d1d5db' }} />
-                  <p style={{ color: '##9ca3af', marginTop: '16px' }}>No recent reports</p>
+                  <p style={{ color: '#9ca3af', marginTop: '16px' }}>No reports found in database</p>
                   <IonButton
                     routerLink="/it35-lab2/app/submit"
                     fill="outline"
