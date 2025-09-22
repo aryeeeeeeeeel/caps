@@ -1,4 +1,4 @@
-// src/pages/home-tabs/MyReports.tsx - Fixed version
+// src/pages/home-tabs/IncidentMap.tsx - Fixed version
 import React, { useState, useEffect, useRef } from 'react';
 import {
   IonContent,
@@ -72,7 +72,7 @@ interface HazardReport {
   admin_response?: string;
 }
 
-const MyReports: React.FC = () => {
+const IncidentMap: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -102,86 +102,6 @@ const MyReports: React.FC = () => {
     'Lunocan', 'Maluko', 'Mambatangan', 'Mampayag', 'Mantibugao',
     'Minsuro', 'San Miguel', 'Sankanan', 'Santiago', 'Santo Niño',
     'Tankulan', 'Ticala'
-  ];
-
-  // Mock data with correct coordinates for Manolo Fortich
-  const mockReports: HazardReport[] = [
-    {
-      id: '1',
-      title: 'Road Hazards - Pothole on Main Road',
-      description: 'Large pothole causing traffic delays and potential vehicle damage near the municipal hall.',
-      category: 'Road Hazards',
-      priority: 'high',
-      status: 'investigating',
-      location: 'Main Street near Municipal Hall',
-      barangay: 'Damilag',
-      coordinates: { lat: 8.3693, lng: 124.8564 }, // Manolo Fortich center
-      image_urls: [],
-      reporter_name: 'Juan Dela Cruz',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: '2',
-      title: 'Natural Disasters - Fallen Tree Blocking Road',
-      description: 'Large tree fell across the road after recent storm, completely blocking traffic.',
-      category: 'Natural Disasters',
-      priority: 'critical',
-      status: 'pending',
-      location: 'Barangay Road, near Elementary School',
-      barangay: 'Lindaban',
-      coordinates: { lat: 8.3850, lng: 124.8600 },
-      image_urls: [],
-      reporter_name: 'Maria Santos',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      updated_at: new Date(Date.now() - 86400000).toISOString()
-    },
-    {
-      id: '3',
-      title: 'Utility Issues - Broken Street Light',
-      description: 'Street light has been out for several days.',
-      category: 'Utility Issues',
-      priority: 'medium',
-      status: 'resolved',
-      location: 'Corner of Church Street and Market Road',
-      barangay: 'San Miguel',
-      coordinates: { lat: 8.3550, lng: 124.8450 },
-      image_urls: [],
-      reporter_name: 'Pedro Rodriguez',
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-      updated_at: new Date(Date.now() - 86400000).toISOString(),
-      admin_response: 'Street light has been repaired and is now functioning properly.'
-    },
-    {
-      id: '4',
-      title: 'Infrastructure Problems - Bridge Damage',
-      description: 'Concrete barrier on bridge has cracks.',
-      category: 'Infrastructure Problems',
-      priority: 'high',
-      status: 'investigating',
-      location: 'Bridge over Pulangi River',
-      barangay: 'Alae',
-      coordinates: { lat: 8.3750, lng: 124.8700 },
-      image_urls: [],
-      reporter_name: 'Ana Garcia',
-      created_at: new Date(Date.now() - 259200000).toISOString(),
-      updated_at: new Date(Date.now() - 259200000).toISOString()
-    },
-    {
-      id: '5',
-      title: 'Environmental Issues - Flooding Area',
-      description: 'Road frequently floods during heavy rain.',
-      category: 'Environmental Issues',
-      priority: 'medium',
-      status: 'pending',
-      location: 'Low-lying area near Rice Fields',
-      barangay: 'Maluko',
-      coordinates: { lat: 8.3450, lng: 124.8800 },
-      image_urls: [],
-      reporter_name: 'Carlos Mendoza',
-      created_at: new Date(Date.now() - 345600000).toISOString(),
-      updated_at: new Date(Date.now() - 345600000).toISOString()
-    }
   ];
 
   // Initialize map immediately when component mounts
@@ -310,63 +230,68 @@ const MyReports: React.FC = () => {
   };
 
   const fetchReports = async () => {
-    setIsLoading(true);
-    try {
-      console.log('Fetching reports from database...');
+  setIsLoading(true);
+  try {
+    console.log('Fetching user reports from database...');
 
-      const { data, error } = await supabase
-        .from('hazard_reports')
-        .select('*')
-        .not('coordinates', 'is', null)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.log('Database error, using mock data:', error.message);
-        setReports(mockReports);
-        setToastMessage('Using offline data - database not available');
-        setShowToast(true);
-      } else {
-        const processedReports = data?.map(report => {
-          let coordinates = null;
-
-          if (report.coordinates) {
-            try {
-              if (typeof report.coordinates === 'string') {
-                coordinates = JSON.parse(report.coordinates);
-              } else if (typeof report.coordinates === 'object' &&
-                report.coordinates.lat && report.coordinates.lng) {
-                coordinates = report.coordinates;
-              }
-            } catch (e) {
-              console.warn(`Failed to parse coordinates for report ${report.id}:`, e);
-              coordinates = null;
-            }
-          }
-
-          return {
-            ...report,
-            coordinates
-          };
-        }).filter(report => report.coordinates !== null) || [];
-
-        if (processedReports.length === 0) {
-          console.log('No reports with valid coordinates found, using mock data');
-          setReports(mockReports);
-          setToastMessage('Using sample data - no reports found');
-          setShowToast(true);
-        } else {
-          setReports(processedReports);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching reports:', error);
-      setReports(mockReports);
-      setToastMessage('Error connecting to database - using sample data');
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setReports([]);
+      setToastMessage('Please log in to view your reports');
       setShowToast(true);
-    } finally {
       setIsLoading(false);
+      return;
     }
-  };
+
+    const { data, error } = await supabase
+      .from('hazard_reports')
+      .select('*')
+      .eq('reporter_email', user.email) // Only user's reports
+      .in('status', ['pending', 'investigating']) // Only active reports
+      .not('coordinates', 'is', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.log('Database error:', error.message);
+      setReports([]);
+      setToastMessage('Error loading your reports');
+      setShowToast(true);
+    } else {
+      const processedReports = data?.map(report => {
+        let coordinates = null;
+
+        if (report.coordinates) {
+          try {
+            if (typeof report.coordinates === 'string') {
+              coordinates = JSON.parse(report.coordinates);
+            } else if (typeof report.coordinates === 'object' &&
+              report.coordinates.lat && report.coordinates.lng) {
+              coordinates = report.coordinates;
+            }
+          } catch (e) {
+            console.warn(`Failed to parse coordinates for report ${report.id}:`, e);
+            coordinates = null;
+          }
+        }
+
+        return {
+          ...report,
+          coordinates
+        };
+      }).filter(report => report.coordinates !== null) || [];
+
+      setReports(processedReports);
+    }
+  } catch (error) {
+    console.error('Error fetching reports:', error);
+    setReports([]);
+    setToastMessage('Error connecting to database');
+    setShowToast(true);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const updateMapMarkers = () => {
     console.log('Updating map markers with', filteredReports.length, 'reports');
@@ -470,9 +395,12 @@ const MyReports: React.FC = () => {
           const button = document.getElementById(`viewDetails-${report.id}`);
           if (button) {
             button.addEventListener('click', () => {
+              // Zoom to the specific report location
+              if (mapInstanceRef.current && report.coordinates) {
+                mapInstanceRef.current.setView([report.coordinates.lat, report.coordinates.lng], 18);
+              }
               setSelectedReport(report);
               setShowReportModal(true);
-              // Close the popup when opening the modal
               marker.closePopup();
             });
           }
@@ -648,7 +576,7 @@ const MyReports: React.FC = () => {
                 </div>
                 <div>
                   <IonCardTitle style={{ color: '#1f2937', fontSize: '20px', margin: '0 0 4px 0' }}>
-                    Hazard Map
+                    Incident Map
                   </IonCardTitle>
                   <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
                     {filteredReports.length} of {reports.length} incidents shown
@@ -1303,10 +1231,10 @@ const MyReports: React.FC = () => {
                               aspectRatio: '1',
                               cursor: 'pointer'
                             }}
-                            onClick={() => {
-                              // Open image in new tab for full view
-                              window.open(imageUrl, '_blank');
-                            }}
+                              onClick={() => {
+                                // Open image in new tab for full view
+                                window.open(imageUrl, '_blank');
+                              }}
                             >
                               <img
                                 src={imageUrl}
@@ -1497,4 +1425,4 @@ const MyReports: React.FC = () => {
   );
 };
 
-export default MyReports;
+export default IncidentMap;
