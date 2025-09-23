@@ -1,25 +1,51 @@
 // src/pages/Login.tsx
 import {
-    IonButton,
-    IonContent,
-    IonPage,
-    IonInput,
-    useIonRouter,
-    IonInputPasswordToggle,
-    IonAlert,
-    IonToast,
-    IonIcon,
-    IonCard,
-    IonCardContent,
-    IonHeader,
-    IonToolbar,
-    IonTitle,
-    IonModal
+  IonButton,
+  IonContent,
+  IonPage,
+  IonInput,
+  useIonRouter,
+  IonInputPasswordToggle,
+  IonAlert,
+  IonToast,
+  IonIcon,
+  IonCard,
+  IonCardContent,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonModal,
+  IonCheckbox,
+  IonLabel,
+  IonText,
+  IonItem,
+  IonList,
+  IonAvatar,
+  IonPopover
 } from '@ionic/react';
-import { personCircleOutline, mailOutline, lockClosedOutline, logInOutline, arrowBackOutline, peopleOutline, phonePortraitOutline } from 'ionicons/icons';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
-import { IonCheckbox, IonLabel } from '@ionic/react';
+import {
+  personCircleOutline,
+  mailOutline,
+  lockClosedOutline,
+  logInOutline,
+  arrowBackOutline,
+  peopleOutline,
+  phonePortraitOutline,
+  eyeOffOutline,
+  eyeOutline,
+  chevronDownOutline,
+  timeOutline,
+  closeOutline
+} from 'ionicons/icons';
+import { useState, useRef, useEffect } from 'react';
+import {
+  supabase,
+  saveUserCredentials,
+  getSavedCredentials,
+  isRememberMeEnabled,
+  hasSavedCredentials,
+  clearUserCredentials
+} from '../utils/supabaseClient';
 
 const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
   return (
@@ -33,6 +59,12 @@ const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void
   );
 };
 
+interface SavedAccount {
+  identifier: string;
+  password: string;
+  lastLogin: string;
+}
+
 const Login: React.FC = () => {
   const navigation = useIonRouter();
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -42,135 +74,233 @@ const Login: React.FC = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showSavedAccounts, setShowSavedAccounts] = useState(false);
   const loginIdentifierInputRef = useRef<HTMLIonInputElement>(null);
   const passwordInputRef = useRef<HTMLIonInputElement>(null);
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [twoFACode, setTwoFACode] = useState('');
+  const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
+  const [isIdentifierFocused, setIsIdentifierFocused] = useState(false);
 
-  // Add global Enter key handler
-useEffect(() => {
-  const handleGlobalKeyPress = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      // Check if we're NOT focused on any input field
-      const activeElement = document.activeElement;
-      const isFocusedOnInput = activeElement?.tagName === 'INPUT' || 
-                              activeElement?.tagName === 'ION-INPUT' ||
-                              activeElement?.closest('ion-input');
-      
-      // Only trigger login if we're NOT focused on an input field
-      if (!isFocusedOnInput) {
-        handleLogin();
+  // Load saved credentials on component mount
+  useEffect(() => {
+    const loadSavedCredentials = () => {
+      try {
+        const credentials = getSavedCredentials();
+        const rememberEnabled = isRememberMeEnabled();
+
+        setRememberMe(rememberEnabled);
+
+        if (credentials) {
+          setSavedAccount({
+            identifier: credentials.identifier,
+            password: credentials.password,
+            lastLogin: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.warn('Error loading saved credentials:', error);
       }
+    };
+
+    loadSavedCredentials();
+  }, []);
+
+  // Handle identifier input focus
+  const handleIdentifierFocus = () => {
+    setIsIdentifierFocused(true);
+    if (savedAccount) {
+      setShowSavedAccounts(true);
     }
   };
 
-  window.addEventListener('keypress', handleGlobalKeyPress);
-  
-  return () => {
-    window.removeEventListener('keypress', handleGlobalKeyPress);
+  const handleIdentifierBlur = () => {
+    // Delay hiding to allow for clicking on saved account
+    setTimeout(() => {
+      setIsIdentifierFocused(false);
+      setShowSavedAccounts(false);
+    }, 200);
   };
-}, [loginIdentifier, password]);
+
+  // Global Enter key handler
+  useEffect(() => {
+    const handleGlobalKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !showSavedAccounts) {
+        const activeElement = document.activeElement;
+        const isFocusedOnInput = activeElement?.tagName === 'INPUT' ||
+          activeElement?.tagName === 'ION-INPUT' ||
+          activeElement?.closest('ion-input');
+
+        if (!isFocusedOnInput) {
+          handleLogin();
+        }
+      }
+    };
+
+    window.addEventListener('keypress', handleGlobalKeyPress);
+
+    return () => {
+      window.removeEventListener('keypress', handleGlobalKeyPress);
+    };
+  }, [loginIdentifier, password, showSavedAccounts]);
 
   // Focus on login identifier input when component mounts
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (loginIdentifierInputRef.current) {
+      if (loginIdentifierInputRef.current && !savedAccount) {
         loginIdentifierInputRef.current.setFocus();
       }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [savedAccount]);
 
   const handleLogin = async () => {
-  if (!loginIdentifier || !password) {
-    setAlertMessage('Please enter both email/username and password');
-    setShowAlert(true);
-    return;
-  }
-
-  setIsLoggingIn(true);
-  try {
-    let userEmail = loginIdentifier;
-
-    // Check if the loginIdentifier is an email or a username
-    if (!loginIdentifier.includes('@')) {
-      // Assume it's a username, query the users table to get the email
-      const { data, error } = await supabase
-        .from('users')
-        .select('user_email')
-        .eq('username', loginIdentifier)
-        .single();
-
-      if (error || !data) {
-        // Show specific error for invalid username
-        throw new Error('Invalid username. Please check your credentials.');
-      }
-      userEmail = data.user_email;
+    if (!loginIdentifier || !password) {
+      setAlertMessage('Please enter both email/username and password');
+      setShowAlert(true);
+      return;
     }
 
-    // Supabase handles session persistence by default.
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: userEmail,
-      password,
-    });
+    setIsLoggingIn(true);
+    try {
+      let userEmail = loginIdentifier;
 
-    if (error) {
-      // Handle specific error cases
-      if (error.message.includes('Invalid login credentials')) {
-        throw new Error('Invalid email/username or password. Please try again.');
-      } else if (error.message.includes('Email not confirmed')) {
-        throw new Error('Please verify your email address before logging in.');
-      } else if (error.message.includes('A new device has been detected')) {
-        setShow2FAModal(true);
-        return;
+      // Check if the loginIdentifier is an email or a username
+      if (!loginIdentifier.includes('@')) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('user_email')
+          .eq('username', loginIdentifier)
+          .single();
+
+        if (error || !data) {
+          throw new Error('Invalid username. Please check your credentials.');
+        }
+        userEmail = data.user_email;
+      }
+
+      // Save credentials if remember me is checked
+      if (rememberMe) {
+        saveUserCredentials(loginIdentifier, password, true);
       } else {
-        throw new Error(error.message);
+        // Clear saved credentials if remember me is unchecked
+        clearUserCredentials();
+      }
+
+      // Attempt login
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password,
+      });
+
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          throw new Error('Invalid email/username or password. Please try again.');
+        } else if (error.message.includes('Email not confirmed')) {
+          throw new Error('Please verify your email address before logging in.');
+        } else if (error.message.includes('A new device has been detected')) {
+          setShow2FAModal(true);
+          return;
+        } else {
+          throw new Error(error.message);
+        }
+      }
+
+      // Login successful
+      setShowToast(true);
+
+      // Clear focus from inputs
+      const clearInputFocus = async () => {
+        if (loginIdentifierInputRef.current) {
+          try {
+            const el = await loginIdentifierInputRef.current.getInputElement();
+            el.blur();
+          } catch (err) {
+            console.warn('Could not blur login identifier input:', err);
+          }
+        }
+
+        if (passwordInputRef.current) {
+          try {
+            const el = await passwordInputRef.current.getInputElement();
+            el.blur();
+          } catch (err) {
+            console.warn('Could not blur password input:', err);
+          }
+        }
+      };
+
+      await clearInputFocus();
+
+      // Redirect after a short delay
+      setTimeout(() => {
+        navigation.push('/it35-lab2/app', 'forward', 'replace');
+      }, 800);
+
+    } catch (error: any) {
+      setAlertMessage(error.message || 'Login failed. Please check your credentials and try again.');
+      setShowAlert(true);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      if (e.currentTarget === loginIdentifierInputRef.current) {
+        passwordInputRef.current?.setFocus();
+      } else if (e.currentTarget === passwordInputRef.current) {
+        handleLogin();
       }
     }
+  };
 
-    setShowToast(true);
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
-    // Clear focus from inputs before navigation to prevent aria-hidden issues
-    if (loginIdentifierInputRef.current) {
-      try {
-        const el = await loginIdentifierInputRef.current.getInputElement();
-        el.blur();
-      } catch (err) {
-        console.warn('Could not blur login identifier input:', err);
-      }
+  const handleForgotPassword = () => {
+    setAlertMessage('Password reset feature is coming soon. Please contact support if you need assistance.');
+    setShowAlert(true);
+  };
+
+  const handleUseSavedAccount = () => {
+    if (savedAccount) {
+      setLoginIdentifier(savedAccount.identifier);
+      setPassword(savedAccount.password);
+      setShowSavedAccounts(false);
+      setIsIdentifierFocused(false);
+
+      // Auto-focus on password field for quick login
+      setTimeout(() => {
+        passwordInputRef.current?.setFocus();
+      }, 100);
     }
+  };
 
-    if (passwordInputRef.current) {
-      try {
-        const el = await passwordInputRef.current.getInputElement();
-        el.blur();
-      } catch (err) {
-        console.warn('Could not blur password input:', err);
-      }
-    }
+  const handleClearSavedAccount = () => {
+    clearUserCredentials();
+    setSavedAccount(null);
+    setLoginIdentifier('');
+    setPassword('');
+    setRememberMe(false);
+    setShowSavedAccounts(false);
+    setAlertMessage('Saved account has been cleared.');
+    setShowAlert(true);
+  };
+
+  const handleNewAccountLogin = () => {
+    setLoginIdentifier('');
+    setPassword('');
+    setShowSavedAccounts(false);
+    setIsIdentifierFocused(false);
 
     setTimeout(() => {
-      navigation.push('/it35-lab2/app', 'forward', 'replace');
-    }, 800);
-  } catch (error: any) {
-    // Show the actual error message instead of generic one
-    setAlertMessage(error.message || 'Login failed. Please check your credentials and try again.');
-    setShowAlert(true);
-  } finally {
-    setIsLoggingIn(false);
-  }
-};
-
-const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-        if (e.currentTarget === loginIdentifierInputRef.current) {
-            passwordInputRef.current?.setFocus();
-        } else if (e.currentTarget === passwordInputRef.current) {
-            handleLogin();
-        }
-    }
-};
+      loginIdentifierInputRef.current?.setFocus();
+    }, 100);
+  };
 
   return (
     <IonPage>
@@ -207,7 +337,8 @@ const handleKeyPress = (e: React.KeyboardEvent) => {
             borderRadius: '20px',
             boxShadow: '0 20px 64px rgba(0,0,0,0.12)',
             border: '1px solid rgba(226,232,240,0.8)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            position: 'relative'
           }}>
             {/* Header Section */}
             <div style={{
@@ -216,7 +347,6 @@ const handleKeyPress = (e: React.KeyboardEvent) => {
               textAlign: 'center',
               position: 'relative'
             }}>
-              {/* Background Pattern */}
               <div style={{
                 position: 'absolute',
                 top: 0,
@@ -252,17 +382,121 @@ const handleKeyPress = (e: React.KeyboardEvent) => {
                   color: 'white',
                   margin: '0 0 8px 0',
                   letterSpacing: '0.5px'
-                }}>Welcome Back</h1>
+                }}>
+                  Welcome Back
+                </h1>
 
                 <p style={{
                   fontSize: '14px',
                   color: 'rgba(255,255,255,0.9)',
                   margin: 0
-                }}>Report incidents, keep your community safe</p>
+                }}>
+                  Report incidents, keep your community safe
+                </p>
               </div>
             </div>
 
-            <IonCardContent style={{ padding: '40px 32px' }}>
+            <IonCardContent style={{ padding: '40px 32px', position: 'relative' }}>
+              {/* Saved Accounts Dropdown (like Facebook) */}
+              {savedAccount && (
+                <div style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '32px',
+                  right: '32px',
+                  zIndex: 1000,
+                  display: showSavedAccounts && isIdentifierFocused ? 'block' : 'none'
+                }}>
+                  <IonCard style={{
+                    background: 'white',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                    margin: 0
+                  }}>
+                    <IonCardContent style={{ padding: '16px' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '12px'
+                      }}>
+                        <IonText style={{ fontSize: '14px', fontWeight: '600', color: '#4a5568' }}>
+                          Saved Account
+                        </IonText>
+                        <IonButton
+                          fill="clear"
+                          size="small"
+                          onClick={() => setShowSavedAccounts(false)}
+                          style={{ '--padding-start': '4px', '--padding-end': '4px', height: '24px' } as any}
+                        >
+                          <IonIcon icon={closeOutline} style={{ fontSize: '16px' }} />
+                        </IonButton>
+                      </div>
+
+                      <IonItem
+                        button
+                        detail={false}
+                        onClick={handleUseSavedAccount}
+                        style={{
+                          '--background': 'transparent',
+                          '--border-radius': '8px',
+                          '--padding-start': '12px',
+                          '--padding-end': '12px',
+                          marginBottom: '8px'
+                        } as any}
+                      >
+                        <IonAvatar slot="start" style={{ width: '36px', height: '36px' }}>
+                          <IonIcon icon={personCircleOutline} style={{ fontSize: '36px', color: '#667eea' }} />
+                        </IonAvatar>
+                        <IonLabel>
+                          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#2d3748' }}>
+                            {savedAccount.identifier}
+                          </h3>
+                          <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
+                            Click to auto-fill
+                          </p>
+                        </IonLabel>
+                      </IonItem>
+
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                        <IonButton
+                          expand="block"
+                          size="small"
+                          onClick={handleClearSavedAccount}
+                          fill="outline"
+                          style={{
+                            '--border-radius': '6px',
+                            '--color': '#ef4444',
+                            '--border-color': '#ef4444',
+                            fontSize: '12px',
+                            height: '32px'
+                          } as any}
+                        >
+                          Clear Saved
+                        </IonButton>
+                        <IonButton
+                          expand="block"
+                          size="small"
+                          onClick={handleNewAccountLogin}
+                          fill="outline"
+                          style={{
+                            '--border-radius': '6px',
+                            '--color': '#667eea',
+                            '--border-color': '#667eea',
+                            fontSize: '12px',
+                            height: '32px'
+                          } as any}
+                        >
+                          Different Account
+                        </IonButton>
+                      </div>
+                    </IonCardContent>
+                  </IonCard>
+                </div>
+              )}
+
+              {/* Login Form */}
               <div style={{ marginBottom: '24px' }}>
                 <div style={{
                   display: 'flex',
@@ -288,37 +522,62 @@ const handleKeyPress = (e: React.KeyboardEvent) => {
                   value={loginIdentifier}
                   onIonChange={e => setLoginIdentifier((e.detail.value ?? ""))}
                   onKeyPress={handleKeyPress}
+                  onFocus={handleIdentifierFocus}
+                  onBlur={handleIdentifierBlur}
                   style={{
                     '--border-radius': '12px',
-                    '--border-color': '#e2e8f0',
+                    '--border-color': isIdentifierFocused ? '#667eea' : '#e2e8f0',
                     '--padding-start': '16px',
                     '--padding-end': '16px',
                     fontSize: '16px'
                   } as any}
                 />
+                {savedAccount && loginIdentifier === savedAccount.identifier && (
+                  <IonText color="success" style={{ fontSize: '12px', marginTop: '4px', display: 'flex', alignItems: 'center' }}>
+                    <IonIcon icon={timeOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
+                    Using saved account
+                  </IonText>
+                )}
               </div>
 
-              <div style={{ marginBottom: '32px' }}>
+              <div style={{ marginBottom: '24px' }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'space-between',
                   marginBottom: '12px'
                 }}>
-                  <IonIcon icon={lockClosedOutline} style={{
-                    fontSize: '18px',
-                    color: '#4a5568',
-                    marginRight: '8px'
-                  }} />
-                  <label style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#2d3748'
-                  }}>Password</label>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <IonIcon icon={lockClosedOutline} style={{
+                      fontSize: '18px',
+                      color: '#4a5568',
+                      marginRight: '8px'
+                    }} />
+                    <label style={{
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#2d3748'
+                    }}>Password</label>
+                  </div>
+                  <IonButton
+                    fill="clear"
+                    size="small"
+                    onClick={handleForgotPassword}
+                    style={{
+                      '--color': '#667eea',
+                      fontSize: '12px',
+                      height: 'auto'
+                    } as any}
+                  >
+                    Forgot Password?
+                  </IonButton>
                 </div>
+
+                {/* Fixed Password Input with Toggle */}
                 <IonInput
                   ref={passwordInputRef}
                   fill="outline"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={password}
                   onIonChange={e => setPassword((e.detail.value ?? ""))}
@@ -327,23 +586,62 @@ const handleKeyPress = (e: React.KeyboardEvent) => {
                     '--border-radius': '12px',
                     '--border-color': '#e2e8f0',
                     '--padding-start': '16px',
-                    '--padding-end': '16px',
+                    '--padding-end': '2px',
                     fontSize: '16px'
                   } as any}
                 >
-                  <IonInputPasswordToggle slot="end" />
+                  {/* Add the password toggle button inside IonInput */}
+                  <IonButton
+                    fill="clear"
+                    slot="end"
+                    aria-label="Show/hide password"
+                    onClick={togglePasswordVisibility}
+                    style={{
+                      '--padding-start': '8px',
+                      '--padding-end': '8px',
+                      '--color': '#6b7280'
+                    } as any}
+                  >
+                    <IonIcon
+                      slot="icon-only"
+                      icon={showPassword ? eyeOffOutline : eyeOutline}
+                    />
+                  </IonButton>
                 </IonInput>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '32px' }}>
-                <IonCheckbox
-                  checked={rememberMe}
-                  onIonChange={e => setRememberMe(e.detail.checked)}
-                  style={{ '--checkbox-background-checked': '#667eea', '--border-color-checked': '#667eea', marginRight: '8px' }}
-                />
-                <IonLabel style={{ fontSize: '14px', color: '#4a5568' }}>Remember Me</IonLabel>
+              {/* Remember Me Section */}
+              <div style={{ marginBottom: '32px' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '12px',
+                  background: rememberMe ? '#f0f9ff' : 'transparent',
+                  borderRadius: '8px',
+                  border: rememberMe ? '1px solid #bae6fd' : '1px solid #e2e8f0',
+                  transition: 'all 0.3s ease'
+                }}>
+                  <IonCheckbox
+                    checked={rememberMe}
+                    onIonChange={e => setRememberMe(e.detail.checked)}
+                    style={{
+                      '--checkbox-background-checked': '#667eea',
+                      '--border-color-checked': '#667eea',
+                      marginRight: '12px'
+                    }}
+                  />
+                  <div>
+                    <IonLabel style={{ fontSize: '14px', color: '#4a5568', fontWeight: '600' }}>
+                      Remember Me
+                    </IonLabel>
+                    <IonText style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginTop: '2px' }}>
+                      {rememberMe ? 'Save login details for quick access' : 'Do not save login details'}
+                    </IonText>
+                  </div>
+                </div>
               </div>
 
+              {/* Login Button */}
               <IonButton
                 onClick={handleLogin}
                 expand="block"
@@ -386,6 +684,7 @@ const handleKeyPress = (e: React.KeyboardEvent) => {
                 }}></div>
               </div>
 
+              {/* Create Account Button */}
               <IonButton
                 routerLink="/it35-lab2/register"
                 expand="block"
@@ -518,7 +817,6 @@ const handleKeyPress = (e: React.KeyboardEvent) => {
 
                   <IonButton
                     onClick={() => {
-                      // Placeholder for 2FA verification logic
                       setAlertMessage('2FA verification is not fully implemented in this demo.');
                       setShowAlert(true);
                       setShow2FAModal(false);
