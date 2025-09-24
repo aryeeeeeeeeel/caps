@@ -5,7 +5,6 @@ import {
   IonPage,
   IonInput,
   useIonRouter,
-  IonInputPasswordToggle,
   IonAlert,
   IonToast,
   IonIcon,
@@ -33,7 +32,6 @@ import {
   phonePortraitOutline,
   eyeOffOutline,
   eyeOutline,
-  chevronDownOutline,
   timeOutline,
   closeOutline
 } from 'ionicons/icons';
@@ -43,7 +41,6 @@ import {
   saveUserCredentials,
   getSavedCredentials,
   isRememberMeEnabled,
-  hasSavedCredentials,
   clearUserCredentials
 } from '../utils/supabaseClient';
 
@@ -81,7 +78,8 @@ const Login: React.FC = () => {
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [twoFACode, setTwoFACode] = useState('');
   const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
-  const [isIdentifierFocused, setIsIdentifierFocused] = useState(false);
+  const popoverRef = useRef<HTMLIonPopoverElement>(null);
+  const avatarButtonRef = useRef<HTMLIonButtonElement>(null);
 
   // Load saved credentials on component mount
   useEffect(() => {
@@ -107,20 +105,13 @@ const Login: React.FC = () => {
     loadSavedCredentials();
   }, []);
 
-  // Handle identifier input focus
-  const handleIdentifierFocus = () => {
-    setIsIdentifierFocused(true);
+  // Handle avatar icon click to show saved accounts
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (savedAccount) {
       setShowSavedAccounts(true);
     }
-  };
-
-  const handleIdentifierBlur = () => {
-    // Delay hiding to allow for clicking on saved account
-    setTimeout(() => {
-      setIsIdentifierFocused(false);
-      setShowSavedAccounts(false);
-    }, 200);
   };
 
   // Global Enter key handler
@@ -271,7 +262,6 @@ const Login: React.FC = () => {
       setLoginIdentifier(savedAccount.identifier);
       setPassword(savedAccount.password);
       setShowSavedAccounts(false);
-      setIsIdentifierFocused(false);
 
       // Auto-focus on password field for quick login
       setTimeout(() => {
@@ -295,7 +285,6 @@ const Login: React.FC = () => {
     setLoginIdentifier('');
     setPassword('');
     setShowSavedAccounts(false);
-    setIsIdentifierFocused(false);
 
     setTimeout(() => {
       loginIdentifierInputRef.current?.setFocus();
@@ -397,107 +386,8 @@ const Login: React.FC = () => {
             </div>
 
             <IonCardContent style={{ padding: '40px 32px', position: 'relative' }}>
-              {/* Saved Accounts Dropdown (like Facebook) */}
-              {savedAccount && (
-                <div style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '32px',
-                  right: '32px',
-                  zIndex: 1000,
-                  display: showSavedAccounts && isIdentifierFocused ? 'block' : 'none'
-                }}>
-                  <IonCard style={{
-                    background: 'white',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                    margin: 0
-                  }}>
-                    <IonCardContent style={{ padding: '16px' }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '12px'
-                      }}>
-                        <IonText style={{ fontSize: '14px', fontWeight: '600', color: '#4a5568' }}>
-                          Saved Account
-                        </IonText>
-                        <IonButton
-                          fill="clear"
-                          size="small"
-                          onClick={() => setShowSavedAccounts(false)}
-                          style={{ '--padding-start': '4px', '--padding-end': '4px', height: '24px' } as any}
-                        >
-                          <IonIcon icon={closeOutline} style={{ fontSize: '16px' }} />
-                        </IonButton>
-                      </div>
-
-                      <IonItem
-                        button
-                        detail={false}
-                        onClick={handleUseSavedAccount}
-                        style={{
-                          '--background': 'transparent',
-                          '--border-radius': '8px',
-                          '--padding-start': '12px',
-                          '--padding-end': '12px',
-                          marginBottom: '8px'
-                        } as any}
-                      >
-                        <IonAvatar slot="start" style={{ width: '36px', height: '36px' }}>
-                          <IonIcon icon={personCircleOutline} style={{ fontSize: '36px', color: '#667eea' }} />
-                        </IonAvatar>
-                        <IonLabel>
-                          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#2d3748' }}>
-                            {savedAccount.identifier}
-                          </h3>
-                          <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
-                            Click to auto-fill
-                          </p>
-                        </IonLabel>
-                      </IonItem>
-
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                        <IonButton
-                          expand="block"
-                          size="small"
-                          onClick={handleClearSavedAccount}
-                          fill="outline"
-                          style={{
-                            '--border-radius': '6px',
-                            '--color': '#ef4444',
-                            '--border-color': '#ef4444',
-                            fontSize: '12px',
-                            height: '32px'
-                          } as any}
-                        >
-                          Clear Saved
-                        </IonButton>
-                        <IonButton
-                          expand="block"
-                          size="small"
-                          onClick={handleNewAccountLogin}
-                          fill="outline"
-                          style={{
-                            '--border-radius': '6px',
-                            '--color': '#667eea',
-                            '--border-color': '#667eea',
-                            fontSize: '12px',
-                            height: '32px'
-                          } as any}
-                        >
-                          Different Account
-                        </IonButton>
-                      </div>
-                    </IonCardContent>
-                  </IonCard>
-                </div>
-              )}
-
               {/* Login Form */}
-              <div style={{ marginBottom: '24px' }}>
+              <div style={{ marginBottom: '24px', position: 'relative' }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -514,24 +404,133 @@ const Login: React.FC = () => {
                     color: '#2d3748'
                   }}>Email or Username</label>
                 </div>
-                <IonInput
-                  ref={loginIdentifierInputRef}
-                  fill="outline"
-                  type="text"
-                  placeholder="your.email@example.com or username"
-                  value={loginIdentifier}
-                  onIonChange={e => setLoginIdentifier((e.detail.value ?? ""))}
-                  onKeyPress={handleKeyPress}
-                  onFocus={handleIdentifierFocus}
-                  onBlur={handleIdentifierBlur}
-                  style={{
-                    '--border-radius': '12px',
-                    '--border-color': isIdentifierFocused ? '#667eea' : '#e2e8f0',
-                    '--padding-start': '16px',
-                    '--padding-end': '16px',
-                    fontSize: '16px'
-                  } as any}
-                />
+                
+                <div style={{ position: 'relative' }}>
+                  <IonInput
+                    ref={loginIdentifierInputRef}
+                    fill="outline"
+                    type="text"
+                    placeholder="your.email@example.com or username"
+                    value={loginIdentifier}
+                    onIonChange={e => setLoginIdentifier((e.detail.value ?? ""))}
+                    onKeyPress={handleKeyPress}
+                    style={{
+                      '--border-radius': '12px',
+                      '--border-color': '#e2e8f0',
+                      '--padding-start': '16px',
+                      '--padding-end': savedAccount && !loginIdentifier ? '40px' : '16px',
+                      fontSize: '16px'
+                    } as any}
+                  />
+                  
+                  {/* Show saved account avatar icon when field is empty */}
+                  {savedAccount && !loginIdentifier && (
+                    <IonButton
+                      ref={avatarButtonRef}
+                      fill="clear"
+                      onClick={handleAvatarClick}
+                      style={{
+                        position: 'absolute',
+                        right: '4px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        '--padding-start': '8px',
+                        '--padding-end': '8px',
+                        '--color': '#667eea',
+                        zIndex: 10,
+                        height: '32px'
+                      } as any}
+                    >
+                      <IonIcon icon={personCircleOutline} style={{ fontSize: '20px' }} />
+                    </IonButton>
+                  )}
+                </div>
+
+                {/* Saved Accounts Popover */}
+                {savedAccount && (
+                  <IonPopover
+                    ref={popoverRef}
+                    isOpen={showSavedAccounts}
+                    onDidDismiss={() => setShowSavedAccounts(false)}
+                    dismissOnSelect={false}
+                    showBackdrop={true}
+                    trigger={undefined}
+                    triggerAction="click"
+                    reference="event"
+                    alignment="start"
+                    side="bottom"
+                    style={{ 
+                      '--width': '100%',
+                      '--max-width': '400px',
+                      '--offset-y': '8px'
+                    } as any}
+                  >
+                    <IonContent>
+                      <IonList style={{ padding: '8px' }}>
+                        <IonItem lines="none">
+                          <IonText style={{ fontSize: '14px', fontWeight: '600', color: '#4a5568' }}>
+                            Saved Account
+                          </IonText>
+                        </IonItem>
+
+                        <IonItem
+                          button
+                          detail={false}
+                          onClick={handleUseSavedAccount}
+                          style={{ '--border-radius': '8px', margin: '8px 0' } as any}
+                        >
+                          <IonAvatar slot="start" style={{ width: '36px', height: '36px' }}>
+                            <IonIcon icon={personCircleOutline} style={{ fontSize: '36px', color: '#667eea' }} />
+                          </IonAvatar>
+                          <IonLabel>
+                            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#2d3748' }}>
+                              {savedAccount.identifier}
+                            </h3>
+                            <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
+                              Click to auto-fill
+                            </p>
+                          </IonLabel>
+                        </IonItem>
+
+                        <div style={{ display: 'flex', gap: '8px', padding: '0 16px 8px' }}>
+                          <IonButton
+                            expand="block"
+                            size="small"
+                            onClick={handleClearSavedAccount}
+                            fill="outline"
+                            style={{
+                              '--border-radius': '6px',
+                              '--color': '#ef4444',
+                              '--border-color': '#ef4444',
+                              fontSize: '12px',
+                              height: '32px',
+                              flex: 1
+                            } as any}
+                          >
+                            Clear Saved
+                          </IonButton>
+                          <IonButton
+                            expand="block"
+                            size="small"
+                            onClick={handleNewAccountLogin}
+                            fill="outline"
+                            style={{
+                              '--border-radius': '6px',
+                              '--color': '#667eea',
+                              '--border-color': '#667eea',
+                              fontSize: '12px',
+                              height: '32px',
+                              flex: 1
+                            } as any}
+                          >
+                            Different Account
+                          </IonButton>
+                        </div>
+                      </IonList>
+                    </IonContent>
+                  </IonPopover>
+                )}
+
                 {savedAccount && loginIdentifier === savedAccount.identifier && (
                   <IonText color="success" style={{ fontSize: '12px', marginTop: '4px', display: 'flex', alignItems: 'center' }}>
                     <IonIcon icon={timeOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
@@ -573,7 +572,7 @@ const Login: React.FC = () => {
                   </IonButton>
                 </div>
 
-                {/* Fixed Password Input with Toggle */}
+                {/* Password Input with Toggle */}
                 <IonInput
                   ref={passwordInputRef}
                   fill="outline"
@@ -590,7 +589,6 @@ const Login: React.FC = () => {
                     fontSize: '16px'
                   } as any}
                 >
-                  {/* Add the password toggle button inside IonInput */}
                   <IonButton
                     fill="clear"
                     slot="end"
@@ -744,7 +742,7 @@ const Login: React.FC = () => {
           color="success"
         />
 
-        {/* 2FA Modal Placeholder */}
+        {/* 2FA Modal */}
         <IonModal isOpen={show2FAModal} onDidDismiss={() => setShow2FAModal(false)}>
           <IonContent style={{
             '--background': 'linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)',
