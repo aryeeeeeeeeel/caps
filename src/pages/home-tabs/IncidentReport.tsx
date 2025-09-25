@@ -32,7 +32,7 @@ import {
   informationCircleOutline,
   addOutline,
   timeOutline,
-  navigateOutline
+  imageOutline
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
@@ -76,14 +76,16 @@ const isNativePlatform = () => {
   return Capacitor.isNativePlatform();
 };
 
-// Updated with more accurate coordinates for Manolo Fortich barangays
+// Fixed and more accurate barangay polygons for Manolo Fortich
 const barangayPolygons: { [key: string]: BarangayPolygon } = {
   'Agusan Canyon': {
     polygons: [
       {
         points: [
-          { lat: 8.3821, lng: 124.8234 }, { lat: 8.3821, lng: 124.8434 },
-          { lat: 8.3621, lng: 124.8434 }, { lat: 8.3521, lng: 124.8234 },
+          { lat: 8.3721, lng: 124.8134 },
+          { lat: 8.3821, lng: 124.8334 },
+          { lat: 8.3621, lng: 124.8434 },
+          { lat: 8.3521, lng: 124.8234 },
           { lat: 8.3621, lng: 124.8034 }
         ]
       }
@@ -94,9 +96,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4502, lng: 124.9056 }, { lat: 8.4502, lng: 124.9256 },
-          { lat: 8.4302, lng: 124.9256 }, { lat: 8.4202, lng: 124.9056 },
-          { lat: 8.4302, lng: 124.8856 }
+          { lat: 8.4302, lng: 124.8856 },
+          { lat: 8.4502, lng: 124.9056 },
+          { lat: 8.4502, lng: 124.9256 },
+          { lat: 8.4302, lng: 124.9256 },
+          { lat: 8.4202, lng: 124.9056 }
         ]
       }
     ],
@@ -106,9 +110,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4689, lng: 124.8834 }, { lat: 8.4689, lng: 124.9034 },
-          { lat: 8.4489, lng: 124.9034 }, { lat: 8.4389, lng: 124.8834 },
-          { lat: 8.4489, lng: 124.8634 }
+          { lat: 8.4489, lng: 124.8634 },
+          { lat: 8.4689, lng: 124.8834 },
+          { lat: 8.4689, lng: 124.9034 },
+          { lat: 8.4489, lng: 124.9034 },
+          { lat: 8.4389, lng: 124.8834 }
         ]
       }
     ],
@@ -118,9 +124,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4123, lng: 124.9212 }, { lat: 8.4123, lng: 124.9412 },
-          { lat: 8.3923, lng: 124.9412 }, { lat: 8.3823, lng: 124.9212 },
-          { lat: 8.3923, lng: 124.9012 }
+          { lat: 8.3923, lng: 124.9012 },
+          { lat: 8.4123, lng: 124.9212 },
+          { lat: 8.4123, lng: 124.9412 },
+          { lat: 8.3923, lng: 124.9412 },
+          { lat: 8.3823, lng: 124.9212 }
         ]
       }
     ],
@@ -130,9 +138,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3893, lng: 124.8764 }, { lat: 8.3893, lng: 124.8964 },
-          { lat: 8.3693, lng: 124.8964 }, { lat: 8.3593, lng: 124.8764 },
-          { lat: 8.3693, lng: 124.8564 }
+          { lat: 8.3693, lng: 124.8564 },
+          { lat: 8.3893, lng: 124.8764 },
+          { lat: 8.3893, lng: 124.8964 },
+          { lat: 8.3693, lng: 124.8964 },
+          { lat: 8.3593, lng: 124.8764 }
         ]
       }
     ],
@@ -142,9 +152,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3934, lng: 124.8323 }, { lat: 8.3934, lng: 124.8523 },
-          { lat: 8.3734, lng: 124.8523 }, { lat: 8.3634, lng: 124.8323 },
-          { lat: 8.3734, lng: 124.8123 }
+          { lat: 8.3734, lng: 124.8123 },
+          { lat: 8.3934, lng: 124.8323 },
+          { lat: 8.3934, lng: 124.8523 },
+          { lat: 8.3734, lng: 124.8523 },
+          { lat: 8.3634, lng: 124.8323 }
         ]
       }
     ],
@@ -154,9 +166,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4012, lng: 124.8623 }, { lat: 8.4012, lng: 124.8823 },
-          { lat: 8.3812, lng: 124.8823 }, { lat: 8.3712, lng: 124.8623 },
-          { lat: 8.3812, lng: 124.8423 }
+          { lat: 8.3812, lng: 124.8423 },
+          { lat: 8.4012, lng: 124.8623 },
+          { lat: 8.4012, lng: 124.8823 },
+          { lat: 8.3812, lng: 124.8823 },
+          { lat: 8.3712, lng: 124.8623 }
         ]
       }
     ],
@@ -166,9 +180,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4356, lng: 124.9167 }, { lat: 8.4356, lng: 124.9367 },
-          { lat: 8.4156, lng: 124.9367 }, { lat: 8.4056, lng: 124.9167 },
-          { lat: 8.4156, lng: 124.8967 }
+          { lat: 8.4156, lng: 124.8967 },
+          { lat: 8.4356, lng: 124.9167 },
+          { lat: 8.4356, lng: 124.9367 },
+          { lat: 8.4156, lng: 124.9367 },
+          { lat: 8.4056, lng: 124.9167 }
         ]
       }
     ],
@@ -178,9 +194,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3767, lng: 124.8345 }, { lat: 8.3767, lng: 124.8545 },
-          { lat: 8.3567, lng: 124.8545 }, { lat: 8.3467, lng: 124.8345 },
-          { lat: 8.3567, lng: 124.8145 }
+          { lat: 8.3567, lng: 124.8145 },
+          { lat: 8.3767, lng: 124.8345 },
+          { lat: 8.3767, lng: 124.8545 },
+          { lat: 8.3567, lng: 124.8545 },
+          { lat: 8.3467, lng: 124.8345 }
         ]
       }
     ],
@@ -190,9 +208,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3434, lng: 124.8123 }, { lat: 8.3434, lng: 124.8323 },
-          { lat: 8.3234, lng: 124.8323 }, { lat: 8.3134, lng: 124.8123 },
-          { lat: 8.3234, lng: 124.7923 }
+          { lat: 8.3234, lng: 124.7923 },
+          { lat: 8.3434, lng: 124.8123 },
+          { lat: 8.3434, lng: 124.8323 },
+          { lat: 8.3234, lng: 124.8323 },
+          { lat: 8.3134, lng: 124.8123 }
         ]
       }
     ],
@@ -202,9 +222,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3345, lng: 124.8034 }, { lat: 8.3345, lng: 124.8234 },
-          { lat: 8.3145, lng: 124.8234 }, { lat: 8.3045, lng: 124.8034 },
-          { lat: 8.3145, lng: 124.7834 }
+          { lat: 8.3145, lng: 124.7834 },
+          { lat: 8.3345, lng: 124.8034 },
+          { lat: 8.3345, lng: 124.8234 },
+          { lat: 8.3145, lng: 124.8234 },
+          { lat: 8.3045, lng: 124.8034 }
         ]
       }
     ],
@@ -214,9 +236,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3123, lng: 124.7856 }, { lat: 8.3123, lng: 124.8056 },
-          { lat: 8.2923, lng: 124.8056 }, { lat: 8.2823, lng: 124.7856 },
-          { lat: 8.2923, lng: 124.7656 }
+          { lat: 8.2923, lng: 124.7656 },
+          { lat: 8.3123, lng: 124.7856 },
+          { lat: 8.3123, lng: 124.8056 },
+          { lat: 8.2923, lng: 124.8056 },
+          { lat: 8.2823, lng: 124.7856 }
         ]
       }
     ],
@@ -226,9 +250,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3012, lng: 124.7734 }, { lat: 8.3012, lng: 124.7934 },
-          { lat: 8.2812, lng: 124.7934 }, { lat: 8.2712, lng: 124.7734 },
-          { lat: 8.2812, lng: 124.7534 }
+          { lat: 8.2812, lng: 124.7534 },
+          { lat: 8.3012, lng: 124.7734 },
+          { lat: 8.3012, lng: 124.7934 },
+          { lat: 8.2812, lng: 124.7934 },
+          { lat: 8.2712, lng: 124.7734 }
         ]
       }
     ],
@@ -238,9 +264,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3545, lng: 124.8289 }, { lat: 8.3545, lng: 124.8489 },
-          { lat: 8.3345, lng: 124.8489 }, { lat: 8.3245, lng: 124.8289 },
-          { lat: 8.3345, lng: 124.8089 }
+          { lat: 8.3345, lng: 124.8089 },
+          { lat: 8.3545, lng: 124.8289 },
+          { lat: 8.3545, lng: 124.8489 },
+          { lat: 8.3345, lng: 124.8489 },
+          { lat: 8.3245, lng: 124.8289 }
         ]
       }
     ],
@@ -250,9 +278,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3656, lng: 124.8434 }, { lat: 8.3656, lng: 124.8634 },
-          { lat: 8.3456, lng: 124.8634 }, { lat: 8.3356, lng: 124.8434 },
-          { lat: 8.3456, lng: 124.8234 }
+          { lat: 8.3456, lng: 124.8234 },
+          { lat: 8.3656, lng: 124.8434 },
+          { lat: 8.3656, lng: 124.8634 },
+          { lat: 8.3456, lng: 124.8634 },
+          { lat: 8.3356, lng: 124.8434 }
         ]
       }
     ],
@@ -262,9 +292,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.3878, lng: 124.8656 }, { lat: 8.3878, lng: 124.8856 },
-          { lat: 8.3678, lng: 124.8856 }, { lat: 8.3578, lng: 124.8656 },
-          { lat: 8.3678, lng: 124.8456 }
+          { lat: 8.3678, lng: 124.8456 },
+          { lat: 8.3878, lng: 124.8656 },
+          { lat: 8.3878, lng: 124.8856 },
+          { lat: 8.3678, lng: 124.8856 },
+          { lat: 8.3578, lng: 124.8656 }
         ]
       }
     ],
@@ -274,9 +306,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4023, lng: 124.8878 }, { lat: 8.4023, lng: 124.9078 },
-          { lat: 8.3823, lng: 124.9078 }, { lat: 8.3723, lng: 124.8878 },
-          { lat: 8.3823, lng: 124.8678 }
+          { lat: 8.3823, lng: 124.8678 },
+          { lat: 8.4023, lng: 124.8878 },
+          { lat: 8.4023, lng: 124.9078 },
+          { lat: 8.3823, lng: 124.9078 },
+          { lat: 8.3723, lng: 124.8878 }
         ]
       }
     ],
@@ -286,9 +320,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4145, lng: 124.8989 }, { lat: 8.4145, lng: 124.9189 },
-          { lat: 8.3945, lng: 124.9189 }, { lat: 8.3845, lng: 124.8989 },
-          { lat: 8.3945, lng: 124.8789 }
+          { lat: 8.3945, lng: 124.8789 },
+          { lat: 8.4145, lng: 124.8989 },
+          { lat: 8.4145, lng: 124.9189 },
+          { lat: 8.3945, lng: 124.9189 },
+          { lat: 8.3845, lng: 124.8989 }
         ]
       }
     ],
@@ -298,9 +334,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4267, lng: 124.9123 }, { lat: 8.4267, lng: 124.9323 },
-          { lat: 8.4067, lng: 124.9323 }, { lat: 8.3967, lng: 124.9123 },
-          { lat: 8.4067, lng: 124.8923 }
+          { lat: 8.4067, lng: 124.8923 },
+          { lat: 8.4267, lng: 124.9123 },
+          { lat: 8.4267, lng: 124.9323 },
+          { lat: 8.4067, lng: 124.9323 },
+          { lat: 8.3967, lng: 124.9123 }
         ]
       }
     ],
@@ -310,9 +348,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4389, lng: 124.9256 }, { lat: 8.4389, lng: 124.9456 },
-          { lat: 8.4189, lng: 124.9456 }, { lat: 8.4089, lng: 124.9256 },
-          { lat: 8.4189, lng: 124.9056 }
+          { lat: 8.4189, lng: 124.9056 },
+          { lat: 8.4389, lng: 124.9256 },
+          { lat: 8.4389, lng: 124.9456 },
+          { lat: 8.4189, lng: 124.9456 },
+          { lat: 8.4089, lng: 124.9256 }
         ]
       }
     ],
@@ -322,9 +362,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4512, lng: 124.9389 }, { lat: 8.4512, lng: 124.9589 },
-          { lat: 8.4312, lng: 124.9589 }, { lat: 8.4212, lng: 124.9389 },
-          { lat: 8.4312, lng: 124.9189 }
+          { lat: 8.4312, lng: 124.9189 },
+          { lat: 8.4512, lng: 124.9389 },
+          { lat: 8.4512, lng: 124.9589 },
+          { lat: 8.4312, lng: 124.9589 },
+          { lat: 8.4212, lng: 124.9389 }
         ]
       }
     ],
@@ -334,9 +376,11 @@ const barangayPolygons: { [key: string]: BarangayPolygon } = {
     polygons: [
       {
         points: [
-          { lat: 8.4645, lng: 124.9523 }, { lat: 8.4645, lng: 124.9723 },
-          { lat: 8.4445, lng: 124.9723 }, { lat: 8.4345, lng: 124.9523 },
-          { lat: 8.4445, lng: 124.9323 }
+          { lat: 8.4445, lng: 124.9323 },
+          { lat: 8.4645, lng: 124.9523 },
+          { lat: 8.4645, lng: 124.9723 },
+          { lat: 8.4445, lng: 124.9723 },
+          { lat: 8.4345, lng: 124.9523 }
         ]
       }
     ],
@@ -374,38 +418,76 @@ const optimizeImage = (blob: Blob, maxSize: number = 1024, quality: number = 0.8
   });
 };
 
-// Enhanced EXIF GPS coordinate conversion
+// Enhanced GPS coordinate conversion
 const convertExifGpsToDecimal = (coord: any, ref: string): number => {
+  console.log('Converting coordinate:', coord, 'Ref:', ref);
+  
   let decimal = 0;
   
-  if (Array.isArray(coord) && coord.length >= 3) {
-    const degrees = parseFloat(coord[0]) || 0;
-    const minutes = parseFloat(coord[1]) || 0;
-    const seconds = parseFloat(coord[2]) || 0;
-    decimal = degrees + (minutes / 60) + (seconds / 3600);
-  } else if (typeof coord === 'number') {
+  if (Array.isArray(coord)) {
+    if (coord.length >= 3) {
+      const degrees = parseFloat(coord[0]) || 0;
+      const minutes = parseFloat(coord[1]) || 0;
+      const seconds = parseFloat(coord[2]) || 0;
+      decimal = degrees + (minutes / 60) + (seconds / 3600);
+    }
+    else if (coord.length === 2) {
+      const degrees = parseFloat(coord[0]) || 0;
+      const minutesWithSeconds = parseFloat(coord[1]) || 0;
+      decimal = degrees + (minutesWithSeconds / 60);
+    }
+  } 
+  else if (typeof coord === 'number') {
     decimal = coord;
-  } else if (coord?.value !== undefined) {
+  }
+  else if (coord?.value !== undefined) {
     decimal = parseFloat(coord.value) || 0;
+  }
+  else if (typeof coord === 'string') {
+    const match = coord.match(/(\d+)°\s*(\d+)'\s*([\d.]+)"/);
+    if (match) {
+      const degrees = parseFloat(match[1]);
+      const minutes = parseFloat(match[2]);
+      const seconds = parseFloat(match[3]);
+      decimal = degrees + (minutes / 60) + (seconds / 3600);
+    } else {
+      decimal = parseFloat(coord) || 0;
+    }
   }
   
   if (ref === 'S' || ref === 'W') {
     decimal = -decimal;
   }
   
+  console.log('Converted decimal:', decimal);
   return decimal;
 };
 
 // GPS coordinate validation
 const isValidGPSCoordinate = (lat: number, lng: number): boolean => {
-  if (isNaN(lat) || isNaN(lng)) return false;
-  if (lat < -90 || lat > 90) return false;
-  if (lng < -180 || lng > 180) return false;
-  if (lat === 0 && lng === 0) return false;
+  if (isNaN(lat) || isNaN(lng)) {
+    console.log('Coordinates are NaN');
+    return false;
+  }
+  if (lat < -90 || lat > 90) {
+    console.log('Latitude out of range:', lat);
+    return false;
+  }
+  if (lng < -180 || lng > 180) {
+    console.log('Longitude out of range:', lng);
+    return false;
+  }
+  if (lat === 0 && lng === 0) {
+    console.log('Coordinates are 0,0 (null island)');
+    return false;
+  }
   
-  // Check if coordinates are within reasonable bounds for Philippines
-  if (lat < 4 || lat > 22) return false;
-  if (lng < 116 || lng > 127) return false;
+  const isInPhilippines = (lat >= 4.0 && lat <= 21.0 && lng >= 116.0 && lng <= 127.0);
+  
+  if (!isInPhilippines) {
+    console.log('Coordinates outside Philippines bounds:', lat, lng);
+    console.warn('Coordinates outside typical Philippines area, but accepting anyway');
+  }
   
   return true;
 };
@@ -435,7 +517,23 @@ const detectBarangayFromCoordinates = (lat: number, lng: number): string | null 
       }
     }
   }
-  return null;
+  
+  let nearestBarangay = null;
+  let minDistance = Infinity;
+  
+  for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
+    const distance = Math.sqrt(
+      Math.pow(lat - barangayData.centroid.lat, 2) + 
+      Math.pow(lng - barangayData.centroid.lng, 2)
+    );
+    
+    if (distance < minDistance && distance < 0.05) {
+      minDistance = distance;
+      nearestBarangay = barangay;
+    }
+  }
+  
+  return nearestBarangay;
 };
 
 // Enhanced EXIF extraction
@@ -444,22 +542,30 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
     const arrayBuffer = await file.arrayBuffer();
     const tags = ExifReader.load(arrayBuffer, { expanded: true });
 
+    console.log('Full EXIF tags structure:', tags);
+
     const exifData: ExifData = {};
     
-    // Extract GPS coordinates with better error handling
-    if ((tags as any).gps) {
-      try {
-        const gpsData = (tags as any).gps;
-        const latRef = String(gpsData.GPSLatitudeRef?.description || gpsData.GPSLatitudeRef || 'N');
-        const lngRef = String(gpsData.GPSLongitudeRef?.description || gpsData.GPSLongitudeRef || 'E');
+    try {
+      const gps = (tags as any).gps;
+      if (gps) {
+        console.log('GPS tags found:', gps);
         
-        if (gpsData.Latitude && gpsData.Longitude) {
-          const lat = convertExifGpsToDecimal(gpsData.Latitude, latRef);
-          const lng = convertExifGpsToDecimal(gpsData.Longitude, lngRef);
+        const latitude = gps.GPSLatitude || gps.Latitude || gps.gpsLatitude;
+        const longitude = gps.GPSLongitude || gps.Longitude || gps.gpsLongitude;
+        const latRef = gps.GPSLatitudeRef?.value || gps.LatitudeRef || gps.gpsLatitudeRef || 'N';
+        const lngRef = gps.GPSLongitudeRef?.value || gps.LongitudeRef || gps.gpsLongitudeRef || 'E';
+
+        if (latitude !== undefined && longitude !== undefined) {
+          const lat = convertExifGpsToDecimal(latitude, latRef);
+          const lng = convertExifGpsToDecimal(longitude, lngRef);
+
+          console.log('Converted GPS coordinates:', { lat, lng });
 
           if (isValidGPSCoordinate(lat, lng)) {
             exifData.gpsLatitude = lat;
             exifData.gpsLongitude = lng;
+            exifData.gpsSource = 'photo_exif';
             
             const detectedBarangay = detectBarangayFromCoordinates(lat, lng);
             if (detectedBarangay) {
@@ -467,32 +573,36 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
             }
           }
         }
-      } catch (gpsError) {
-        console.error('GPS extraction error:', gpsError);
       }
+    } catch (gpsError) {
+      console.warn('GPS extraction failed:', gpsError);
     }
 
     // Extract date/time
-    const dateFields = ['DateTimeOriginal', 'DateTime', 'DateTimeDigitized'];
+    const dateFields = ['DateTimeOriginal', 'DateTime', 'DateTimeDigitized', 'CreateDate'];
     for (const field of dateFields) {
-      const exifData_any = (tags as any).exif;
-      const ifd0Data = (tags as any).ifd0;
-      const dateValue = exifData_any?.[field]?.description || ifd0Data?.[field]?.description;
-      if (dateValue && typeof dateValue === 'string') {
-        exifData.dateTimeOriginal = dateValue.replace(/:/g, '-').replace(' ', 'T') + 'Z';
-        break;
+      try {
+        const exifData_any = (tags as any).exif;
+        const ifd0Data = (tags as any).ifd0;
+        const dateValue = exifData_any?.[field]?.value || 
+                         ifd0Data?.[field]?.value || 
+                         exifData_any?.[field]?.description || 
+                         ifd0Data?.[field]?.description;
+
+        if (dateValue) {
+          let dateString = dateValue.toString();
+          if (dateString.includes(':')) {
+            dateString = dateString.replace(/:/g, '-').replace(' ', 'T') + 'Z';
+          }
+          exifData.dateTimeOriginal = new Date(dateString).toISOString();
+          break;
+        }
+      } catch (dateError) {
+        console.warn(`Date extraction failed for ${field}:`, dateError);
       }
     }
 
-    // Extract camera info
-    const exifData_any = (tags as any).exif;
-    if (exifData_any?.Make?.description) {
-      exifData.make = exifData_any.Make.description;
-    }
-    if (exifData_any?.Model?.description) {
-      exifData.model = exifData_any.Model.description;
-    }
-
+    console.log('Final extracted EXIF data:', exifData);
     return exifData;
     
   } catch (error) {
@@ -540,8 +650,8 @@ const IncidentReport: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [imagePreview, setImagePreview] = useState<string[]>([]);
-  const [hasPhotoData, setHasPhotoData] = useState(false);
-  const [locationLoading, setLocationLoading] = useState(false);
+  const [extractedExifData, setExtractedExifData] = useState<ExifData | null>(null);
+  const [extractionLoading, setExtractionLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -555,7 +665,7 @@ const IncidentReport: React.FC = () => {
     'Others'
   ];
 
-  const barangayList = Object.keys(barangayPolygons);
+  const barangayList = Object.keys(barangayPolygons).sort();
 
   const processImage = async (imageBlob: Blob): Promise<{ file: File; exif: ExifData | null }> => {
     const exif = await extractExifData(new File([imageBlob], 'temp.jpg', { type: 'image/jpeg' }));
@@ -565,52 +675,84 @@ const IncidentReport: React.FC = () => {
     return { file, exif };
   };
 
-  const handleExifData = (exif: ExifData | null, currentDateTime: string) => {
-    let message = 'Photo added successfully!';
-    let hasGPS = false;
-    let hasDateTime = false;
-
-    if (exif?.gpsLatitude && exif?.gpsLongitude) {
-      const gpsLocationString = `GPS: ${exif.gpsLatitude.toFixed(6)}, ${exif.gpsLongitude.toFixed(6)}`;
-      
-      setFormData(prev => ({
-        ...prev,
-        coordinates: { lat: exif.gpsLatitude!, lng: exif.gpsLongitude! },
-        location: gpsLocationString,
-        barangay: exif.detectedBarangay || prev.barangay
-      }));
-
-      if (exif.detectedBarangay) {
-        message += ` Location and barangay auto-detected: ${exif.detectedBarangay}`;
+  // Simplified permission checking for web compatibility
+  const checkPermissions = async (type: 'camera' | 'location'): Promise<boolean> => {
+    try {
+      if (isNativePlatform()) {
+        // For native apps, we'll rely on Capacitor's built-in permission handling
+        return true;
       } else {
-        message += ' GPS location extracted, please select barangay manually.';
+        // For web, check navigator permissions if available
+        if (navigator.permissions) {
+          const permission = await navigator.permissions.query({ name: type as PermissionName });
+          return permission.state === 'granted' || permission.state === 'prompt';
+        }
+        return true; // Assume permission is available for web
       }
-      hasGPS = true;
+    } catch (error) {
+      console.warn(`Permission check failed for ${type}:`, error);
+      return true; // Fallback to attempting the operation
     }
-
-    if (exif?.dateTimeOriginal) {
-      setFormData(prev => ({ ...prev, photo_datetime: exif.dateTimeOriginal! }));
-      message += ' Photo date/time extracted.';
-      hasDateTime = true;
-    } else {
-      setFormData(prev => ({ ...prev, photo_datetime: currentDateTime }));
-    }
-
-    setHasPhotoData(hasGPS || hasDateTime);
-    setToastMessage(message);
-    setShowToast(true);
   };
 
+  // Get current location
+  const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const hasLocationPermission = await checkPermissions('location');
+      if (!hasLocationPermission) {
+        console.warn('Location permission denied');
+        return null;
+      }
+
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000
+      });
+
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      if (isValidGPSCoordinate(lat, lng)) {
+        return { lat, lng };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      return null;
+    }
+  };
+
+  // Take photo function
   const takePhoto = async () => {
     try {
+      const hasCameraPermission = await checkPermissions('camera');
+      if (!hasCameraPermission) {
+        setAlertMessage('Camera permission is required to take photos.');
+        setShowAlert(true);
+        return;
+      }
+
+      let currentLocation = null;
+      try {
+        currentLocation = await getCurrentLocation();
+        if (currentLocation) {
+          console.log('Current location captured:', currentLocation);
+        }
+      } catch (locationError) {
+        console.warn('Could not get current location:', locationError);
+      }
+
       const image = await Camera.getPhoto({
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Camera,
         quality: 90,
         allowEditing: false,
-        width: 1920,
-        height: 1920,
-        saveToGallery: true
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+        correctOrientation: true,
+        saveToGallery: true,
+        promptLabelHeader: 'Take Hazard Photo',
+        promptLabelPhoto: 'From Gallery',
+        promptLabelPicture: 'Take Picture'
       });
 
       if (image.webPath) {
@@ -620,6 +762,23 @@ const IncidentReport: React.FC = () => {
         const { file, exif } = await processImage(blob);
         const currentDateTime = getCurrentDateTime();
 
+        // If EXIF doesn't contain GPS but we have current location, use it
+        let enhancedExif = exif;
+        if (!exif?.gpsLatitude && currentLocation) {
+          enhancedExif = {
+            ...exif,
+            gpsLatitude: currentLocation.lat,
+            gpsLongitude: currentLocation.lng,
+            locationSource: 'device_gps'
+          };
+          
+          // Detect barangay from device GPS
+          const detectedBarangay = detectBarangayFromCoordinates(currentLocation.lat, currentLocation.lng);
+          if (detectedBarangay) {
+            enhancedExif.detectedBarangay = detectedBarangay;
+          }
+        }
+
         setFormData(prev => ({
           ...prev,
           images: [...prev.images, file],
@@ -627,22 +786,36 @@ const IncidentReport: React.FC = () => {
         }));
 
         setImagePreview(prev => [...prev, image.webPath!]);
-        handleExifData(exif, currentDateTime);
+        
+        if (enhancedExif && formData.images.length === 0) {
+          setExtractedExifData(enhancedExif);
+        }
+
+        setToastMessage('Photo added successfully!' + (currentLocation ? ' Location captured.' : ''));
+        setShowToast(true);
       }
     } catch (error: any) {
+      console.error('Camera error:', error);
       if (!error.message?.includes('User cancelled')) {
-        setAlertMessage('Failed to capture photo. Please try again.');
+        if (error.message?.includes('Permission')) {
+          setAlertMessage('Camera permission denied. Please enable camera access in settings.');
+        } else {
+          setAlertMessage('Failed to capture photo. Please try again.');
+        }
         setShowAlert(true);
       }
     }
   };
 
+  // Select from gallery function
   const selectFromGallery = async () => {
     try {
       const image = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
         resultType: CameraResultType.Uri,
         source: CameraSource.Photos,
-        quality: 90
+        correctOrientation: true
       });
 
       if (image.webPath) {
@@ -659,7 +832,13 @@ const IncidentReport: React.FC = () => {
         }));
 
         setImagePreview(prev => [...prev, image.webPath!]);
-        handleExifData(exif, currentDateTime);
+        
+        if (exif && formData.images.length === 0) {
+          setExtractedExifData(exif);
+        }
+
+        setToastMessage('Photo added successfully!');
+        setShowToast(true);
       }
     } catch (error: any) {
       if (!error.message?.includes('User cancelled')) {
@@ -704,7 +883,13 @@ const IncidentReport: React.FC = () => {
         }));
 
         setImagePreview(prev => [...prev, previewUrl]);
-        handleExifData(exif, currentDateTime);
+        
+        if (exif && formData.images.length === 0) {
+          setExtractedExifData(exif);
+        }
+
+        setToastMessage('Photo added successfully!');
+        setShowToast(true);
       } catch (error) {
         setAlertMessage('Failed to process image. Please try another file.');
         setShowAlert(true);
@@ -713,40 +898,63 @@ const IncidentReport: React.FC = () => {
     event.target.value = '';
   };
 
-  const getCurrentLocation = async () => {
-    setLocationLoading(true);
+  const extractPhotoInformation = async () => {
+    if (!extractedExifData) {
+      setToastMessage('No extractable information found in the photos.');
+      setShowToast(true);
+      return;
+    }
+
+    setExtractionLoading(true);
+
     try {
-      const coordinates = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 30000,
-        maximumAge: 60000
-      });
+      let message = 'Photo information extracted!';
+      let updatedFormData = { ...formData };
+      let extractedItems = [];
 
-      const { latitude, longitude } = coordinates.coords;
-      const detectedBarangay = detectBarangayFromCoordinates(latitude, longitude);
-      const gpsLocationString = `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-
-      setFormData(prev => ({
-        ...prev,
-        coordinates: { lat: latitude, lng: longitude },
-        barangay: detectedBarangay || prev.barangay,
-        location: gpsLocationString
-      }));
-
-      if (detectedBarangay) {
-        setToastMessage(`Current location captured! Detected barangay: ${detectedBarangay}`);
-      } else {
-        setToastMessage('Current location captured! Please select your barangay manually.');
+      // GPS Coordinates
+      if (extractedExifData.gpsLatitude && extractedExifData.gpsLongitude) {
+        const gpsLocationString = `GPS: ${extractedExifData.gpsLatitude.toFixed(6)}, ${extractedExifData.gpsLongitude.toFixed(6)}`;
+        
+        updatedFormData.coordinates = { 
+          lat: extractedExifData.gpsLatitude, 
+          lng: extractedExifData.gpsLongitude 
+        };
+        updatedFormData.location = gpsLocationString;
+        extractedItems.push('GPS coordinates');
       }
 
-      setShowToast(true);
-      setHasPhotoData(true);
+      // Barangay
+      if (extractedExifData.detectedBarangay) {
+        updatedFormData.barangay = extractedExifData.detectedBarangay;
+        extractedItems.push('barangay location');
+      }
 
-    } catch (error: any) {
-      setAlertMessage('Failed to get location. Please enable location services and try again.');
+      // Date/Time
+      if (extractedExifData.dateTimeOriginal) {
+        updatedFormData.photo_datetime = extractedExifData.dateTimeOriginal;
+        extractedItems.push('photo date/time');
+      } else {
+        updatedFormData.photo_datetime = formData.current_datetime || getCurrentDateTime();
+      }
+
+      setFormData(updatedFormData);
+      
+      if (extractedItems.length > 0) {
+        message = `Extracted: ${extractedItems.join(', ')}`;
+      } else {
+        message = 'No location data found in photos. Please enter manually.';
+      }
+      
+      setToastMessage(message);
+      setShowToast(true);
+
+    } catch (error) {
+      console.error('Extraction error:', error);
+      setAlertMessage('Failed to extract photo information. Please try again.');
       setShowAlert(true);
     } finally {
-      setLocationLoading(false);
+      setExtractionLoading(false);
     }
   };
 
@@ -758,7 +966,7 @@ const IncidentReport: React.FC = () => {
     setImagePreview(prev => prev.filter((_, i) => i !== index));
 
     if (formData.images.length === 1) {
-      setHasPhotoData(false);
+      setExtractedExifData(null);
       setFormData(prev => ({
         ...prev,
         coordinates: null,
@@ -894,8 +1102,8 @@ const IncidentReport: React.FC = () => {
         current_datetime: getCurrentDateTime()
       });
       setImagePreview([]);
-      setHasPhotoData(false);
-      setLocationLoading(false);
+      setExtractedExifData(null);
+      setExtractionLoading(false);
 
       setShowSuccessModal(true);
 
@@ -1084,83 +1292,71 @@ const IncidentReport: React.FC = () => {
                 </IonGrid>
               </div>
             )}
-
-            {/* Auto-Extracted Photo Data */}
-            {hasPhotoData && (
-              <div style={{
-                background: '#f0f9ff',
-                border: '1px solid #93c5fd',
-                borderRadius: '8px',
-                padding: '12px',
-                marginTop: '12px'
-              }}>
-                <p style={{
-                  fontSize: '14px',
-                  color: '#1e40af',
-                  margin: '0 0 12px 0',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}>
-                  <IonIcon icon={informationCircleOutline} style={{ marginRight: '6px' }} />
-                  Auto-Extracted Data
-                </p>
-
-                {formData.photo_datetime && (
-                  <div style={{ marginBottom: '8px', fontSize: '12px', color: '#1e40af' }}>
-                    Date/Time: {formatDateTimeForDisplay(formData.photo_datetime)}
-                  </div>
-                )}
-
-                {formData.coordinates && (
-                  <div style={{ marginBottom: '8px', fontSize: '12px', color: '#1e40af' }}>
-                    GPS: {formData.coordinates.lat.toFixed(6)}, {formData.coordinates.lng.toFixed(6)}
-                  </div>
-                )}
-
-                {formData.barangay && (
-                  <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: 'bold' }}>
-                    Barangay: {formData.barangay}
-                  </div>
-                )}
-              </div>
-            )}
           </IonCardContent>
         </IonCard>
 
-        {/* Location Section */}
+        {/* Photo Information Section */}
         <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
           <IonCardHeader>
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-              Location Information
+              Photo Information
             </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
-            {/* Show current location button only if no coordinates from photo */}
-            {!formData.coordinates && (
-              <div style={{ marginBottom: '16px' }}>
-                <IonButton
-                  expand="block"
-                  onClick={getCurrentLocation}
-                  disabled={locationLoading}
-                  style={{
-                    '--background': '#f59e0b',
-                    '--color': 'white',
-                    '--border-radius': '8px',
-                    height: '50px'
-                  } as any}
-                >
-                  {locationLoading ? (
-                    <IonSpinner name="lines-small" slot="start" />
-                  ) : (
-                    <IonIcon icon={navigateOutline} slot="start" />
-                  )}
-                  {locationLoading ? 'Getting Location...' : 'Get Current Location'}
-                </IonButton>
-              </div>
-            )}
+            {/* Extract Information Button */}
+            <div style={{ marginBottom: '16px' }}>
+              <IonButton
+                expand="block"
+                onClick={extractPhotoInformation}
+                disabled={!extractedExifData || extractionLoading}
+                style={{
+                  '--background': extractedExifData ? '#f59e0b' : '#9ca3af',
+                  '--color': 'white',
+                  '--border-radius': '8px',
+                  height: '50px'
+                } as any}
+              >
+                {extractionLoading ? (
+                  <IonSpinner name="lines-small" slot="start" />
+                ) : (
+                  <IonIcon icon={imageOutline} slot="start" />
+                )}
+                {extractionLoading ? 'Extracting...' : 'Extract Photo Information'}
+              </IonButton>
+              {!extractedExifData && formData.images.length > 0 && (
+                <p style={{ 
+                  fontSize: '12px', 
+                  color: '#6b7280', 
+                  margin: '8px 0 0 0', 
+                  textAlign: 'center' 
+                }}>
+                  No extractable information found in uploaded photos
+                </p>
+              )}
+            </div>
 
+            {/* Photo Date/Time */}
             <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
+              <IonLabel position="stacked">Photo Date/Time</IonLabel>
+              <IonInput
+                value={formData.photo_datetime ? formatDateTimeForDisplay(formData.photo_datetime) : ''}
+                readonly={true}
+                placeholder="Extract from photo metadata"
+              />
+            </IonItem>
+
+            {/* GPS Coordinates */}
+            <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
+              <IonLabel position="stacked">GPS Coordinates</IonLabel>
+              <IonInput
+                value={formData.coordinates ? `${formData.coordinates.lat.toFixed(6)}, ${formData.coordinates.lng.toFixed(6)}` : ''}
+                readonly={true}
+                placeholder="Extract from photo metadata"
+              />
+            </IonItem>
+
+            {/* Barangay */}
+            <IonItem style={{ '--border-radius': '12px' } as any}>
               <IonLabel position="stacked">
                 Barangay <span style={{ color: '#ef4444' }}>*</span>
               </IonLabel>
@@ -1174,17 +1370,6 @@ const IncidentReport: React.FC = () => {
                   <IonSelectOption key={barangay} value={barangay}>{barangay}</IonSelectOption>
                 ))}
               </IonSelect>
-            </IonItem>
-
-            <IonItem style={{ '--border-radius': '12px' } as any}>
-              <IonLabel position="stacked">
-                Location (auto-filled from GPS)
-              </IonLabel>
-              <IonInput
-                value={formData.location}
-                readonly={true}
-                placeholder="GPS coordinates will appear here"
-              />
             </IonItem>
           </IonCardContent>
         </IonCard>
