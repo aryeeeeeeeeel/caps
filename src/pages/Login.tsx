@@ -20,7 +20,8 @@ import {
   IonItem,
   IonList,
   IonAvatar,
-  IonPopover
+  IonPopover,
+  IonBadge
 } from '@ionic/react';
 import {
   personCircleOutline,
@@ -33,7 +34,9 @@ import {
   eyeOffOutline,
   eyeOutline,
   timeOutline,
-  closeOutline
+  closeOutline,
+  trashOutline,
+  addOutline
 } from 'ionicons/icons';
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -60,7 +63,87 @@ interface SavedAccount {
   identifier: string;
   password: string;
   lastLogin: string;
+  displayName?: string; // For better display in the list
 }
+
+// Updated utility functions to handle multiple accounts
+const getSavedAccounts = (): SavedAccount[] => {
+  try {
+    const savedAccounts = localStorage.getItem('savedAccounts');
+    const accounts = savedAccounts ? JSON.parse(savedAccounts) : [];
+    // Always sort by lastLogin descending to maintain consistent order
+    return accounts.sort((a: SavedAccount, b: SavedAccount) => 
+      new Date(b.lastLogin).getTime() - new Date(a.lastLogin).getTime()
+    );
+  } catch (error) {
+    console.warn('Error loading saved accounts:', error);
+    return [];
+  }
+};
+
+const saveAccount = (identifier: string, password: string) => {
+  try {
+    const existingAccounts = getSavedAccounts();
+    const accountIndex = existingAccounts.findIndex(acc => acc.identifier === identifier);
+    
+    const newAccount: SavedAccount = {
+      identifier,
+      password,
+      lastLogin: new Date().toISOString(),
+      displayName: identifier.includes('@') ? identifier.split('@')[0] : identifier
+    };
+
+    if (accountIndex >= 0) {
+      // Update existing account
+      existingAccounts[accountIndex] = newAccount;
+    } else {
+      // Add new account
+      existingAccounts.push(newAccount);
+    }
+
+    // Keep only the last 5 accounts and sort by lastLogin
+    const limitedAccounts = existingAccounts
+      .sort((a, b) => new Date(b.lastLogin).getTime() - new Date(a.lastLogin).getTime())
+      .slice(0, 5);
+
+    localStorage.setItem('savedAccounts', JSON.stringify(limitedAccounts));
+  } catch (error) {
+    console.warn('Error saving account:', error);
+  }
+};
+
+const removeAccount = (identifier: string) => {
+  try {
+    const existingAccounts = getSavedAccounts();
+    const filteredAccounts = existingAccounts.filter(acc => acc.identifier !== identifier);
+    localStorage.setItem('savedAccounts', JSON.stringify(filteredAccounts));
+  } catch (error) {
+    console.warn('Error removing account:', error);
+  }
+};
+
+const clearAllAccounts = () => {
+  try {
+    localStorage.removeItem('savedAccounts');
+    localStorage.removeItem('rememberMe');
+  } catch (error) {
+    console.warn('Error clearing all accounts:', error);
+  }
+};
+
+// Helper function to format time ago
+const formatTimeAgo = (dateString: string): string => {
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  
+  return date.toLocaleDateString();
+};
 
 const Login: React.FC = () => {
   const navigation = useIonRouter();
@@ -77,39 +160,37 @@ const Login: React.FC = () => {
   const passwordInputRef = useRef<HTMLIonInputElement>(null);
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [twoFACode, setTwoFACode] = useState('');
-  const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
   const popoverRef = useRef<HTMLIonPopoverElement>(null);
   const avatarButtonRef = useRef<HTMLIonButtonElement>(null);
 
-  // Load saved credentials on component mount
+  // Load saved accounts on component mount
   useEffect(() => {
-    const loadSavedCredentials = () => {
+    const loadSavedAccounts = () => {
       try {
-        const credentials = getSavedCredentials();
+        const accounts = getSavedAccounts();
         const rememberEnabled = isRememberMeEnabled();
 
         setRememberMe(rememberEnabled);
+        setSavedAccounts(accounts);
 
-        if (credentials) {
-          setSavedAccount({
-            identifier: credentials.identifier,
-            password: credentials.password,
-            lastLogin: new Date().toISOString()
-          });
-        }
+        // For security purposes, always start with empty fields
+        // Users must explicitly select a saved account if they want to use it
+        setLoginIdentifier('');
+        setPassword('');
       } catch (error) {
-        console.warn('Error loading saved credentials:', error);
+        console.warn('Error loading saved accounts:', error);
       }
     };
 
-    loadSavedCredentials();
+    loadSavedAccounts();
   }, []);
 
   // Handle avatar icon click to show saved accounts
   const handleAvatarClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (savedAccount) {
+    if (savedAccounts.length > 0) {
       setShowSavedAccounts(true);
     }
   };
@@ -139,13 +220,13 @@ const Login: React.FC = () => {
   // Focus on login identifier input when component mounts
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (loginIdentifierInputRef.current && !savedAccount) {
+      if (loginIdentifierInputRef.current) {
         loginIdentifierInputRef.current.setFocus();
       }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [savedAccount]);
+  }, []);
 
   const handleLogin = async () => {
     if (!loginIdentifier || !password) {
@@ -172,15 +253,7 @@ const Login: React.FC = () => {
         userEmail = data.user_email;
       }
 
-      // Save credentials if remember me is checked
-      if (rememberMe) {
-        saveUserCredentials(loginIdentifier, password, true);
-      } else {
-        // Clear saved credentials if remember me is unchecked
-        clearUserCredentials();
-      }
-
-      // Attempt login
+      // Attempt login first - DO NOT save credentials until login is successful
       const { data, error } = await supabase.auth.signInWithPassword({
         email: userEmail,
         password,
@@ -199,7 +272,16 @@ const Login: React.FC = () => {
         }
       }
 
-      // Login successful
+      // Login successful! Now save credentials if remember me is checked
+      if (rememberMe) {
+        saveAccount(loginIdentifier, password);
+        setSavedAccounts(getSavedAccounts());
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        // Clear remember me preference but keep existing accounts
+        localStorage.removeItem('rememberMe');
+      }
+
       setShowToast(true);
 
       // Clear focus from inputs
@@ -257,27 +339,39 @@ const Login: React.FC = () => {
     setShowAlert(true);
   };
 
-  const handleUseSavedAccount = () => {
-    if (savedAccount) {
-      setLoginIdentifier(savedAccount.identifier);
-      setPassword(savedAccount.password);
-      setShowSavedAccounts(false);
+  const handleUseSavedAccount = (account: SavedAccount) => {
+    setLoginIdentifier(account.identifier);
+    setPassword(account.password);
+    setShowSavedAccounts(false);
 
-      // Auto-focus on password field for quick login
-      setTimeout(() => {
-        passwordInputRef.current?.setFocus();
-      }, 100);
-    }
+    // Auto-focus on password field for quick login
+    setTimeout(() => {
+      passwordInputRef.current?.setFocus();
+    }, 100);
   };
 
-  const handleClearSavedAccount = () => {
-    clearUserCredentials();
-    setSavedAccount(null);
+  const handleRemoveAccount = (identifier: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering the account selection
+    removeAccount(identifier);
+    const updatedAccounts = getSavedAccounts();
+    setSavedAccounts(updatedAccounts);
+    
+    if (updatedAccounts.length === 0) {
+      setShowSavedAccounts(false);
+    }
+
+    setAlertMessage(`Account "${identifier}" has been removed from saved accounts.`);
+    setShowAlert(true);
+  };
+
+  const handleClearAllAccounts = () => {
+    clearAllAccounts();
+    setSavedAccounts([]);
     setLoginIdentifier('');
     setPassword('');
     setRememberMe(false);
     setShowSavedAccounts(false);
-    setAlertMessage('Saved account has been cleared.');
+    setAlertMessage('All saved accounts have been cleared.');
     setShowAlert(true);
   };
 
@@ -290,6 +384,10 @@ const Login: React.FC = () => {
       loginIdentifierInputRef.current?.setFocus();
     }, 100);
   };
+
+  // Check if current input matches a saved account
+  const currentSavedAccount = savedAccounts.find(acc => acc.identifier === loginIdentifier);
+  const showAccountCount = savedAccounts.length > 1;
 
   return (
     <IonPage>
@@ -418,36 +516,55 @@ const Login: React.FC = () => {
                       '--border-radius': '12px',
                       '--border-color': '#e2e8f0',
                       '--padding-start': '16px',
-                      '--padding-end': savedAccount && !loginIdentifier ? '40px' : '16px',
+                      '--padding-end': savedAccounts.length > 0 ? '50px' : '16px',
                       fontSize: '16px'
                     } as any}
                   />
                   
-                  {/* Show saved account avatar icon when field is empty */}
-                  {savedAccount && !loginIdentifier && (
-                    <IonButton
-                      ref={avatarButtonRef}
-                      fill="clear"
-                      onClick={handleAvatarClick}
-                      style={{
-                        position: 'absolute',
-                        right: '4px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        '--padding-start': '8px',
-                        '--padding-end': '8px',
-                        '--color': '#667eea',
-                        zIndex: 10,
-                        height: '32px'
-                      } as any}
-                    >
-                      <IonIcon icon={personCircleOutline} style={{ fontSize: '20px' }} />
-                    </IonButton>
+                  {/* Show saved accounts avatar icon when accounts exist */}
+                  {savedAccounts.length > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      right: '4px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      zIndex: 10
+                    }}>
+                      {showAccountCount && (
+                        <IonBadge
+                          color="primary"
+                          style={{
+                            fontSize: '10px',
+                            marginRight: '4px',
+                            minWidth: '18px',
+                            height: '18px'
+                          }}
+                        >
+                          {savedAccounts.length}
+                        </IonBadge>
+                      )}
+                      <IonButton
+                        ref={avatarButtonRef}
+                        fill="clear"
+                        onClick={handleAvatarClick}
+                        style={{
+                          '--padding-start': '8px',
+                          '--padding-end': '8px',
+                          '--color': '#667eea',
+                          height: '32px',
+                          cursor: 'pointer'
+                        } as any}
+                      >
+                        <IonIcon icon={personCircleOutline} style={{ fontSize: '20px' }} />
+                      </IonButton>
+                    </div>
                   )}
                 </div>
 
                 {/* Saved Accounts Popover */}
-                {savedAccount && (
+                {savedAccounts.length > 0 && (
                   <IonPopover
                     ref={popoverRef}
                     isOpen={showSavedAccounts}
@@ -456,85 +573,239 @@ const Login: React.FC = () => {
                     showBackdrop={true}
                     trigger={undefined}
                     triggerAction="click"
-                    reference="event"
+                    reference="trigger"
                     alignment="start"
                     side="bottom"
+                    event={showSavedAccounts ? {} : undefined}
                     style={{ 
-                      '--width': '100%',
-                      '--max-width': '400px',
+                      '--width': '380px',
+                      '--min-width': '380px',
+                      '--max-width': '380px',
+                      '--height': 'auto',
+                      '--max-height': '400px',
                       '--offset-y': '8px'
                     } as any}
                   >
-                    <IonContent>
-                      <IonList style={{ padding: '8px' }}>
-                        <IonItem lines="none">
-                          <IonText style={{ fontSize: '14px', fontWeight: '600', color: '#4a5568' }}>
-                            Saved Account
+                    <IonContent style={{ '--padding-start': '0', '--padding-end': '0', '--padding-top': '0', '--padding-bottom': '0' }}>
+                      <div style={{ 
+                        padding: '12px',
+                        minHeight: '200px',
+                        maxHeight: '350px',
+                        overflowY: 'auto'
+                      }}>
+                        <div style={{ 
+                          padding: '0 4px 8px 4px',
+                          borderBottom: '1px solid #e2e8f0',
+                          marginBottom: '8px'
+                        }}>
+                          <IonText style={{ 
+                            fontSize: '14px', 
+                            fontWeight: '600', 
+                            color: '#4a5568',
+                            display: 'block'
+                          }}>
+                            Saved Accounts ({savedAccounts.length})
                           </IonText>
-                        </IonItem>
-
-                        <IonItem
-                          button
-                          detail={false}
-                          onClick={handleUseSavedAccount}
-                          style={{ '--border-radius': '8px', margin: '8px 0' } as any}
-                        >
-                          <IonAvatar slot="start" style={{ width: '36px', height: '36px' }}>
-                            <IonIcon icon={personCircleOutline} style={{ fontSize: '36px', color: '#667eea' }} />
-                          </IonAvatar>
-                          <IonLabel>
-                            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#2d3748' }}>
-                              {savedAccount.identifier}
-                            </h3>
-                            <p style={{ margin: 0, fontSize: '12px', color: '#6b7280' }}>
-                              Click to auto-fill
-                            </p>
-                          </IonLabel>
-                        </IonItem>
-
-                        <div style={{ display: 'flex', gap: '8px', padding: '0 16px 8px' }}>
-                          <IonButton
-                            expand="block"
-                            size="small"
-                            onClick={handleClearSavedAccount}
-                            fill="outline"
-                            style={{
-                              '--border-radius': '6px',
-                              '--color': '#ef4444',
-                              '--border-color': '#ef4444',
-                              fontSize: '12px',
-                              height: '32px',
-                              flex: 1
-                            } as any}
-                          >
-                            Clear Saved
-                          </IonButton>
-                          <IonButton
-                            expand="block"
-                            size="small"
-                            onClick={handleNewAccountLogin}
-                            fill="outline"
-                            style={{
-                              '--border-radius': '6px',
-                              '--color': '#667eea',
-                              '--border-color': '#667eea',
-                              fontSize: '12px',
-                              height: '32px',
-                              flex: 1
-                            } as any}
-                          >
-                            Different Account
-                          </IonButton>
                         </div>
-                      </IonList>
+
+                        <div style={{ marginBottom: '12px' }}>
+                          {savedAccounts.map((account, index) => (
+                            <div
+                              key={account.identifier}
+                              onClick={() => handleUseSavedAccount(account)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                marginBottom: '8px',
+                                cursor: 'pointer',
+                                position: 'relative',
+                                transition: 'all 0.2s ease',
+                                minHeight: '64px'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f7fafc';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#ffffff';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                              }}
+                            >
+                              <div style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                backgroundColor: '#667eea',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginRight: '12px',
+                                flexShrink: 0
+                              }}>
+                                <IonIcon icon={personCircleOutline} style={{ 
+                                  fontSize: '20px', 
+                                  color: 'white' 
+                                }} />
+                              </div>
+                              
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ 
+                                  fontSize: '14px', 
+                                  fontWeight: '600', 
+                                  color: '#2d3748',
+                                  marginBottom: '2px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {account.displayName || account.identifier}
+                                </div>
+                                <div style={{ 
+                                  fontSize: '12px', 
+                                  color: '#6b7280',
+                                  marginBottom: '2px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {account.identifier}
+                                </div>
+                                <div style={{ 
+                                  fontSize: '11px', 
+                                  color: '#9ca3af'
+                                }}>
+                                  Last used: {formatTimeAgo(account.lastLogin)}
+                                </div>
+                              </div>
+
+                              {index === 0 && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '8px',
+                                  right: '45px',
+                                  backgroundColor: '#10b981',
+                                  color: 'white',
+                                  fontSize: '10px',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontWeight: '600'
+                                }}>
+                                  Recent
+                                </div>
+                              )}
+
+                              <button
+                                onClick={(e) => handleRemoveAccount(account.identifier, e)}
+                                style={{
+                                  position: 'absolute',
+                                  right: '8px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  width: '32px',
+                                  height: '32px',
+                                  border: 'none',
+                                  backgroundColor: 'transparent',
+                                  color: '#ef4444',
+                                  borderRadius: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  transition: 'background-color 0.2s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#fef2f2';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                              >
+                                <IonIcon icon={trashOutline} style={{ fontSize: '16px' }} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: '8px',
+                          borderTop: '1px solid #e2e8f0',
+                          paddingTop: '12px'
+                        }}>
+                          <button
+                            onClick={handleClearAllAccounts}
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              border: '1px solid #ef4444',
+                              backgroundColor: 'transparent',
+                              color: '#ef4444',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#ef4444';
+                              e.currentTarget.style.color = 'white';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.color = '#ef4444';
+                            }}
+                          >
+                            <IonIcon icon={trashOutline} style={{ fontSize: '14px' }} />
+                            Clear All
+                          </button>
+                          <button
+                            onClick={handleNewAccountLogin}
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              border: '1px solid #667eea',
+                              backgroundColor: 'transparent',
+                              color: '#667eea',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#667eea';
+                              e.currentTarget.style.color = 'white';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.color = '#667eea';
+                            }}
+                          >
+                            <IonIcon icon={addOutline} style={{ fontSize: '14px' }} />
+                            New Account
+                          </button>
+                        </div>
+                      </div>
                     </IonContent>
                   </IonPopover>
                 )}
 
-                {savedAccount && loginIdentifier === savedAccount.identifier && (
+                {currentSavedAccount && (
                   <IonText color="success" style={{ fontSize: '12px', marginTop: '4px', display: 'flex', alignItems: 'center' }}>
                     <IonIcon icon={timeOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
-                    Using saved account
+                    Using saved account (Last used: {formatTimeAgo(currentSavedAccount.lastLogin)})
                   </IonText>
                 )}
               </div>
@@ -633,7 +904,10 @@ const Login: React.FC = () => {
                       Remember Me
                     </IonLabel>
                     <IonText style={{ fontSize: '12px', color: '#6b7280', display: 'block', marginTop: '2px' }}>
-                      {rememberMe ? 'Save login details for quick access' : 'Do not save login details'}
+                      {rememberMe 
+                        ? `Save login details (${savedAccounts.length} account${savedAccounts.length !== 1 ? 's' : ''} saved)`
+                        : 'Do not save login details'
+                      }
                     </IonText>
                   </div>
                 </div>
