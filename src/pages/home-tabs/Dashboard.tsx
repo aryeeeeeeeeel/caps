@@ -30,7 +30,8 @@ import {
   mapOutline,
   notificationsOutline,
   statsChartOutline,
-  shieldCheckmarkOutline
+  shieldCheckmarkOutline,
+  callOutline
 } from 'ionicons/icons';
 import { useHistory } from 'react-router-dom';
 import { supabase } from '../../utils/supabaseClient';
@@ -213,6 +214,12 @@ const Dashboard: React.FC = () => {
       case 'low': return '#10b981';
       default: return '#6b7280';
     }
+  };
+
+  const handleDialLDRRMO = () => {
+    // LDRRMO Emergency number - you can update this with the actual number
+    const ldrrmoNumber = '09158139494'; // Replace with actual LDRRMO number
+    window.open(`tel:${ldrrmoNumber}`, '_self');
   };
 
   const handleRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
@@ -587,13 +594,32 @@ const Dashboard: React.FC = () => {
             </IonCardContent>
           </IonCard>
 
-          {/* Safety Tips */}
+          {/* Safety Tips with Dial LDRRMO */}
           <IonCard style={{ borderRadius: '16px' }}>
             <IonCardHeader>
-              <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-                <IonIcon icon={shieldCheckmarkOutline} style={{ marginRight: '8px', color: '#10b981' }} />
-                Safety Tips
-              </IonCardTitle>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <IonCardTitle style={{ fontSize: '18px', color: '#1f2937', display: 'flex', alignItems: 'center' }}>
+                  <IonIcon icon={shieldCheckmarkOutline} style={{ marginRight: '8px', color: '#10b981' }} />
+                  Safety Tips
+                </IonCardTitle>
+                <IonButton
+                  fill="solid"
+                  size="small"
+                  color="danger"
+                  onClick={handleDialLDRRMO}
+                  style={{
+                    '--border-radius': '20px',
+                    '--padding-start': '12px',
+                    '--padding-end': '12px',
+                    height: '32px',
+                    fontWeight: '600',
+                    fontSize: '12px'
+                  } as any}
+                >
+                  <IonIcon icon={callOutline} slot="start" style={{ fontSize: '14px' }} />
+                  Dial LDRRMO
+                </IonButton>
+              </div>
             </IonCardHeader>
             <IonCardContent>
               <div style={{
