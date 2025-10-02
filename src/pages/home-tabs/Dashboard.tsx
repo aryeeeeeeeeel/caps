@@ -60,10 +60,20 @@ const Dashboard: React.FC = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [userReports, setUserReports] = useState<any[]>([]);
 
+  const navigation = useHistory();
+
   useEffect(() => {
-    fetchUserData();
-    fetchDashboardData();
-  }, []);
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigation.replace('/it35-lab2');
+        return;
+      }
+      fetchUserData();
+      fetchDashboardData();
+    };
+    checkAuth();
+  }, [navigation]);
 
   const fetchUserData = async () => {
     try {
@@ -96,7 +106,7 @@ const Dashboard: React.FC = () => {
   const fetchUserReports = async (email: string) => {
     try {
       const { data, error } = await supabase
-        .from('hazard_reports')
+        .from('incident_reports')
         .select('*')
         .eq('reporter_email', email)
         .order('created_at', { ascending: false });
@@ -146,7 +156,7 @@ const Dashboard: React.FC = () => {
 
       // Fetch all reports statistics
       const { data: allReports, error: allReportsError } = await supabase
-        .from('hazard_reports')
+        .from('incident_reports')
         .select('*');
 
       if (allReportsError) {

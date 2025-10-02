@@ -55,7 +55,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-interface HazardReport {
+interface IncidentReport {
   id: string;
   title: string;
   description: string;
@@ -78,9 +78,9 @@ const IncidentMap: React.FC = () => {
   const markersRef = useRef<L.Marker[]>([]);
   const mapInitializedRef = useRef<boolean>(false);
 
-  const [reports, setReports] = useState<HazardReport[]>([]);
-  const [filteredReports, setFilteredReports] = useState<HazardReport[]>([]);
-  const [selectedReport, setSelectedReport] = useState<HazardReport | null>(null);
+  const [reports, setReports] = useState<IncidentReport[]>([]);
+  const [filteredReports, setFilteredReports] = useState<IncidentReport[]>([]);
+  const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [mapView, setMapView] = useState<'roadmap' | 'satellite' | 'terrain' | 'hybrid'>('roadmap');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -245,7 +245,7 @@ const IncidentMap: React.FC = () => {
     }
 
     const { data, error } = await supabase
-      .from('hazard_reports')
+      .from('incident_reports')
       .select('*')
       .eq('reporter_email', user.email) // Only user's reports
       .in('status', ['pending', 'investigating']) // Only active reports
@@ -502,7 +502,7 @@ const IncidentMap: React.FC = () => {
     event.detail.complete();
   };
 
-  const centerMapOnReport = (report: HazardReport) => {
+  const centerMapOnReport = (report: IncidentReport) => {
     if (mapInstanceRef.current && report.coordinates) {
       mapInstanceRef.current.setView(
         [report.coordinates.lat, report.coordinates.lng],

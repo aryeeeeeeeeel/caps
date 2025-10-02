@@ -28,7 +28,7 @@ import './theme/variables.css';
 /* Main Pages */
 import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
-import AdminLogin from "./pages/Adminlogin";
+import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from './pages/AdminDashboard';
 import Register from './pages/Register';
 import Profile from './pages/Profile';

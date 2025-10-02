@@ -80,40 +80,56 @@ const AdminLogin: React.FC = () => {
   };
 
   const verifyAndLogin = async () => {
-    if (!otp || !password) {
-      setAlertMessage('Please enter both verification code and password');
-      setShowAlert(true);
-      return;
+  if (!otp) {
+    setAlertMessage('Please enter the verification code');
+    setShowAlert(true);
+    return;
+  }
+
+  setIsVerifying(true);
+  try {
+    // Verify OTP - this automatically signs the user in
+    const { error: otpError } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'email'
+    });
+    if (otpError) throw otpError;
+
+    // User is now authenticated, check their role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not found');
+    
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('auth_uuid', user.id)
+      .maybeSingle();
+    
+    if (userError) {
+      console.error('Database error:', userError);
+      await supabase.auth.signOut();
+      throw new Error('Database configuration error. Please contact administrator.');
+    }
+    
+    if (!userData || !userData.role || userData.role !== 'admin') {
+      await supabase.auth.signOut();
+      throw new Error('Access denied: Administrative privileges required.');
     }
 
-    setIsVerifying(true);
-    try {
-      const { error: otpError } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email'
-      });
-      if (otpError) throw otpError;
-
-      const { error: loginError } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
-      });
-      if (loginError) throw loginError;
-
-      setShowToast(true);
-      setTimeout(() => {
-        navigation.push('/it35-lab2/admin-dashboard', 'forward', 'replace');
-      }, 500);
-      
-      setShowOtpModal(false);
-    } catch (error: any) {
-      setAlertMessage(error.message || 'Verification failed. Please try again.');
-      setShowAlert(true);
-    } finally {
-      setIsVerifying(false);
-    }
-  };
+    setShowToast(true);
+    setTimeout(() => {
+      navigation.push('/it35-lab2/admin-dashboard', 'forward', 'replace');
+    }, 500);
+    
+    setShowOtpModal(false);
+  } catch (error: any) {
+    setAlertMessage(error.message || 'Verification failed. Please try again.');
+    setShowAlert(true);
+  } finally {
+    setIsVerifying(false);
+  }
+};
 
   const handleLogin = async () => {
     if (!email || !password) {

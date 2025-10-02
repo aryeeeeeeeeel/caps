@@ -289,7 +289,7 @@ const History: React.FC = () => {
       if (!user) return;
 
       const { data, error } = await supabase
-        .from('hazard_reports')
+        .from('incident_reports')
         .select('*')
         .eq('status', 'resolved')
         .or(`reporter_email.eq.${user.email},reporter_email.is.null`)
@@ -324,7 +324,7 @@ const History: React.FC = () => {
 
     try {
       const { error } = await supabase
-        .from('hazard_reports')
+        .from('incident_reports')
         .update({
           feedback_rating: feedbackRating,
           feedback_comment: feedbackComment,

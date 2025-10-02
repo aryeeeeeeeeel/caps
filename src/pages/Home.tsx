@@ -88,7 +88,7 @@ const Home: React.FC = () => {
   const fetchUserReports = async (email: string) => {
     try {
       const { data, error } = await supabase
-        .from('hazard_reports')
+        .from('incident_reports')
         .select('*')
         .eq('reporter_email', email)
         .order('created_at', { ascending: false });

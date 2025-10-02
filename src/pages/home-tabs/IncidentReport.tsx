@@ -41,7 +41,7 @@ import { isPlatform } from '@ionic/react';
 import { Capacitor } from '@capacitor/core';
 import ExifReader from 'exifreader';
 
-interface HazardReport {
+interface IncidentReport {
   category: string;
   description: string;
   priority: string;
@@ -51,6 +51,8 @@ interface HazardReport {
   images: File[];
   reporter_email: string;
   reporter_name: string;
+  reporter_address: string; // NEW
+  reporter_contact: string; // NEW
   exif_data?: any;
   photo_datetime?: string;
   current_datetime?: string;
@@ -421,9 +423,9 @@ const optimizeImage = (blob: Blob, maxSize: number = 1024, quality: number = 0.8
 // Enhanced GPS coordinate conversion
 const convertExifGpsToDecimal = (coord: any, ref: string): number => {
   console.log('Converting coordinate:', coord, 'Ref:', ref);
-  
+
   let decimal = 0;
-  
+
   if (Array.isArray(coord)) {
     if (coord.length >= 3) {
       const degrees = parseFloat(coord[0]) || 0;
@@ -436,7 +438,7 @@ const convertExifGpsToDecimal = (coord: any, ref: string): number => {
       const minutesWithSeconds = parseFloat(coord[1]) || 0;
       decimal = degrees + (minutesWithSeconds / 60);
     }
-  } 
+  }
   else if (typeof coord === 'number') {
     decimal = coord;
   }
@@ -454,11 +456,11 @@ const convertExifGpsToDecimal = (coord: any, ref: string): number => {
       decimal = parseFloat(coord) || 0;
     }
   }
-  
+
   if (ref === 'S' || ref === 'W') {
     decimal = -decimal;
   }
-  
+
   console.log('Converted decimal:', decimal);
   return decimal;
 };
@@ -481,14 +483,14 @@ const isValidGPSCoordinate = (lat: number, lng: number): boolean => {
     console.log('Coordinates are 0,0 (null island)');
     return false;
   }
-  
+
   const isInPhilippines = (lat >= 4.0 && lat <= 21.0 && lng >= 116.0 && lng <= 127.0);
-  
+
   if (!isInPhilippines) {
     console.log('Coordinates outside Philippines bounds:', lat, lng);
     console.warn('Coordinates outside typical Philippines area, but accepting anyway');
   }
-  
+
   return true;
 };
 
@@ -500,9 +502,9 @@ const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng:
     const yi = polygon[i].lng;
     const xj = polygon[j].lat;
     const yj = polygon[j].lng;
-    
+
     const intersect = ((yi > lng) !== (yj > lng)) &&
-        (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
+      (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
     if (intersect) inside = !inside;
   }
   return inside;
@@ -517,22 +519,22 @@ const detectBarangayFromCoordinates = (lat: number, lng: number): string | null 
       }
     }
   }
-  
+
   let nearestBarangay = null;
   let minDistance = Infinity;
-  
+
   for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
     const distance = Math.sqrt(
-      Math.pow(lat - barangayData.centroid.lat, 2) + 
+      Math.pow(lat - barangayData.centroid.lat, 2) +
       Math.pow(lng - barangayData.centroid.lng, 2)
     );
-    
+
     if (distance < minDistance && distance < 0.05) {
       minDistance = distance;
       nearestBarangay = barangay;
     }
   }
-  
+
   return nearestBarangay;
 };
 
@@ -545,12 +547,12 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
     console.log('Full EXIF tags structure:', tags);
 
     const exifData: ExifData = {};
-    
+
     try {
       const gps = (tags as any).gps;
       if (gps) {
         console.log('GPS tags found:', gps);
-        
+
         const latitude = gps.GPSLatitude || gps.Latitude || gps.gpsLatitude;
         const longitude = gps.GPSLongitude || gps.Longitude || gps.gpsLongitude;
         const latRef = gps.GPSLatitudeRef?.value || gps.LatitudeRef || gps.gpsLatitudeRef || 'N';
@@ -566,7 +568,7 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
             exifData.gpsLatitude = lat;
             exifData.gpsLongitude = lng;
             exifData.gpsSource = 'photo_exif';
-            
+
             const detectedBarangay = detectBarangayFromCoordinates(lat, lng);
             if (detectedBarangay) {
               exifData.detectedBarangay = detectedBarangay;
@@ -584,10 +586,10 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
       try {
         const exifData_any = (tags as any).exif;
         const ifd0Data = (tags as any).ifd0;
-        const dateValue = exifData_any?.[field]?.value || 
-                         ifd0Data?.[field]?.value || 
-                         exifData_any?.[field]?.description || 
-                         ifd0Data?.[field]?.description;
+        const dateValue = exifData_any?.[field]?.value ||
+          ifd0Data?.[field]?.value ||
+          exifData_any?.[field]?.description ||
+          ifd0Data?.[field]?.description;
 
         if (dateValue) {
           let dateString = dateValue.toString();
@@ -604,7 +606,7 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
 
     console.log('Final extracted EXIF data:', exifData);
     return exifData;
-    
+
   } catch (error) {
     console.error('EXIF extraction failed:', error);
     return null;
@@ -629,7 +631,7 @@ const formatDateTimeForDisplay = (dateTime: string): string => {
 };
 
 const IncidentReport: React.FC = () => {
-  const [formData, setFormData] = useState<HazardReport>({
+  const [formData, setFormData] = useState<IncidentReport>({
     category: '',
     description: '',
     priority: 'medium',
@@ -639,6 +641,8 @@ const IncidentReport: React.FC = () => {
     images: [],
     reporter_email: '',
     reporter_name: '',
+    reporter_address: '', // NEW
+    reporter_contact: '', // NEW
     photo_datetime: '',
     current_datetime: getCurrentDateTime()
   });
@@ -657,7 +661,7 @@ const IncidentReport: React.FC = () => {
 
   const hazardCategories = [
     'Road Hazards',
-    'Utility Issues', 
+    'Utility Issues',
     'Natural Disasters',
     'Infrastructure Problems',
     'Public Safety',
@@ -715,7 +719,7 @@ const IncidentReport: React.FC = () => {
       if (isValidGPSCoordinate(lat, lng)) {
         return { lat, lng };
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error getting current location:', error);
@@ -771,7 +775,7 @@ const IncidentReport: React.FC = () => {
             gpsLongitude: currentLocation.lng,
             locationSource: 'device_gps'
           };
-          
+
           // Detect barangay from device GPS
           const detectedBarangay = detectBarangayFromCoordinates(currentLocation.lat, currentLocation.lng);
           if (detectedBarangay) {
@@ -786,7 +790,7 @@ const IncidentReport: React.FC = () => {
         }));
 
         setImagePreview(prev => [...prev, image.webPath!]);
-        
+
         if (enhancedExif && formData.images.length === 0) {
           setExtractedExifData(enhancedExif);
         }
@@ -832,7 +836,7 @@ const IncidentReport: React.FC = () => {
         }));
 
         setImagePreview(prev => [...prev, image.webPath!]);
-        
+
         if (exif && formData.images.length === 0) {
           setExtractedExifData(exif);
         }
@@ -883,7 +887,7 @@ const IncidentReport: React.FC = () => {
         }));
 
         setImagePreview(prev => [...prev, previewUrl]);
-        
+
         if (exif && formData.images.length === 0) {
           setExtractedExifData(exif);
         }
@@ -915,10 +919,10 @@ const IncidentReport: React.FC = () => {
       // GPS Coordinates
       if (extractedExifData.gpsLatitude && extractedExifData.gpsLongitude) {
         const gpsLocationString = `GPS: ${extractedExifData.gpsLatitude.toFixed(6)}, ${extractedExifData.gpsLongitude.toFixed(6)}`;
-        
-        updatedFormData.coordinates = { 
-          lat: extractedExifData.gpsLatitude, 
-          lng: extractedExifData.gpsLongitude 
+
+        updatedFormData.coordinates = {
+          lat: extractedExifData.gpsLatitude,
+          lng: extractedExifData.gpsLongitude
         };
         updatedFormData.location = gpsLocationString;
         extractedItems.push('GPS coordinates');
@@ -939,13 +943,13 @@ const IncidentReport: React.FC = () => {
       }
 
       setFormData(updatedFormData);
-      
+
       if (extractedItems.length > 0) {
         message = `Extracted: ${extractedItems.join(', ')}`;
       } else {
         message = 'No location data found in photos. Please enter manually.';
       }
-      
+
       setToastMessage(message);
       setShowToast(true);
 
@@ -978,17 +982,18 @@ const IncidentReport: React.FC = () => {
   };
 
   const submitReport = async () => {
-    if (!formData.category) {
-      setAlertMessage('Please select a hazard category.');
-      setShowAlert(true);
-      return;
-    }
+  // Add validation for new fields
+  if (!formData.reporter_address?.trim()) {
+    setAlertMessage('Please provide your complete address for emergency response.');
+    setShowAlert(true);
+    return;
+  }
 
-    if (!formData.description.trim()) {
-      setAlertMessage('Please provide a description of the hazard.');
-      setShowAlert(true);
-      return;
-    }
+  if (!formData.reporter_contact?.trim()) {
+    setAlertMessage('Please provide your contact number for emergency response.');
+    setShowAlert(true);
+    return;
+  }
 
     if (!formData.barangay) {
       setAlertMessage('Please select a barangay.');
@@ -1050,35 +1055,37 @@ const IncidentReport: React.FC = () => {
 
       // Prepare report data with metadata
       let description = formData.description.trim();
-      
+
       if (formData.photo_datetime) {
         description += `\n\n[Photo Date: ${formatDateTimeForDisplay(formData.photo_datetime)}]`;
       }
-      
+
       description += `\n\n[Report Submitted: ${formatDateTimeForDisplay(formData.current_datetime || getCurrentDateTime())}]`;
-      
+
       if (formData.coordinates) {
         description += `\n\n[GPS Location: ${formData.coordinates.lat.toFixed(6)}, ${formData.coordinates.lng.toFixed(6)}]`;
       }
 
       const reportData = {
-        title: formData.category,
-        description: description,
-        category: formData.category,
-        priority: formData.priority,
-        location: formData.location.trim(),
-        barangay: formData.barangay,
-        coordinates: formData.coordinates ? JSON.stringify(formData.coordinates) : null,
-        image_urls: imageUrls,
-        reporter_email: user.email,
-        reporter_name: `${profile?.user_firstname || ''} ${profile?.user_lastname || ''}`.trim() || user.email,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+    title: formData.category,
+    description: description,
+    category: formData.category,
+    priority: formData.priority,
+    location: formData.location.trim(),
+    barangay: formData.barangay,
+    coordinates: formData.coordinates ? JSON.stringify(formData.coordinates) : null,
+    image_urls: imageUrls,
+    reporter_email: user.email,
+    reporter_name: `${profile?.user_firstname || ''} ${profile?.user_lastname || ''}`.trim() || user.email,
+    reporter_address: formData.reporter_address.trim(), // NEW
+    reporter_contact: formData.reporter_contact.trim(), // NEW
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
 
       const { data: insertData, error: insertError } = await supabase
-        .from('hazard_reports')
+        .from('incident_reports')
         .insert(reportData)
         .select()
         .single();
@@ -1089,18 +1096,20 @@ const IncidentReport: React.FC = () => {
 
       // Reset form
       setFormData({
-        category: '',
-        description: '',
-        priority: 'medium',
-        location: '',
-        barangay: '',
-        coordinates: null,
-        images: [],
-        reporter_email: '',
-        reporter_name: '',
-        photo_datetime: '',
-        current_datetime: getCurrentDateTime()
-      });
+  category: '',
+  description: '',
+  priority: 'medium',
+  location: '',
+  barangay: '',
+  coordinates: null,
+  images: [],
+  reporter_email: '',
+  reporter_name: '',
+  reporter_address: '', // NEW
+  reporter_contact: '', // NEW
+  photo_datetime: '',
+  current_datetime: getCurrentDateTime()
+});
       setImagePreview([]);
       setExtractedExifData(null);
       setExtractionLoading(false);
@@ -1160,26 +1169,26 @@ const IncidentReport: React.FC = () => {
         }}>
           <IonCardContent>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <IonIcon 
-                icon={timeOutline} 
-                style={{ 
-                  fontSize: '20px', 
-                  color: '#0284c7', 
-                  marginRight: '12px' 
-                }} 
+              <IonIcon
+                icon={timeOutline}
+                style={{
+                  fontSize: '20px',
+                  color: '#0284c7',
+                  marginRight: '12px'
+                }}
               />
               <div>
-                <p style={{ 
-                  fontSize: '12px', 
-                  color: '#0284c7', 
+                <p style={{
+                  fontSize: '12px',
+                  color: '#0284c7',
                   margin: '0 0 4px 0',
-                  fontWeight: '600' 
+                  fontWeight: '600'
                 }}>
                   Report Timestamp
                 </p>
-                <p style={{ 
-                  fontSize: '14px', 
-                  color: '#0369a1', 
+                <p style={{
+                  fontSize: '14px',
+                  color: '#0369a1',
                   margin: 0,
                   fontWeight: '500'
                 }}>
@@ -1324,11 +1333,11 @@ const IncidentReport: React.FC = () => {
                 {extractionLoading ? 'Extracting...' : 'Extract Photo Information'}
               </IonButton>
               {!extractedExifData && formData.images.length > 0 && (
-                <p style={{ 
-                  fontSize: '12px', 
-                  color: '#6b7280', 
-                  margin: '8px 0 0 0', 
-                  textAlign: 'center' 
+                <p style={{
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  margin: '8px 0 0 0',
+                  textAlign: 'center'
                 }}>
                   No extractable information found in uploaded photos
                 </p>
@@ -1374,11 +1383,11 @@ const IncidentReport: React.FC = () => {
           </IonCardContent>
         </IonCard>
 
-        {/* Hazard Details */}
+        {/* Incident Details */}
         <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
           <IonCardHeader>
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-              Hazard Details
+              Incident Details
             </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
@@ -1450,6 +1459,46 @@ const IncidentReport: React.FC = () => {
           </IonCardContent>
         </IonCard>
       </div>
+
+      {/* Reporter Contact Information */}
+<IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+  <IonCardHeader>
+    <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
+      Your Contact Information
+    </IonCardTitle>
+  </IonCardHeader>
+  <IonCardContent>
+    <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
+      <IonLabel position="stacked">Full Address <span style={{ color: '#ef4444' }}>*</span></IonLabel>
+      <IonInput
+        value={formData.reporter_address}
+        onIonInput={e => setFormData(prev => ({ ...prev, reporter_address: e.detail.value! }))}
+        placeholder="Enter your complete address for emergency response"
+        required
+      />
+    </IonItem>
+
+    <IonItem style={{ '--border-radius': '12px' } as any}>
+      <IonLabel position="stacked">Contact Number <span style={{ color: '#ef4444' }}>*</span></IonLabel>
+      <IonInput
+        value={formData.reporter_contact}
+        onIonInput={e => setFormData(prev => ({ ...prev, reporter_contact: e.detail.value! }))}
+        placeholder="Enter your mobile number"
+        type="tel"
+        required
+      />
+    </IonItem>
+    
+    <p style={{ 
+      fontSize: '12px', 
+      color: '#6b7280', 
+      margin: '12px 0 0 0',
+      fontStyle: 'italic'
+    }}>
+      This information helps emergency responders contact you quickly if needed.
+    </p>
+  </IonCardContent>
+</IonCard>
 
       {/* Success Modal */}
       <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>

@@ -102,7 +102,7 @@ const GiveFeedback: React.FC = () => {
 
       // Fetch resolved or investigated reports for feedback - removed resolved_at column
       const { data, error } = await supabase
-        .from('hazard_reports')
+        .from('incident_reports')
         .select('id, title, status, created_at')
         .eq('reporter_email', user.email)
         .in('status', ['resolved', 'investigating'])
