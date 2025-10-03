@@ -1,4 +1,4 @@
-// src/pages/home-tabs/Dashboard.tsx
+// src/pages/user-tabs/Dashboard.tsx
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,

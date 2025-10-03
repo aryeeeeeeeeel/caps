@@ -1,4 +1,4 @@
-// src/pages/home-tabs/GiveFeedback.tsx
+// src/pages/user-tabs/GiveFeedback.tsx
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,

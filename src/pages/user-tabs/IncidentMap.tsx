@@ -1,4 +1,4 @@
-// src/pages/home-tabs/IncidentMap.tsx - Fixed version
+// src/pages/user-tabs/IncidentMap.tsx - Fixed version
 import React, { useState, useEffect, useRef } from 'react';
 import {
   IonContent,

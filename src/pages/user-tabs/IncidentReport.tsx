@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   IonContent,
   IonCard,
@@ -656,8 +656,8 @@ const IncidentReport: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string[]>([]);
   const [extractedExifData, setExtractedExifData] = useState<ExifData | null>(null);
   const [extractionLoading, setExtractionLoading] = useState(false);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   const hazardCategories = [
     'Road Hazards',
@@ -982,18 +982,18 @@ const IncidentReport: React.FC = () => {
   };
 
   const submitReport = async () => {
-  // Add validation for new fields
-  if (!formData.reporter_address?.trim()) {
-    setAlertMessage('Please provide your complete address for emergency response.');
-    setShowAlert(true);
-    return;
-  }
+    // Add validation for new fields
+    if (!formData.reporter_address?.trim()) {
+      setAlertMessage('Please provide your complete address for emergency response.');
+      setShowAlert(true);
+      return;
+    }
 
-  if (!formData.reporter_contact?.trim()) {
-    setAlertMessage('Please provide your contact number for emergency response.');
-    setShowAlert(true);
-    return;
-  }
+    if (!formData.reporter_contact?.trim()) {
+      setAlertMessage('Please provide your contact number for emergency response.');
+      setShowAlert(true);
+      return;
+    }
 
     if (!formData.barangay) {
       setAlertMessage('Please select a barangay.');
@@ -1067,22 +1067,22 @@ const IncidentReport: React.FC = () => {
       }
 
       const reportData = {
-    title: formData.category,
-    description: description,
-    category: formData.category,
-    priority: formData.priority,
-    location: formData.location.trim(),
-    barangay: formData.barangay,
-    coordinates: formData.coordinates ? JSON.stringify(formData.coordinates) : null,
-    image_urls: imageUrls,
-    reporter_email: user.email,
-    reporter_name: `${profile?.user_firstname || ''} ${profile?.user_lastname || ''}`.trim() || user.email,
-    reporter_address: formData.reporter_address.trim(), // NEW
-    reporter_contact: formData.reporter_contact.trim(), // NEW
-    status: 'pending',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
+        title: formData.category,
+        description: description,
+        category: formData.category,
+        priority: formData.priority,
+        location: formData.location.trim(),
+        barangay: formData.barangay,
+        coordinates: formData.coordinates ? JSON.stringify(formData.coordinates) : null,
+        image_urls: imageUrls,
+        reporter_email: user.email,
+        reporter_name: `${profile?.user_firstname || ''} ${profile?.user_lastname || ''}`.trim() || user.email,
+        reporter_address: formData.reporter_address.trim(), // NEW
+        reporter_contact: formData.reporter_contact.trim(), // NEW
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
 
       const { data: insertData, error: insertError } = await supabase
         .from('incident_reports')
@@ -1096,20 +1096,20 @@ const IncidentReport: React.FC = () => {
 
       // Reset form
       setFormData({
-  category: '',
-  description: '',
-  priority: 'medium',
-  location: '',
-  barangay: '',
-  coordinates: null,
-  images: [],
-  reporter_email: '',
-  reporter_name: '',
-  reporter_address: '', // NEW
-  reporter_contact: '', // NEW
-  photo_datetime: '',
-  current_datetime: getCurrentDateTime()
-});
+        category: '',
+        description: '',
+        priority: 'medium',
+        location: '',
+        barangay: '',
+        coordinates: null,
+        images: [],
+        reporter_email: '',
+        reporter_name: '',
+        reporter_address: '', // NEW
+        reporter_contact: '', // NEW
+        photo_datetime: '',
+        current_datetime: getCurrentDateTime()
+      });
       setImagePreview([]);
       setExtractedExifData(null);
       setExtractionLoading(false);
@@ -1122,6 +1122,48 @@ const IncidentReport: React.FC = () => {
       setShowAlert(true);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Fetch user profile when component mounts
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error('User not authenticated');
+        return;
+      }
+
+      // Get user profile from users table
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('user_firstname, user_lastname, user_email, user_address, user_contact_number')
+        .eq('user_email', user.email)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        return;
+      }
+
+      if (profile) {
+        setUserProfile(profile);
+        
+        // Auto-populate form data with user profile
+        setFormData(prev => ({
+          ...prev,
+          reporter_email: profile.user_email,
+          reporter_name: `${profile.user_firstname || ''} ${profile.user_lastname || ''}`.trim(),
+          reporter_address: profile.user_address || '',
+          reporter_contact: profile.user_contact_number || ''
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
     }
   };
 
@@ -1459,46 +1501,6 @@ const IncidentReport: React.FC = () => {
           </IonCardContent>
         </IonCard>
       </div>
-
-      {/* Reporter Contact Information */}
-<IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-  <IonCardHeader>
-    <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-      Your Contact Information
-    </IonCardTitle>
-  </IonCardHeader>
-  <IonCardContent>
-    <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
-      <IonLabel position="stacked">Full Address <span style={{ color: '#ef4444' }}>*</span></IonLabel>
-      <IonInput
-        value={formData.reporter_address}
-        onIonInput={e => setFormData(prev => ({ ...prev, reporter_address: e.detail.value! }))}
-        placeholder="Enter your complete address for emergency response"
-        required
-      />
-    </IonItem>
-
-    <IonItem style={{ '--border-radius': '12px' } as any}>
-      <IonLabel position="stacked">Contact Number <span style={{ color: '#ef4444' }}>*</span></IonLabel>
-      <IonInput
-        value={formData.reporter_contact}
-        onIonInput={e => setFormData(prev => ({ ...prev, reporter_contact: e.detail.value! }))}
-        placeholder="Enter your mobile number"
-        type="tel"
-        required
-      />
-    </IonItem>
-    
-    <p style={{ 
-      fontSize: '12px', 
-      color: '#6b7280', 
-      margin: '12px 0 0 0',
-      fontStyle: 'italic'
-    }}>
-      This information helps emergency responders contact you quickly if needed.
-    </p>
-  </IonCardContent>
-</IonCard>
 
       {/* Success Modal */}
       <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>

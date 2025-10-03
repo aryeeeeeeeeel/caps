@@ -1,4 +1,4 @@
-// src/pages/home-tabs/Notifications.tsx
+// src/pages/user-tabs/Notifications.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   IonContent,
@@ -43,8 +43,8 @@ import {
   mailOpenOutline,
   mailOutline
 } from 'ionicons/icons';
-import { supabase } from '../../utils/supabaseClient';
-import { generateMockNotifications, safeQuery, logger, type Notification } from '../../utils/databaseInit';
+import { supabase } from '../utils/supabaseClient';
+import { generateMockNotifications, safeQuery, logger, type Notification } from '../utils/databaseInit';
 
 // Type definitions for better type safety
 

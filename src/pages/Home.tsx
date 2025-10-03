@@ -33,12 +33,12 @@ import {
 import { supabase } from '../utils/supabaseClient';
 
 // Import all page components
-import Dashboard from './home-tabs/Dashboard';
-import IncidentReport from './home-tabs/IncidentReport';
-import IncidentMap from './home-tabs/IncidentMap';
-import History from './home-tabs/History';
-import Notifications from './home-tabs/Notifications';
-import GiveFeedback from './home-tabs/GiveFeedback';
+import Dashboard from './user-tabs/Dashboard';
+import IncidentReport from './user-tabs/IncidentReport';
+import IncidentMap from './user-tabs/IncidentMap';
+import History from './user-tabs/History';
+import Notifications from './Notifications';
+import GiveFeedback from './user-tabs/GiveFeedback';
 
 const Home: React.FC = () => {
   const history = useHistory();
