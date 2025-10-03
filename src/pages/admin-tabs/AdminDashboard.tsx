@@ -59,7 +59,7 @@ import {
   sendOutline,
   analyticsOutline
 } from 'ionicons/icons';
-import { supabase } from '../utils/supabaseClient';
+import { supabase } from '../../utils/supabaseClient';
 
 interface IncidentReport {
   id: string;

@@ -29,11 +29,11 @@ import './theme/variables.css';
 import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
 import AdminLogin from "./pages/AdminLogin";
-import AdminDashboard from './pages/AdminDashboard';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 
 /* Admin Pages */
+import AdminDashboard from './pages/admin-tabs/AdminDashboard';
 import AdminReports from './pages/admin-tabs/AdminReports';
 import AdminMap from './pages/admin-tabs/AdminMap';
 import AdminUsers from './pages/admin-tabs/AdminUsers';
