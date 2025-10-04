@@ -1545,7 +1545,7 @@ const IncidentReport: React.FC = () => {
             </p>
 
             <IonButton
-              routerLink="/it35-lab2/app/reports"
+              routerLink="/it35-lab2/app/map"
               expand="block"
               size="large"
               onClick={() => setShowSuccessModal(false)}
