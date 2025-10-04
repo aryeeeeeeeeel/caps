@@ -402,7 +402,7 @@ const GiveFeedback: React.FC = () => {
               </IonCardHeader>
               <IonCardContent>
                 <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-                  Would you recommend our hazard reporting service to others?
+                  Would you recommend our incident reporting service to others?
                 </p>
                 <IonRadioGroup
                   value={feedbackData.would_recommend}

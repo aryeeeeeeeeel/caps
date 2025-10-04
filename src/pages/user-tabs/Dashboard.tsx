@@ -286,7 +286,7 @@ const Dashboard: React.FC = () => {
                 margin: '0 0 20px 0',
                 lineHeight: '1.5'
               }}>
-                Help keep Manolo Fortich safe by reporting hazards in your community
+                Help keep Manolo Fortich safe by reporting incidents in your community
               </p>
 
               {userProfile && (
@@ -645,7 +645,7 @@ const Dashboard: React.FC = () => {
                   margin: 0,
                   paddingLeft: '20px'
                 }}>
-                  <li>Always prioritize your safety when reporting hazards</li>
+                  <li>Always prioritize your safety when reporting incidents</li>
                   <li>Take clear photos from a safe distance</li>
                   <li>Provide accurate location information</li>
                   <li>Report critical incidents immediately by calling emergency services</li>

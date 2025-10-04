@@ -524,20 +524,7 @@ const AdminMap: React.FC = () => {
                   <IonSelectOption value="active">Active</IonSelectOption>
                   <IonSelectOption value="resolved">Resolved</IonSelectOption>
                 </IonSelect>
-                
-                <IonSelect
-                  value={filterPriority}
-                  onIonChange={e => setFilterPriority(e.detail.value)}
-                  placeholder="Priority"
-                  interface="popover"
-                  style={{ minWidth: '120px' }}
-                >
-                  <IonSelectOption value="all">All Priority</IonSelectOption>
-                  <IonSelectOption value="low">Low</IonSelectOption>
-                  <IonSelectOption value="medium">Medium</IonSelectOption>
-                  <IonSelectOption value="high">High</IonSelectOption>
-                  <IonSelectOption value="critical">Critical</IonSelectOption>
-                </IonSelect>
+               
               </div>
             </IonCardContent>
           </IonCard>

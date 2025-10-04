@@ -978,7 +978,7 @@ const IncidentMap: React.FC = () => {
                 <p style={{ color: '#d1d5db', fontSize: '14px', margin: '8px 0 20px 0' }}>
                   {searchText || filterStatus !== 'all' || filterPriority !== 'all' || filterBarangay !== 'all'
                     ? 'Try adjusting your filter criteria or search terms.'
-                    : 'No hazard reports have been submitted yet.'
+                    : 'No incident reports have been submitted yet.'
                   }
                 </p>
                 {!isLoading && (

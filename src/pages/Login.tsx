@@ -1232,7 +1232,7 @@ const Login: React.FC = () => {
                   color: '#3182ce',
                   margin: 0,
                   lineHeight: '1.4'
-                }}>Help make Manolo Fortich safer by reporting hazards and incidents in your area</p>
+                }}>Help make Manolo Fortich safer by reporting incidents in your area</p>
               </div>
             </IonCardContent>
           </IonCard>

@@ -659,8 +659,8 @@ const IncidentReport: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  const hazardCategories = [
-    'Road Hazards',
+  const incidentCategories = [
+    'Road Incidents',
     'Utility Issues',
     'Natural Disasters',
     'Infrastructure Problems',
@@ -754,7 +754,7 @@ const IncidentReport: React.FC = () => {
         source: CameraSource.Camera,
         correctOrientation: true,
         saveToGallery: true,
-        promptLabelHeader: 'Take Hazard Photo',
+        promptLabelHeader: 'Take Photo',
         promptLabelPhoto: 'From Gallery',
         promptLabelPicture: 'Take Picture'
       });
@@ -1002,7 +1002,7 @@ const IncidentReport: React.FC = () => {
     }
 
     if (formData.images.length === 0) {
-      setAlertMessage('Please add at least one photo of the hazard.');
+      setAlertMessage('Please add at least one photo of the incident.');
       setShowAlert(true);
       return;
     }
@@ -1020,7 +1020,7 @@ const IncidentReport: React.FC = () => {
       for (let i = 0; i < formData.images.length; i++) {
         const image = formData.images[i];
         const fileExt = image.name.split('.').pop() || 'jpg';
-        const fileName = `hazard-reports/${user.id}/${Date.now()}-${i}.${fileExt}`;
+        const fileName = `incident-reports/${user.id}/${Date.now()}-${i}.${fileExt}`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('hazard-images')
@@ -1434,14 +1434,14 @@ const IncidentReport: React.FC = () => {
           </IonCardHeader>
           <IonCardContent>
             <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
-              <IonLabel position="stacked">Hazard Category <span style={{ color: '#ef4444' }}>*</span></IonLabel>
+              <IonLabel position="stacked">Incident Category <span style={{ color: '#ef4444' }}>*</span></IonLabel>
               <IonSelect
                 value={formData.category}
                 onIonChange={e => setFormData(prev => ({ ...prev, category: e.detail.value }))}
                 interface="popover"
                 placeholder="Select Category"
               >
-                {hazardCategories.map(category => (
+                {incidentCategories.map(category => (
                   <IonSelectOption key={category} value={category}>{category}</IonSelectOption>
                 ))}
               </IonSelect>
@@ -1466,7 +1466,7 @@ const IncidentReport: React.FC = () => {
               <IonTextarea
                 value={formData.description}
                 onIonChange={e => setFormData(prev => ({ ...prev, description: e.detail.value! }))}
-                placeholder="Briefly describe the hazard and its location..."
+                placeholder="Briefly describe the incident and its location..."
                 rows={3}
                 maxlength={500}
               />
@@ -1496,7 +1496,7 @@ const IncidentReport: React.FC = () => {
               } as any}
             >
               <IonIcon icon={warningOutline} slot="start" />
-              {isSubmitting ? 'Submitting Report...' : 'SUBMIT HAZARD REPORT'}
+              {isSubmitting ? 'Submitting Report...' : 'SUBMIT INCIDENT REPORT'}
             </IonButton>
           </IonCardContent>
         </IonCard>
@@ -1540,7 +1540,7 @@ const IncidentReport: React.FC = () => {
               lineHeight: '1.6',
               marginBottom: '32px'
             }}>
-              Your hazard report has been received by LDRRMO Manolo Fortich.
+              Your incident report has been received by LDRRMO Manolo Fortich.
               You will receive updates on the status through notifications.
             </p>
 

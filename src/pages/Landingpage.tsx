@@ -138,7 +138,7 @@ const LandingPage: React.FC = () => {
                 lineHeight: '1.5',
                 maxWidth: '600px',
                 margin: '0 auto'
-              }}>Empowering communities through geo-intelligent hazard reporting for enhanced public safety response and monitoring</p>
+              }}>Empowering communities through geo-intelligent incident reporting for enhanced public safety response and monitoring</p>
             </div>
           </div>
         </div>
@@ -181,7 +181,7 @@ const LandingPage: React.FC = () => {
                 {
                   icon: mapOutline,
                   title: 'Real-time Mapping',
-                  desc: 'Interactive GIS-powered maps for precise hazard location tracking'
+                  desc: 'Interactive GIS-powered maps for precise incident location tracking'
                 },
                 {
                   icon: notificationsOutline,
@@ -274,7 +274,7 @@ const LandingPage: React.FC = () => {
             <IonRow>
               {[
                 { number: '238', label: 'Cases Reported in Damilag (2021)', icon: checkmarkCircleOutline },
-                { number: '30%', label: 'Hazard Events Formally Reported', icon: peopleOutline },
+                { number: '30%', label: 'Incident Events Formally Reported', icon: peopleOutline },
                 { number: '24/7', label: 'Community Safety Monitoring', icon: shield }
               ].map((stat, index) => (
                 <IonCol key={index} size="12" sizeMd="4">
