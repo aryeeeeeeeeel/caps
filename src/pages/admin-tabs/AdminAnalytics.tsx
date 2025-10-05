@@ -189,7 +189,6 @@ ${Object.entries(reportData.byCategory)
 
   return (
     <IonPage>
-      // In AdminAnalytics.tsx - Replace the header section
       <IonHeader>
         <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
           <IonButtons slot="start">

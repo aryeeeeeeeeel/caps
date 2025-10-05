@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminDashboard.tsx - Fixed Version
+// src/pages/admin-tabs/AdminDashboard.tsx - Fixed with all corrections
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   IonPage,
@@ -27,7 +27,8 @@ import {
   IonImg,
   IonGrid,
   IonRow,
-  IonCol
+  IonCol,
+  IonSearchbar
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -47,7 +48,11 @@ import {
   carOutline,
   closeCircleOutline,
   businessOutline,
-  filterOutline
+  filterOutline,
+  calendarOutline,
+  playOutline,
+  checkmarkDoneOutline,
+  searchOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import L from 'leaflet';
@@ -64,7 +69,7 @@ L.Icon.Default.mergeOptions({
 const COMMAND_CENTER = {
   lat: 8.371646,
   lng: 124.857026,
-  name: 'MDRRMO Command Center'
+  name: 'MDRRMO'
 };
 
 interface IncidentReport {
@@ -85,17 +90,34 @@ interface IncidentReport {
   image_urls?: string[];
   admin_response?: string;
   updated_at?: string;
+  // NEW FIELDS
+  scheduled_response_time?: string;
+  estimated_arrival_time?: string;
+  actual_response_started?: string;
+  actual_resolved_time?: string;
+  current_eta_minutes?: number;
+  response_route_data?: any;
 }
 
 interface User {
   id: string;
-  first_name: string;
-  last_name: string;
+  user_firstname: string;
+  user_lastname: string;
   user_email: string;
   status: 'active' | 'suspended' | 'banned';
   warnings: number;
   last_warning_date?: string;
   created_at: string;
+}
+
+interface IncidentResponseRoute {
+  id: string;
+  incident_report_id: string;
+  route_coordinates: any;
+  calculated_distance_km: number;
+  calculated_eta_minutes: number;
+  route_polyline: string;
+  calculated_at: string;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -122,8 +144,10 @@ const AdminDashboard: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [showReportModal, setShowReportModal] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
+  const [scheduledResponseTime, setScheduledResponseTime] = useState('');
   const [showUserActionAlert, setShowUserActionAlert] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userAction, setUserAction] = useState<'warn' | 'suspend' | 'ban'>('warn');
@@ -131,9 +155,21 @@ const AdminDashboard: React.FC = () => {
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [userSearchText, setUserSearchText] = useState('');
+
+  useEffect(() => {
+    console.log('📊 Current reports with ETA:', reports.map(r => ({
+      id: r.id,
+      status: r.status,
+      hasETA: !!r.estimated_arrival_time,
+      eta: r.estimated_arrival_time,
+      currentETA: r.current_eta_minutes
+    })));
+  }, [reports]);
 
   useEffect(() => {
     verifyAdminAccess();
+    setupAutomatedNotificationsCheck();
   }, []);
 
   // Initialize map after component mounts
@@ -168,6 +204,312 @@ const AdminDashboard: React.FC = () => {
       }
     };
   }, []);
+
+  // NEW: Setup interval to check for automated notifications
+  const setupAutomatedNotificationsCheck = () => {
+    // Check every minute for scheduled notifications
+    const interval = setInterval(() => {
+      checkAndTriggerAutomatedNotifications();
+    }, 60000); // 1 minute
+
+    return () => clearInterval(interval);
+  };
+
+  // UPDATED: Automated notification system with better error handling
+  const checkAndTriggerAutomatedNotifications = async () => {
+    try {
+      const now = new Date();
+
+      console.log('🔄 Checking automated notifications...');
+
+      // Check for reports that need status updates
+      const pendingReports = reports.filter(report => {
+        if (report.status !== 'pending' || !report.scheduled_response_time) {
+          return false;
+        }
+
+        try {
+          const scheduledTime = new Date(report.scheduled_response_time);
+          return !isNaN(scheduledTime.getTime()) && scheduledTime <= now;
+        } catch {
+          return false;
+        }
+      });
+
+      console.log(`📅 ${pendingReports.length} pending reports ready for activation`);
+
+      // Update pending reports to active
+      for (const report of pendingReports) {
+        console.log(`🔄 Activating report: ${report.id}`);
+        await updateReportStatus(report.id, 'active');
+        await createAutomatedNotification(
+          report.reporter_email,
+          'Response Started',
+          `Your incident report "${report.title}" is now being actively addressed by our response team.`,
+          'response_started'
+        );
+      }
+
+      // Check for ETA notifications with better validation
+      const activeReports = reports.filter(report => {
+        if (report.status !== 'active' || !report.estimated_arrival_time) {
+          return false;
+        }
+
+        try {
+          const arrivalTime = new Date(report.estimated_arrival_time!);
+          return !isNaN(arrivalTime.getTime());
+        } catch {
+          return false;
+        }
+      });
+
+      console.log(`🚗 ${activeReports.length} active reports with valid ETA`);
+
+      for (const report of activeReports) {
+        try {
+          const arrivalTime = new Date(report.estimated_arrival_time!);
+          const threeMinutesBefore = new Date(arrivalTime.getTime() - 3 * 60000);
+
+          console.log(`📊 Report ${report.id}:`, {
+            now: now.toISOString(),
+            arrivalTime: arrivalTime.toISOString(),
+            threeMinutesBefore: threeMinutesBefore.toISOString(),
+            shouldNotify: now >= threeMinutesBefore && now < arrivalTime
+          });
+
+          if (now >= threeMinutesBefore && now < arrivalTime) {
+            // Check if we already sent this notification
+            const { data: existingNotifications } = await supabase
+              .from('notifications')
+              .select('id')
+              .eq('related_report_id', report.id)
+              .eq('trigger_type', 'eta_reminder')
+              .limit(1);
+
+            if (!existingNotifications || existingNotifications.length === 0) {
+              console.log(`🔔 Sending ETA reminder for report: ${report.id}`);
+              await createAutomatedNotification(
+                report.reporter_email,
+                'Response Team Arriving Soon',
+                `Our response team will arrive at your incident location in approximately 3 minutes.`,
+                'eta_reminder',
+                report.id
+              );
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing ETA for report ${report.id}:`, error);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error in automated notifications:', error);
+    }
+  };
+
+  // NEW: Create automated notification
+  const createAutomatedNotification = async (
+    userEmail: string,
+    title: string,
+    message: string,
+    triggerType: string,
+    relatedReportId?: string
+  ) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          user_email: userEmail,
+          title,
+          message,
+          type: 'info',
+          read: false,
+          is_automated: true,
+          trigger_type: triggerType,
+          related_report_id: relatedReportId,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      console.log(`Automated notification sent: ${triggerType}`);
+    } catch (error) {
+      console.error('Error creating automated notification:', error);
+    }
+  };
+
+  // NEW: Update report status with timestamps
+  const updateReportStatus = async (reportId: string, newStatus: 'pending' | 'active' | 'resolved') => {
+    try {
+      const updateData: any = { status: newStatus };
+
+      if (newStatus === 'active') {
+        updateData.actual_response_started = new Date().toISOString();
+      } else if (newStatus === 'resolved') {
+        updateData.actual_resolved_time = new Date().toISOString();
+      }
+
+      const { error } = await supabase
+        .from('incident_reports')
+        .update(updateData)
+        .eq('id', reportId);
+
+      if (error) throw error;
+
+      // Update local state
+      setReports(prev => prev.map(report =>
+        report.id === reportId ? { ...report, ...updateData } : report
+      ));
+
+      return true;
+    } catch (error) {
+      console.error('Error updating report status:', error);
+      return false;
+    }
+  };
+
+  // NEW: Schedule response time
+  const scheduleResponseTime = async (reportId: string, scheduledTime: string) => {
+    try {
+      const { error } = await supabase
+        .from('incident_reports')
+        .update({
+          scheduled_response_time: scheduledTime
+        })
+        .eq('id', reportId);
+
+      if (error) throw error;
+
+      // Update local state
+      setReports(prev => prev.map(report =>
+        report.id === reportId ? { ...report, scheduled_response_time: scheduledTime } : report
+      ));
+
+      // Create scheduled response notification
+      const report = reports.find(r => r.id === reportId);
+      if (report) {
+        await createAutomatedNotification(
+          report.reporter_email,
+          'Response Scheduled',
+          `Your incident report "${report.title}" has been scheduled for response at ${new Date(scheduledTime).toLocaleString()}.`,
+          'scheduled_response',
+          reportId
+        );
+      }
+
+      setToastMessage('Response scheduled successfully');
+      setShowToast(true);
+      setShowScheduleModal(false);
+
+    } catch (error) {
+      console.error('Error scheduling response:', error);
+      setToastMessage('Error scheduling response');
+      setShowToast(true);
+    }
+  };
+
+  // FIXED: Save route data to Supabase
+  const saveRouteData = async (
+    reportId: string,
+    routeCoordinates: any,
+    distance: number,
+    duration: number,
+    routePolyline?: string
+  ) => {
+    try {
+      // Calculate estimated arrival time correctly
+      const estimatedArrival = new Date(Date.now() + duration * 60000);
+      const estimatedArrivalISO = estimatedArrival.toISOString();
+
+      console.log('🔄 Saving route data for report:', reportId, {
+        distance,
+        duration,
+        estimatedArrival: estimatedArrivalISO
+      });
+
+      // Save to incident_response_routes table
+      const { error: routeError } = await supabase
+        .from('incident_response_routes')
+        .insert({
+          incident_report_id: reportId,
+          route_coordinates: routeCoordinates,
+          calculated_distance_km: distance,
+          calculated_eta_minutes: duration,
+          route_polyline: routePolyline
+        });
+
+      if (routeError) {
+        console.error('Error saving route:', routeError);
+        throw routeError;
+      }
+
+      // Update incident report with ETA - FIXED: Use the correct field name
+      const { error: reportError } = await supabase
+        .from('incident_reports')
+        .update({
+          estimated_arrival_time: estimatedArrivalISO, // This is the correct field name
+          current_eta_minutes: duration,
+          response_route_data: {
+            last_calculated: new Date().toISOString(),
+            distance_km: distance,
+            duration_minutes: duration
+          }
+        })
+        .eq('id', reportId);
+
+      if (reportError) {
+        console.error('Error updating report:', reportError);
+        throw reportError;
+      }
+
+      // Update local state
+      setReports(prev => prev.map(report =>
+        report.id === reportId ? {
+          ...report,
+          estimated_arrival_time: estimatedArrivalISO, // Make sure this matches
+          current_eta_minutes: duration,
+          response_route_data: {
+            last_calculated: new Date().toISOString(),
+            distance_km: distance,
+            duration_minutes: duration
+          }
+        } : report
+      ));
+
+      console.log('✅ Route data saved successfully for report:', reportId);
+
+    } catch (error) {
+      console.error('Error saving route data:', error);
+    }
+  };
+
+  // NEW: Mark incident as resolved
+  const markAsResolved = async (reportId: string) => {
+    try {
+      const success = await updateReportStatus(reportId, 'resolved');
+
+      if (success) {
+        const report = reports.find(r => r.id === reportId);
+        if (report) {
+          await createAutomatedNotification(
+            report.reporter_email,
+            'Incident Resolved',
+            `Your incident report "${report.title}" has been successfully resolved at ${new Date().toLocaleString()}.`,
+            'incident_resolved',
+            reportId
+          );
+        }
+
+        setToastMessage('Incident marked as resolved');
+        setShowToast(true);
+        setShowReportModal(false);
+      }
+    } catch (error) {
+      console.error('Error marking as resolved:', error);
+      setToastMessage('Error marking incident as resolved');
+      setShowToast(true);
+    }
+  };
 
   const verifyAdminAccess = async () => {
     try {
@@ -277,7 +619,7 @@ const AdminDashboard: React.FC = () => {
         // FIXED: Use the enhanced coordinate parsing function
         const validatedReports = reportsData.map(report => {
           const validatedCoords = parseAndValidateCoordinates(report.coordinates);
-          
+
           if (validatedCoords) {
             console.log(`✅ VALID COORDINATES for report ${report.id}:`, validatedCoords);
             return {
@@ -292,7 +634,7 @@ const AdminDashboard: React.FC = () => {
         setReports(validatedReports);
       }
 
-      // FIXED: Fetch users with first_name and last_name
+      // FIXED: Fetch users with user_firstname and user_lastname
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('*')
@@ -350,7 +692,7 @@ const AdminDashboard: React.FC = () => {
     try {
       setMapError(null);
 
-      // Center on Command Center
+      // Center on MDRRMO
       const center: [number, number] = [COMMAND_CENTER.lat, COMMAND_CENTER.lng];
 
       mapInstanceRef.current = L.map(mapRef.current).setView(center, 13);
@@ -417,37 +759,23 @@ const AdminDashboard: React.FC = () => {
     )
       .addTo(mapInstanceRef.current)
       .bindPopup(`
-        <div style="padding: 12px; text-align: center; min-width: 200px;">
+        <div style="padding: 8px; text-align: center; min-width: 150px;">
           <div style="
-            width: 48px;
-            height: 48px;
-            margin: 0 auto 12px;
+            width: 32px;
+            height: 32px;
+            margin: 0 auto 8px;
             background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 16px;
           ">🏢</div>
-          <h3 style="margin: 0 0 8px 0; color: #1f2937; font-size: 16px; font-weight: bold;">
+          <h3 style="margin: 0 0 4px 0; color: #1f2937; font-size: 14px; font-weight: bold;">
             ${COMMAND_CENTER.name}
           </h3>
-          <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 12px;">
+          <p style="margin: 0; color: #6b7280; font-size: 10px; font-style: italic;">
             Emergency Response Hub
-          </p>
-          <div style="
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            border-radius: 6px;
-            padding: 8px;
-            margin-bottom: 8px;
-          ">
-            <p style="margin: 0; color: #991b1b; font-size: 11px; font-weight: 600;">
-              📍 ${COMMAND_CENTER.lat.toFixed(6)}, ${COMMAND_CENTER.lng.toFixed(6)}
-            </p>
-          </div>
-          <p style="margin: 0; color: #6b7280; font-size: 11px; font-style: italic;">
-            All response routes start from here
           </p>
         </div>
       `);
@@ -524,36 +852,35 @@ const AdminDashboard: React.FC = () => {
           const marker = L.marker([lat, lng], { icon: markerIcon })
             .addTo(mapInstanceRef.current!)
             .bindPopup(`
-              <div style="min-width: 250px;">
-                <h3 style="margin: 0 0 8px 0; color: #1f2937;">${report.title}</h3>
-                <p style="margin: 0 0 8px 0; color: #6b7280;">${report.location}</p>
+              <div style="min-width: 180px; padding: 4px;">
+                <h3 style="margin: 0 0 6px 0; color: #1f2937; font-size: 13px; font-weight: bold;">${report.title}</h3>
+                <p style="margin: 0 0 6px 0; color: #6b7280; font-size: 11px;">
+                  <strong>Barangay:</strong> ${report.barangay}
+                </p>
                 <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                   <span style="
                     background: ${getStatusColor(report.status)}20;
                     color: ${getStatusColor(report.status)};
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                    font-size: 11px;
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                    font-size: 9px;
                     font-weight: bold;
                   ">${report.status.toUpperCase()}</span>
                   <span style="
                     background: ${markerColor}20;
                     color: ${markerColor};
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                    font-size: 11px;
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                    font-size: 9px;
                     font-weight: bold;
                   ">${report.priority.toUpperCase()}</span>
                 </div>
-                <div style="background: #f8fafc; padding: 8px; border-radius: 6px; margin-bottom: 8px;">
-                  <p style="margin: 0 0 4px 0; font-size: 11px; color: #374151;">
+                <div style="background: #f8fafc; padding: 6px; border-radius: 4px; margin-bottom: 6px;">
+                  <p style="margin: 0 0 3px 0; font-size: 9px; color: #374151;">
                     <strong>Reporter:</strong> ${report.reporter_name}
                   </p>
-                  <p style="margin: 0 0 4px 0; font-size: 11px; color: #374151;">
+                  <p style="margin: 0; font-size: 9px; color: #374151;">
                     <strong>Contact:</strong> ${report.reporter_contact}
-                  </p>
-                  <p style="margin: 0; font-size: 11px; color: #374151;">
-                    <strong>Address:</strong> ${report.reporter_address}
                   </p>
                 </div>
                 <button onclick="window.selectReport('${report.id}')" style="
@@ -561,27 +888,31 @@ const AdminDashboard: React.FC = () => {
                   background: #3b82f6;
                   color: white;
                   border: none;
-                  padding: 8px 12px;
-                  border-radius: 6px;
+                  padding: 5px 8px;
+                  border-radius: 4px;
                   cursor: pointer;
-                  font-size: 12px;
-                  margin-bottom: 4px;
+                  font-size: 10px;
+                  margin-bottom: 3px;
                 ">View Details</button>
                 <button onclick="window.trackIncident('${report.id}')" style="
                   width: 100%;
                   background: #dc2626;
                   color: white;
                   border: none;
-                  padding: 8px 12px;
-                  border-radius: 6px;
+                  padding: 5px 8px;
+                  border-radius: 4px;
                   cursor: pointer;
-                  font-size: 12px;
-                ">📍 Track Response Route</button>
+                  font-size: 10px;
+                ">📍 Track Route</button>
               </div>
             `);
 
           marker.on('click', () => {
             setSelectedReport(report);
+            // Clear route when selecting another report
+            clearRoute();
+            // Zoom and center on selected marker
+            mapInstanceRef.current?.setView([lat, lng], 15);
           });
 
           markersRef.current.push(marker);
@@ -596,6 +927,12 @@ const AdminDashboard: React.FC = () => {
         if (report) {
           setSelectedReport(report);
           setShowReportModal(true);
+          // Clear route when selecting another report
+          clearRoute();
+          // Zoom and center on selected report
+          if (report.coordinates) {
+            mapInstanceRef.current?.setView([report.coordinates.lat, report.coordinates.lng], 15);
+          }
         }
       };
 
@@ -662,11 +999,11 @@ const AdminDashboard: React.FC = () => {
     }
 
     console.log(`✅ Starting route calculation for report ${report.id}:`, { lat, lng });
-    calculateRouteFromCommandCenter(report.coordinates);
+    calculateRouteFromCommandCenter(report.coordinates, report.id);
   };
 
-  // FIXED: Route Calculation Function with enhanced validation and error handling
-  const calculateRouteFromCommandCenter = async (destination: { lat: number; lng: number }) => {
+  // UPDATED: Route Calculation Function with ETA saving
+  const calculateRouteFromCommandCenter = async (destination: { lat: number; lng: number }, reportId?: string) => {
     // Enhanced destination validation
     if (!destination) {
       setToastMessage('No destination coordinates provided');
@@ -764,7 +1101,7 @@ const AdminDashboard: React.FC = () => {
             <strong>ETA:</strong> ${Math.round(route.duration / 60)} minutes
           </p>
           <p style="margin: 0; font-size: 11px; color: #6b7280;">
-            From Command Center to Incident
+            From MDRRMO to Incident
           </p>
         </div>
       `);
@@ -780,12 +1117,23 @@ const AdminDashboard: React.FC = () => {
         });
 
         // Store route info
-        setRouteInfo({
+        const routeInfoData = {
           distance: route.distance / 1000, // Convert to km
           duration: route.duration / 60 // Convert to minutes
-        });
+        };
+        setRouteInfo(routeInfoData);
 
-        setToastMessage(`Response route calculated: ${(route.distance / 1000).toFixed(1)} km, ETA ${Math.round(route.duration / 60)} min`);
+        // NEW: Save route data to Supabase if reportId is provided
+        if (reportId) {
+          await saveRouteData(
+            reportId,
+            routeCoordinates,
+            routeInfoData.distance,
+            Math.round(routeInfoData.duration)
+          );
+        }
+
+        setToastMessage(`Response route calculated: ${routeInfoData.distance.toFixed(1)} km, ETA ${Math.round(routeInfoData.duration)} min`);
         setShowToast(true);
 
         // Highlight the command center
@@ -876,13 +1224,21 @@ const AdminDashboard: React.FC = () => {
       return true;
     });
 
+    // Apply search filter
+    if (userSearchText) {
+      filtered = filtered.filter(user =>
+        `${user.user_firstname} ${user.user_lastname}`.toLowerCase().includes(userSearchText.toLowerCase()) ||
+        user.user_email.toLowerCase().includes(userSearchText.toLowerCase())
+      );
+    }
+
     // Sort alphabetically by full name
     return filtered.sort((a, b) => {
-      const fullNameA = `${a.first_name} ${a.last_name}`.toLowerCase();
-      const fullNameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+      const fullNameA = `${a.user_firstname} ${a.user_lastname}`.toLowerCase();
+      const fullNameB = `${b.user_firstname} ${b.user_lastname}`.toLowerCase();
       return fullNameA.localeCompare(fullNameB);
     });
-  }, [users, userFilter, userSort]);
+  }, [users, userFilter, userSort, userSearchText]);
 
   // Handle status filter click - reset priority to 'all'
   const handleStatusFilterClick = (status: 'all' | 'pending' | 'active' | 'resolved') => {
@@ -956,7 +1312,7 @@ const AdminDashboard: React.FC = () => {
         <div style={{ display: 'flex', height: 'calc(100vh - 112px)', width: '100%' }}>
           {/* Left Panel - Incidents */}
           <div style={{
-            width: isIncidentsCollapsed ? '60px' : '350px',
+            width: isIncidentsCollapsed ? '60px' : '360px',
             borderRight: '1px solid #e5e7eb',
             background: 'white',
             transition: 'width 0.3s',
@@ -1065,12 +1421,18 @@ const AdminDashboard: React.FC = () => {
                     <IonList style={{ padding: 0 }}>
                       {filteredReports.map((report) => (
                         <IonItem
-                          key={report.id}
+                          key={report.id || `report-${Math.random()}`}
                           button
                           detail={false}
                           onClick={() => {
                             setSelectedReport(report);
                             setShowReportModal(true);
+                            // Clear route when selecting another report
+                            clearRoute();
+                            // Zoom and center on selected report
+                            if (report.coordinates) {
+                              mapInstanceRef.current?.setView([report.coordinates.lat, report.coordinates.lng], 15);
+                            }
                           }}
                           style={{
                             '--background': selectedReport?.id === report.id ? '#eff6ff' : 'transparent',
@@ -1105,17 +1467,53 @@ const AdminDashboard: React.FC = () => {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                               <IonIcon icon={locationOutline} style={{ fontSize: '12px', color: '#6b7280' }} />
-                              <span style={{ fontSize: '12px', color: '#6b7280' }}>{report.location}</span>
+                              <span style={{ fontSize: '12px', color: '#6b7280' }}>{report.barangay}</span>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
                               <IonIcon icon={timeOutline} style={{ fontSize: '12px', color: '#6b7280' }} />
                               <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                                {new Date(report.created_at).toLocaleDateString()}
+                                {new Date(report.created_at).toLocaleDateString()} - {new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
                               Reporter: {report.reporter_name}
                             </div>
+                            {/* NEW: Track button positioned below status and priority */}
+                            <div style={{ marginTop: '8px' }}>
+                              <IonButton
+                                size="small"
+                                fill="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTrackReport(report);
+                                }}
+                                disabled={report.status === 'resolved'}
+                                style={{
+                                  '--background': '#dc2626',
+                                  '--color': 'white',
+                                  '--border-color': '#dc2626',
+                                  fontSize: '10px',
+                                  height: '24px'
+                                } as any}
+                              >
+                                <IonIcon icon={navigateOutline} slot="start" style={{ fontSize: '10px' }} />
+                                Track
+                              </IonButton>
+                            </div>
+                            {/* NEW: Show scheduled time if exists */}
+                            {report.scheduled_response_time && (
+                              <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '4px' }}>
+                                <IonIcon icon={calendarOutline} style={{ fontSize: '10px', marginRight: '4px' }} />
+                                Scheduled: {new Date(report.scheduled_response_time).toLocaleString()}
+                              </div>
+                            )}
+                            {/* NEW: Show ETA if exists */}
+                            {report.current_eta_minutes && report.status === 'active' && (
+                              <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '2px' }}>
+                                <IonIcon icon={carOutline} style={{ fontSize: '10px', marginRight: '4px' }} />
+                                ETA: {report.current_eta_minutes} min
+                              </div>
+                            )}
                           </div>
                         </IonItem>
                       ))}
@@ -1147,6 +1545,48 @@ const AdminDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* Moved Route Info to Upper Right */}
+            {routeInfo && (
+              <div style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px', // Changed from left to right
+                background: 'white',
+                padding: '16px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+                minWidth: '200px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#1f2937' }}>Response Route</h4>
+                  <IonButton
+                    fill="clear"
+                    size="small"
+                    onClick={clearRoute}
+                    style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
+                  >
+                    <IonIcon icon={closeOutline} />
+                  </IonButton>
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                  From MDRRMO to Incident
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#374151' }}>Distance:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
+                    {routeInfo.distance.toFixed(1)} km
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', color: '#374151' }}>ETA:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
+                    {Math.round(routeInfo.duration)} min
+                  </span>
+                </div>
+              </div>
+            )}
+
             {isCalculatingRoute && (
               <div style={{
                 position: 'absolute',
@@ -1167,46 +1607,26 @@ const AdminDashboard: React.FC = () => {
               </div>
             )}
 
-            {routeInfo && (
-              <div style={{
-                position: 'absolute',
-                top: '16px',
-                left: '16px',
-                background: 'white',
-                padding: '16px',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                zIndex: 1000,
-                minWidth: '200px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', color: '#1f2937' }}>Response Route</h4>
-                  <IonButton
-                    fill="clear"
-                    size="small"
-                    onClick={clearRoute}
-                    style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
-                  >
-                    <IonIcon icon={closeOutline} />
-                  </IonButton>
-                </div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
-                  From Command Center to Incident
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#374151' }}>Distance:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
-                    {routeInfo.distance.toFixed(1)} km
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', color: '#374151' }}>ETA:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
-                    {Math.round(routeInfo.duration)} min
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* MDRRMO Container - Made smaller */}
+            <div style={{
+              position: 'absolute',
+              bottom: '16px',
+              left: '16px',
+              background: 'white',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              color: '#dc2626'
+            }}>
+              <IonIcon icon={businessOutline} />
+              <span>MDRRMO</span>
+            </div>
 
             <div
               ref={mapRef}
@@ -1236,13 +1656,6 @@ const AdminDashboard: React.FC = () => {
               alignItems: 'center',
               background: 'white'
             }}>
-              {!isUsersCollapsed && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <IonIcon icon={peopleOutline} style={{ color: '#3b82f6' }} />
-                  <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Users</span>
-                  <IonBadge color="primary" style={{ marginLeft: '8px' }}>{stats.totalUsers}</IonBadge>
-                </div>
-              )}
               <IonButton
                 fill="clear"
                 size="small"
@@ -1251,10 +1664,33 @@ const AdminDashboard: React.FC = () => {
               >
                 <IonIcon icon={isUsersCollapsed ? chevronBackOutline : chevronForwardOutline} />
               </IonButton>
+              {!isUsersCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IonIcon icon={peopleOutline} style={{ color: '#3b82f6' }} />
+                  <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Users</span>
+                  <IonBadge color="primary" style={{ marginLeft: '8px' }}>{stats.totalUsers}</IonBadge>
+                </div>
+              )}
             </div>
 
             {!isUsersCollapsed && (
               <>
+                {/* User Search - Made smaller with 8px gap */}
+                <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
+                  <IonSearchbar
+                    value={userSearchText}
+                    onIonInput={(e) => setUserSearchText(e.detail.value!)}
+                    placeholder="Search users..."
+                    style={{
+                      '--background': '#f8fafc',
+                      '--border-radius': '8px',
+                      '--box-shadow': 'none',
+                      fontSize: '12px',
+                      height: '40px'
+                    } as any}
+                  />
+                </div>
+
                 {/* User Filters */}
                 <div style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
                   <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#6b7280' }}>
@@ -1307,7 +1743,7 @@ const AdminDashboard: React.FC = () => {
                           <div style={{ width: '100%', padding: '8px 0' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
                               <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#1f2937' }}>
-                                {user.first_name} {user.last_name}
+                                {user.user_firstname} {user.user_lastname}
                               </span>
                               <IonBadge
                                 style={{
@@ -1352,7 +1788,10 @@ const AdminDashboard: React.FC = () => {
               </IonButtons>
               <IonTitle>Incident Details</IonTitle>
               <IonButtons slot="end">
-                <IonButton onClick={() => selectedReport && handleTrackReport(selectedReport)}>
+                <IonButton
+                  onClick={() => selectedReport && handleTrackReport(selectedReport)}
+                  style={{ '--background': '#dc2626', '--color': 'white' } as any}
+                >
                   <IonIcon icon={navigateOutline} slot="start" />
                   Track
                 </IonButton>
@@ -1365,7 +1804,7 @@ const AdminDashboard: React.FC = () => {
                 <IonCard>
                   <IonCardContent>
                     <h2 style={{ marginTop: 0, marginBottom: '16px' }}>{selectedReport.title}</h2>
-                    
+
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                       <IonBadge style={{ '--background': getStatusColor(selectedReport.status) } as any}>
                         {selectedReport.status}
@@ -1375,18 +1814,60 @@ const AdminDashboard: React.FC = () => {
                       </IonBadge>
                     </div>
 
+                    {/* NEW: Scheduled and ETA Information */}
+                    {selectedReport.scheduled_response_time && (
+                      <div style={{
+                        background: '#fffbeb',
+                        border: '1px solid #fcd34d',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <IonIcon icon={calendarOutline} style={{ color: '#f59e0b' }} />
+                          <strong style={{ color: '#92400e' }}>Scheduled Response</strong>
+                        </div>
+                        <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
+                          {new Date(selectedReport.scheduled_response_time).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedReport.current_eta_minutes && selectedReport.status === 'active' && (
+                      <div style={{
+                        background: '#eff6ff',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <IonIcon icon={carOutline} style={{ color: '#3b82f6' }} />
+                          <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
+                        </div>
+                        <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
+                          {selectedReport.current_eta_minutes} minutes
+                        </p>
+                        {selectedReport.estimated_arrival_time && (
+                          <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '12px' }}>
+                            Arrival at: {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <IonGrid>
                       <IonRow>
                         <IonCol size="6">
                           <div style={{ marginBottom: '16px' }}>
-                            <strong>Location:</strong>
-                            <p>{selectedReport.location}</p>
+                            <strong>Barangay:</strong>
+                            <p>{selectedReport.barangay}</p>
                           </div>
                         </IonCol>
                         <IonCol size="6">
                           <div style={{ marginBottom: '16px' }}>
-                            <strong>Barangay:</strong>
-                            <p>{selectedReport.barangay}</p>
+                            <strong>Reported Date:</strong>
+                            <p>{new Date(selectedReport.created_at).toLocaleDateString()}</p>
                           </div>
                         </IonCol>
                       </IonRow>
@@ -1399,8 +1880,8 @@ const AdminDashboard: React.FC = () => {
                         </IonCol>
                         <IonCol size="6">
                           <div style={{ marginBottom: '16px' }}>
-                            <strong>Reported:</strong>
-                            <p>{new Date(selectedReport.created_at).toLocaleString()}</p>
+                            <strong>Reported Time:</strong>
+                            <p>{new Date(selectedReport.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </IonCol>
                       </IonRow>
@@ -1464,17 +1945,30 @@ const AdminDashboard: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Action Buttons */}
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
-                      <IonButton
-                        expand="block"
-                        color="primary"
-                        onClick={() => selectedReport && handleTrackReport(selectedReport)}
-                        disabled={selectedReport.status === 'resolved'}
-                      >
-                        <IonIcon icon={navigateOutline} slot="start" />
-                        Track Response Route
-                      </IonButton>
+                    {/* NEW: Enhanced Action Buttons */}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
+                      {selectedReport.status === 'pending' && (
+                        <IonButton
+                          expand="block"
+                          color="warning"
+                          onClick={() => setShowScheduleModal(true)}
+                        >
+                          <IonIcon icon={calendarOutline} slot="start" />
+                          Schedule Response
+                        </IonButton>
+                      )}
+
+                      {selectedReport.status === 'active' && (
+                        <IonButton
+                          expand="block"
+                          color="success"
+                          onClick={() => selectedReport && markAsResolved(selectedReport.id)}
+                        >
+                          <IonIcon icon={checkmarkDoneOutline} slot="start" />
+                          Mark Resolved
+                        </IonButton>
+                      )}
+
                       <IonButton
                         expand="block"
                         color="secondary"
@@ -1491,6 +1985,52 @@ const AdminDashboard: React.FC = () => {
                 </IonCard>
               </div>
             )}
+          </IonContent>
+        </IonModal>
+
+        {/* NEW: Schedule Response Modal */}
+        <IonModal isOpen={showScheduleModal} onDidDismiss={() => setShowScheduleModal(false)}>
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => setShowScheduleModal(false)}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Schedule Response</IonTitle>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              <IonCard>
+                <IonCardContent>
+                  <p>Schedule when the response team will address this incident:</p>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
+                      Select Response Time
+                    </div>
+                    <IonDatetime
+                      presentation="date-time"
+                      onIonChange={(e) => setScheduledResponseTime(e.detail.value as string)}
+                    />
+                  </div>
+
+                  <IonButton
+                    expand="block"
+                    onClick={() => {
+                      if (selectedReport && scheduledResponseTime) {
+                        scheduleResponseTime(selectedReport.id, scheduledResponseTime);
+                      }
+                    }}
+                    disabled={!scheduledResponseTime}
+                  >
+                    <IonIcon icon={calendarOutline} slot="start" />
+                    Schedule Response
+                  </IonButton>
+                </IonCardContent>
+              </IonCard>
+            </div>
           </IonContent>
         </IonModal>
 
@@ -1511,7 +2051,7 @@ const AdminDashboard: React.FC = () => {
               <IonCard>
                 <IonCardContent>
                   <p>Send notification to {selectedReport?.reporter_name}</p>
-                  
+
                   <div style={{ marginBottom: '16px' }}>
                     <IonTextarea
                       label="Message"
@@ -1523,23 +2063,12 @@ const AdminDashboard: React.FC = () => {
                     />
                   </div>
 
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-                      Select estimated resolution time
-                    </div>
-                    <IonDatetime
-                      presentation="date-time"
-                      onIonChange={(e) => setEstimatedTime(e.detail.value as string)}
-                    />
-                  </div>
-
                   <IonButton expand="block" onClick={() => {
                     // Handle notification sending
                     setToastMessage('Notification sent to reporter');
                     setShowToast(true);
                     setShowNotifyModal(false);
                     setNotificationMessage('');
-                    setEstimatedTime('');
                   }}>
                     <IonIcon icon={sendOutline} slot="start" />
                     Send Notification
@@ -1558,10 +2087,12 @@ const AdminDashboard: React.FC = () => {
           message={'Are you sure you want to logout?'}
           buttons={[
             { text: 'Cancel', role: 'cancel' },
-            { text: 'Logout', role: 'confirm', handler: () => {
-              supabase.auth.signOut();
-              navigation.push('/it35-lab2', 'root', 'replace');
-            }}
+            {
+              text: 'Logout', role: 'confirm', handler: () => {
+                supabase.auth.signOut();
+                navigation.push('/it35-lab2', 'root', 'replace');
+              }
+            }
           ]}
         />
 
@@ -1569,7 +2100,7 @@ const AdminDashboard: React.FC = () => {
           isOpen={showUserActionAlert}
           onDidDismiss={() => setShowUserActionAlert(false)}
           header={'User Action'}
-          message={`Select action for ${selectedUser?.first_name} ${selectedUser?.last_name}`}
+          message={`Select action for ${selectedUser?.user_firstname} ${selectedUser?.user_lastname}`}
           buttons={[
             { text: 'Cancel', role: 'cancel' },
             { text: 'Warn', role: 'warn', handler: () => handleUserAction('warn') },

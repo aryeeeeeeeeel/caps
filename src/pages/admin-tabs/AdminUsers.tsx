@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminUsers.tsx - Fixed with proper design
+// src/pages/admin-tabs/AdminUsers.tsx - Fixed with proper error handling
 import React, { useState, useEffect } from 'react';
 import {
   IonPage,
@@ -180,13 +180,22 @@ const AdminUsers: React.FC = () => {
     banned: users.filter(u => u.status === 'banned').length
   };
 
+  // FIXED: Add proper error handling for status
   const getStatusColor = (status: string) => {
+    if (!status) return '#6b7280'; // Default color if status is undefined
+    
     switch (status) {
       case 'active': return '#10b981';
       case 'suspended': return '#f59e0b';
       case 'banned': return '#dc2626';
       default: return '#6b7280';
     }
+  };
+
+  // FIXED: Safe status display
+  const getStatusDisplay = (status: string | undefined) => {
+    if (!status) return 'UNKNOWN';
+    return status.toUpperCase();
   };
 
   if (isLoading) {
@@ -336,6 +345,7 @@ const AdminUsers: React.FC = () => {
                     <div style={{ width: '100%', padding: '16px 0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <div style={{ flex: 1 }}>
+                          {/* FIXED: Show name before email */}
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', marginBottom: '4px' }}>
                             {user.first_name} {user.last_name}
                           </div>
@@ -344,6 +354,7 @@ const AdminUsers: React.FC = () => {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {/* FIXED: Use safe status display */}
                           <IonChip style={{
                             '--background': getStatusColor(user.status) + '20',
                             '--color': getStatusColor(user.status),
@@ -351,7 +362,7 @@ const AdminUsers: React.FC = () => {
                             fontSize: '11px',
                             fontWeight: '600'
                           } as any}>
-                            {user.status.toUpperCase()}
+                            {getStatusDisplay(user.status)}
                           </IonChip>
                           {user.warnings > 0 && (
                             <IonBadge color="warning" style={{ fontSize: '10px' }}>
