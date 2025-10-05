@@ -105,7 +105,7 @@ const AdminDashboard: React.FC = () => {
   const markersRef = useRef<L.Marker[]>([]);
   const commandCenterMarkerRef = useRef<L.Marker | null>(null);
   const routeLayerRef = useRef<L.Polyline | null>(null);
-  
+
   const [isIncidentsCollapsed, setIsIncidentsCollapsed] = useState(false);
   const [isUsersCollapsed, setIsUsersCollapsed] = useState(false);
   const [reports, setReports] = useState<IncidentReport[]>([]);
@@ -173,35 +173,91 @@ const AdminDashboard: React.FC = () => {
     try {
       setIsLoading(true);
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
+
       if (authError || !user) {
         throw new Error('Not authenticated');
       }
-      
+
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id, role, user_email')
         .eq('auth_uuid', user.id)
         .single();
-      
+
       if (userError) throw userError;
-      
+
       if (!userData?.role || userData.role !== 'admin') {
         await supabase.auth.signOut();
         navigation.push('/it35-lab2', 'root', 'replace');
         return;
       }
-      
+
       setUserEmail(userData.user_email);
       await fetchInitialData();
       setupRealtimeSubscriptions();
-      
+
     } catch (error) {
       console.error('Admin access verification failed:', error);
       await supabase.auth.signOut();
       navigation.push('/it35-lab2', 'root', 'replace');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // FIXED: Enhanced coordinate parsing and validation
+  const parseAndValidateCoordinates = (coordinates: any): { lat: number; lng: number } | undefined => {
+    if (!coordinates) {
+      console.warn('No coordinates provided');
+      return undefined;
+    }
+
+    try {
+      let lat: number;
+      let lng: number;
+
+      // Handle different coordinate formats
+      if (typeof coordinates === 'string') {
+        // Try to parse as JSON string
+        try {
+          const parsed = JSON.parse(coordinates);
+          if (parsed && typeof parsed === 'object') {
+            lat = parsed.lat;
+            lng = parsed.lng;
+          } else {
+            return undefined;
+          }
+        } catch {
+          return undefined;
+        }
+      } else if (typeof coordinates === 'object') {
+        lat = coordinates.lat;
+        lng = coordinates.lng;
+      } else {
+        return undefined;
+      }
+
+      // Convert to numbers if they're strings
+      if (typeof lat === 'string') {
+        lat = parseFloat(lat);
+      }
+      if (typeof lng === 'string') {
+        lng = parseFloat(lng);
+      }
+
+      // Final validation
+      const isLatValid = typeof lat === 'number' && !isNaN(lat) && Math.abs(lat) <= 90;
+      const isLngValid = typeof lng === 'number' && !isNaN(lng) && Math.abs(lng) <= 180;
+
+      if (isLatValid && isLngValid) {
+        return { lat, lng };
+      } else {
+        console.warn('Invalid coordinate values:', { lat, lng });
+        return undefined;
+      }
+    } catch (error) {
+      console.error('Error parsing coordinates:', error);
+      return undefined;
     }
   };
 
@@ -218,20 +274,18 @@ const AdminDashboard: React.FC = () => {
       }
 
       if (reportsData) {
-        // FIXED: Better coordinate validation
+        // FIXED: Use the enhanced coordinate parsing function
         const validatedReports = reportsData.map(report => {
-          if (report.coordinates && 
-              typeof report.coordinates.lat === 'number' && 
-              typeof report.coordinates.lng === 'number' &&
-              !isNaN(report.coordinates.lat) && 
-              !isNaN(report.coordinates.lng) &&
-              report.coordinates.lat >= -90 && 
-              report.coordinates.lat <= 90 &&
-              report.coordinates.lng >= -180 && 
-              report.coordinates.lng <= 180) {
-            return report;
+          const validatedCoords = parseAndValidateCoordinates(report.coordinates);
+          
+          if (validatedCoords) {
+            console.log(`✅ VALID COORDINATES for report ${report.id}:`, validatedCoords);
+            return {
+              ...report,
+              coordinates: validatedCoords
+            };
           } else {
-            console.warn('Invalid coordinates for report:', report.id, report.coordinates);
+            console.warn(`❌ INVALID coordinates for report:`, report.id, report.coordinates);
             return { ...report, coordinates: undefined };
           }
         });
@@ -295,10 +349,10 @@ const AdminDashboard: React.FC = () => {
 
     try {
       setMapError(null);
-      
+
       // Center on Command Center
       const center: [number, number] = [COMMAND_CENTER.lat, COMMAND_CENTER.lng];
-      
+
       mapInstanceRef.current = L.map(mapRef.current).setView(center, 13);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -415,18 +469,10 @@ const AdminDashboard: React.FC = () => {
       const filteredReports = reports.filter(report => {
         const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
         const matchesPriority = priorityFilter === 'all' || report.priority === priorityFilter;
-        
-        // FIXED: Better coordinate validation
-        const hasValidCoordinates = report.coordinates && 
-          typeof report.coordinates.lat === 'number' && 
-          typeof report.coordinates.lng === 'number' &&
-          !isNaN(report.coordinates.lat) && 
-          !isNaN(report.coordinates.lng) &&
-          report.coordinates.lat >= -90 && 
-          report.coordinates.lat <= 90 &&
-          report.coordinates.lng >= -180 && 
-          report.coordinates.lng <= 180;
-        
+
+        // Use the enhanced validation function
+        const hasValidCoordinates = report.coordinates !== undefined;
+
         return matchesStatus && matchesPriority && hasValidCoordinates;
       });
 
@@ -436,13 +482,13 @@ const AdminDashboard: React.FC = () => {
         if (!report.coordinates) return;
 
         const { lat, lng } = report.coordinates;
-        
-        // FIXED: Final validation before creating marker
+
+        // Final validation before creating marker
         if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
           console.warn('Skipping invalid coordinates for report:', report.id, { lat, lng });
           return;
         }
-        
+
         // Create custom marker based on priority
         const markerColor = getPriorityColor(report.priority);
         const markerIcon = L.divIcon({
@@ -566,22 +612,98 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Route Calculation Function with validation
+  // FIXED: Track Report Function with comprehensive validation
+  const handleTrackReport = (report: IncidentReport) => {
+    // Don't track resolved incidents
+    if (report.status === 'resolved') {
+      setToastMessage('Cannot track route for resolved incidents');
+      setShowToast(true);
+      return;
+    }
+
+    // Comprehensive coordinate validation
+    if (!report.coordinates) {
+      setToastMessage('No coordinates available for this incident');
+      setShowToast(true);
+      return;
+    }
+
+    const { lat, lng } = report.coordinates;
+
+    // Validate coordinate types and values
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      console.error('Invalid coordinate types:', { lat, lng, types: [typeof lat, typeof lng] });
+      setToastMessage('Invalid coordinate data type');
+      setShowToast(true);
+      return;
+    }
+
+    if (isNaN(lat) || isNaN(lng)) {
+      console.error('NaN coordinates:', { lat, lng });
+      setToastMessage('Invalid coordinate values (NaN)');
+      setShowToast(true);
+      return;
+    }
+
+    // Validate coordinate ranges
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.error('Coordinates out of range:', { lat, lng });
+      setToastMessage('Coordinates are out of valid range');
+      setShowToast(true);
+      return;
+    }
+
+    // Additional validation for realistic coordinates (adjust for your region if needed)
+    if (lat === 0 && lng === 0) {
+      console.error('Null Island coordinates detected');
+      setToastMessage('Invalid default coordinates (0,0)');
+      setShowToast(true);
+      return;
+    }
+
+    console.log(`✅ Starting route calculation for report ${report.id}:`, { lat, lng });
+    calculateRouteFromCommandCenter(report.coordinates);
+  };
+
+  // FIXED: Route Calculation Function with enhanced validation and error handling
   const calculateRouteFromCommandCenter = async (destination: { lat: number; lng: number }) => {
-    // Validate destination coordinates
-    if (!destination || typeof destination.lat !== 'number' || typeof destination.lng !== 'number' || 
-        isNaN(destination.lat) || isNaN(destination.lng)) {
-      setToastMessage('Invalid destination coordinates');
+    // Enhanced destination validation
+    if (!destination) {
+      setToastMessage('No destination coordinates provided');
+      setShowToast(true);
+      return;
+    }
+
+    const { lat, lng } = destination;
+
+    // Comprehensive validation
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      console.error('Invalid destination coordinate types:', { lat, lng });
+      setToastMessage('Invalid destination coordinate types');
+      setShowToast(true);
+      return;
+    }
+
+    if (isNaN(lat) || isNaN(lng)) {
+      console.error('NaN destination coordinates:', { lat, lng });
+      setToastMessage('Invalid destination coordinate values');
+      setShowToast(true);
+      return;
+    }
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.error('Destination coordinates out of range:', { lat, lng });
+      setToastMessage('Destination coordinates are out of valid range');
       setShowToast(true);
       return;
     }
 
     // Don't calculate route for resolved reports
-    const targetReport = reports.find(report => 
-      report.coordinates?.lat === destination.lat && 
+    const targetReport = reports.find(report =>
+      report.coordinates?.lat === destination.lat &&
       report.coordinates?.lng === destination.lng
     );
-    
+
     if (targetReport?.status === 'resolved') {
       setToastMessage('Cannot calculate route for resolved incidents');
       setShowToast(true);
@@ -589,26 +711,38 @@ const AdminDashboard: React.FC = () => {
     }
 
     setIsCalculatingRoute(true);
-    
+    setToastMessage('Calculating response route...');
+    setShowToast(true);
+
     try {
       // Clear existing route
       clearRoute();
 
-      // Use OpenStreetMap Routing API
+      console.log('🔄 Calculating route from:', COMMAND_CENTER, 'to:', destination);
+
+      // Use OpenStreetMap Routing API with error handling
       const response = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${COMMAND_CENTER.lng},${COMMAND_CENTER.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`
       );
-      
+
       if (!response.ok) {
-        throw new Error('Route calculation failed');
+        const errorText = await response.text();
+        console.error('OSRM API error:', response.status, errorText);
+        throw new Error(`Route calculation failed: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
+
+        // Validate route data
+        if (!route.geometry || !route.geometry.coordinates) {
+          throw new Error('Invalid route data received');
+        }
+
         const routeCoordinates = route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-        
+
         // Draw route on map with animated style
         routeLayerRef.current = L.polyline(routeCoordinates as [number, number][], {
           color: '#dc2626',
@@ -619,22 +753,38 @@ const AdminDashboard: React.FC = () => {
           className: 'animated-route'
         }).addTo(mapInstanceRef.current!);
 
-        // Fit map to show entire route
+        // Add route info to the map
+        routeLayerRef.current.bindPopup(`
+        <div style="padding: 8px; min-width: 200px;">
+          <h4 style="margin: 0 0 8px 0;">Response Route</h4>
+          <p style="margin: 0 0 4px 0; font-size: 12px;">
+            <strong>Distance:</strong> ${(route.distance / 1000).toFixed(1)} km
+          </p>
+          <p style="margin: 0 0 4px 0; font-size: 12px;">
+            <strong>ETA:</strong> ${Math.round(route.duration / 60)} minutes
+          </p>
+          <p style="margin: 0; font-size: 11px; color: #6b7280;">
+            From Command Center to Incident
+          </p>
+        </div>
+      `);
+
+        // Fit map to show entire route with padding
         const bounds = L.latLngBounds([
           [COMMAND_CENTER.lat, COMMAND_CENTER.lng],
           [destination.lat, destination.lng]
         ]);
-        
+
         mapInstanceRef.current?.fitBounds(bounds, {
           padding: [50, 50]
         });
-        
+
         // Store route info
         setRouteInfo({
           distance: route.distance / 1000, // Convert to km
           duration: route.duration / 60 // Convert to minutes
         });
-        
+
         setToastMessage(`Response route calculated: ${(route.distance / 1000).toFixed(1)} km, ETA ${Math.round(route.duration / 60)} min`);
         setShowToast(true);
 
@@ -642,47 +792,50 @@ const AdminDashboard: React.FC = () => {
         if (commandCenterMarkerRef.current) {
           commandCenterMarkerRef.current.openPopup();
         }
+
+        console.log('✅ Route calculated successfully:', {
+          distance: route.distance,
+          duration: route.duration,
+          coordinates: routeCoordinates.length
+        });
+
       } else {
-        throw new Error('No route found');
+        throw new Error('No route found between these points');
       }
     } catch (error) {
       console.error('Error calculating route:', error);
-      setToastMessage('Error calculating response route. Please try again.');
+
+      let errorMessage = 'Error calculating response route. ';
+
+      if (error instanceof Error) {
+        if (error.message.includes('failed')) {
+          errorMessage += 'Routing service unavailable. Please try again later.';
+        } else if (error.message.includes('No route')) {
+          errorMessage += 'No route found between these locations.';
+        } else {
+          errorMessage += 'Please try again.';
+        }
+      }
+
+      setToastMessage(errorMessage);
       setShowToast(true);
     } finally {
       setIsCalculatingRoute(false);
     }
   };
 
-  // Clear Route Function
+  // FIXED: Clear Route Function with better cleanup
   const clearRoute = () => {
     if (routeLayerRef.current && mapInstanceRef.current) {
-      mapInstanceRef.current.removeLayer(routeLayerRef.current);
-      routeLayerRef.current = null;
+      try {
+        mapInstanceRef.current.removeLayer(routeLayerRef.current);
+        routeLayerRef.current = null;
+      } catch (error) {
+        console.error('Error clearing route:', error);
+      }
     }
     setRouteInfo(null);
   };
-
-  // Track Report Function with validation
-  const handleTrackReport = (report: IncidentReport) => {
-  if (report.status === 'resolved') {
-    setToastMessage('Cannot track route for resolved incidents');
-    setShowToast(true);
-    return;
-  }
-  
-  if (!report.coordinates || 
-      typeof report.coordinates.lat !== 'number' || 
-      typeof report.coordinates.lng !== 'number' ||
-      isNaN(report.coordinates.lat) || 
-      isNaN(report.coordinates.lng)) {
-    setToastMessage('Invalid coordinates for this incident');
-    setShowToast(true);
-    return;
-  }
-  
-  calculateRouteFromCommandCenter(report.coordinates);
-};
 
   const stats = useMemo(() => ({
     pending: reports.filter(r => r.status === 'pending').length,
@@ -764,7 +917,7 @@ const AdminDashboard: React.FC = () => {
             </IonButton>
           </IonButtons>
         </IonToolbar>
-        
+
         {/* Menu Bar */}
         <IonToolbar style={{ '--background': 'white' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
@@ -817,231 +970,244 @@ const AdminDashboard: React.FC = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: '#f8fafc'
+              background: 'white'
             }}>
-              {!isIncidentsCollapsed ? (
-                <>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>Incident Details</h3>
-                  <IonButton
-                    fill="clear"
-                    size="small"
-                    onClick={() => setIsIncidentsCollapsed(true)}
-                  >
-                    <IonIcon icon={chevronBackOutline} />
-                  </IonButton>
-                </>
-              ) : (
-                <div style={{ width: '100%', textAlign: 'center' }}>
-                  <IonButton
-                    fill="clear"
-                    size="small"
-                    onClick={() => setIsIncidentsCollapsed(false)}
-                    style={{ margin: '0 auto' }}
-                  >
-                    <IonIcon icon={alertCircleOutline} style={{ fontSize: '24px' }} />
-                  </IonButton>
+              {!isIncidentsCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IonIcon icon={alertCircleOutline} style={{ color: '#dc2626' }} />
+                  <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Incident Reports</span>
+                  <IonBadge color="danger" style={{ marginLeft: '8px' }}>{stats.total}</IonBadge>
                 </div>
               )}
+              <IonButton
+                fill="clear"
+                size="small"
+                onClick={() => setIsIncidentsCollapsed(!isIncidentsCollapsed)}
+                style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
+              >
+                <IonIcon icon={isIncidentsCollapsed ? chevronForwardOutline : chevronBackOutline} />
+              </IonButton>
             </div>
 
             {!isIncidentsCollapsed && (
-              <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
-                {/* Stats - Now Clickable Filters */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-                  {[
-                    { label: 'Pending', value: stats.pending, color: '#f59e0b', icon: timeOutline, status: 'pending' },
-                    { label: 'Active', value: stats.active, color: '#3b82f6', icon: alertCircleOutline, status: 'active' },
-                    { label: 'Resolved', value: stats.resolved, color: '#10b981', icon: checkmarkCircleOutline, status: 'resolved' },
-                    { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, status: 'all' }
-                  ].map((stat, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => handleStatusFilterClick(stat.status as any)}
-                      style={{
-                        padding: '12px',
-                        background: statusFilter === stat.status ? stat.color + '20' : '#f8fafc',
-                        borderRadius: '8px',
-                        border: `1px solid ${statusFilter === stat.status ? stat.color : '#e5e7eb'}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <IonIcon icon={stat.icon} style={{ color: stat.color, fontSize: '16px' }} />
-                        <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '500' }}>{stat.label}</span>
-                      </div>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Priority Filters - Clickable Chips */}
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>
-                      Priority Filter
-                    </div>
+              <>
+                {/* Status Filter */}
+                <div style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#6b7280' }}>
+                    STATUS FILTER
                   </div>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                     {[
-                      { label: 'All', value: 'all', color: '#6b7280' },
-                      { label: 'Critical', value: 'critical', color: '#dc2626' },
-                      { label: 'High', value: 'high', color: '#f97316' },
-                      { label: 'Medium', value: 'medium', color: '#f59e0b' },
-                      { label: 'Low', value: 'low', color: '#10b981' }
-                    ].map((priority) => (
-                      <div
-                        key={priority.value}
-                        onClick={() => setPriorityFilter(priority.value as any)}
+                      { value: 'all', label: 'All', count: stats.total, color: '#6b7280' },
+                      { value: 'pending', label: 'Pending', count: stats.pending, color: '#f59e0b' },
+                      { value: 'active', label: 'Active', count: stats.active, color: '#3b82f6' },
+                      { value: 'resolved', label: 'Resolved', count: stats.resolved, color: '#10b981' }
+                    ].map(filter => (
+                      <IonChip
+                        key={filter.value}
+                        outline={statusFilter !== filter.value}
+                        color={statusFilter === filter.value ? 'primary' : undefined}
+                        onClick={() => handleStatusFilterClick(filter.value as any)}
                         style={{
-                          padding: '6px 12px',
-                          background: priorityFilter === priority.value ? priority.color : '#f3f4f6',
-                          color: priorityFilter === priority.value ? 'white' : priority.color,
-                          borderRadius: '16px',
-                          fontSize: '11px',
-                          fontWeight: '600',
+                          '--background': statusFilter === filter.value ? filter.color : 'transparent',
+                          '--color': statusFilter === filter.value ? 'white' : filter.color,
                           cursor: 'pointer',
-                          border: `1px solid ${priorityFilter === priority.value ? priority.color : '#e5e7eb'}`,
-                          transition: 'all 0.2s'
-                        }}
+                          margin: 0,
+                          fontSize: '12px'
+                        } as any}
                       >
-                        {priority.label}
-                      </div>
+                        {filter.label} ({filter.count})
+                      </IonChip>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Priority Filter */}
+                <div style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#6b7280' }}>
+                    PRIORITY FILTER
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {[
+                      { value: 'all', label: 'All', color: '#6b7280' },
+                      { value: 'critical', label: 'Critical', color: '#dc2626' },
+                      { value: 'high', label: 'High', color: '#f97316' },
+                      { value: 'medium', label: 'Medium', color: '#eab308' },
+                      { value: 'low', label: 'Low', color: '#84cc16' }
+                    ].map(filter => (
+                      <IonChip
+                        key={filter.value}
+                        outline={priorityFilter !== filter.value}
+                        color={priorityFilter === filter.value ? 'primary' : undefined}
+                        onClick={() => setPriorityFilter(filter.value as any)}
+                        style={{
+                          '--background': priorityFilter === filter.value ? filter.color : 'transparent',
+                          '--color': priorityFilter === filter.value ? 'white' : filter.color,
+                          cursor: 'pointer',
+                          margin: 0,
+                          fontSize: '12px'
+                        } as any}
+                      >
+                        {filter.label}
+                      </IonChip>
                     ))}
                   </div>
                 </div>
 
                 {/* Reports List */}
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '8px' }}>
-                  Showing {filteredReports.length} Incidents
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {filteredReports.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px', color: '#9ca3af' }}>
+                      <IonIcon icon={alertCircleOutline} style={{ fontSize: '48px', marginBottom: '16px' }} />
+                      <p>No incidents found</p>
+                    </div>
+                  ) : (
+                    <IonList style={{ padding: 0 }}>
+                      {filteredReports.map((report) => (
+                        <IonItem
+                          key={report.id}
+                          button
+                          detail={false}
+                          onClick={() => {
+                            setSelectedReport(report);
+                            setShowReportModal(true);
+                          }}
+                          style={{
+                            '--background': selectedReport?.id === report.id ? '#eff6ff' : 'transparent',
+                            '--border-color': '#f3f4f6'
+                          } as any}
+                        >
+                          <div style={{ width: '100%', padding: '8px 0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#1f2937' }}>
+                                {report.title}
+                              </span>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <IonBadge
+                                  style={{
+                                    fontSize: '10px',
+                                    '--background': getStatusColor(report.status),
+                                    '--color': 'white'
+                                  } as any}
+                                >
+                                  {report.status}
+                                </IonBadge>
+                                <IonBadge
+                                  style={{
+                                    fontSize: '10px',
+                                    '--background': getPriorityColor(report.priority),
+                                    '--color': 'white'
+                                  } as any}
+                                >
+                                  {report.priority}
+                                </IonBadge>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                              <IonIcon icon={locationOutline} style={{ fontSize: '12px', color: '#6b7280' }} />
+                              <span style={{ fontSize: '12px', color: '#6b7280' }}>{report.location}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                              <IonIcon icon={timeOutline} style={{ fontSize: '12px', color: '#6b7280' }} />
+                              <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                {new Date(report.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                              Reporter: {report.reporter_name}
+                            </div>
+                          </div>
+                        </IonItem>
+                      ))}
+                    </IonList>
+                  )}
                 </div>
-                <IonList style={{ background: 'transparent' }}>
-                  {filteredReports.map(report => {
-                    const hasValidCoords = report.coordinates && 
-                      typeof report.coordinates.lat === 'number' && 
-                      typeof report.coordinates.lng === 'number' &&
-                      !isNaN(report.coordinates.lat) && 
-                      !isNaN(report.coordinates.lng);
-                    
-                    return (
-                      <IonItem
-                        key={report.id}
-                        button
-                        onClick={() => {
-                          setSelectedReport(report);
-                          setShowReportModal(true);
-                          if (hasValidCoords && report.coordinates && mapInstanceRef.current) {
-                            mapInstanceRef.current.setView([report.coordinates.lat, report.coordinates.lng], 16);
-                          }
-                        }}
-                        style={{
-                          '--padding-start': '0',
-                          '--inner-padding-end': '0',
-                          '--background': 'transparent',
-                          '--border-color': '#f1f5f9',
-                          marginBottom: '8px'
-                        } as any}
-                      >
-                        <div style={{ width: '100%', padding: '12px', background: '#f8fafc', borderRadius: '8px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                            <div style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937', flex: 1 }}>
-                              {report.title}
-                            </div>
-                            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                              <span style={{
-                                background: getStatusColor(report.status) + '20',
-                                color: getStatusColor(report.status),
-                                padding: '2px 6px',
-                                borderRadius: '8px',
-                                fontSize: '10px',
-                                fontWeight: 'bold'
-                              }}>
-                                {report.status}
-                              </span>
-                              <span style={{
-                                background: getPriorityColor(report.priority) + '20',
-                                color: getPriorityColor(report.priority),
-                                padding: '2px 6px',
-                                borderRadius: '8px',
-                                fontSize: '10px',
-                                fontWeight: 'bold'
-                              }}>
-                                {report.priority}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
-                            <IonIcon icon={locationOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
-                            {report.location}
-                          </div>
-                          
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                              {new Date(report.created_at).toLocaleString()}
-                            </div>
-                            
-                            {/* Tracking Button */}
-                            <IonButton
-                              fill="solid"
-                              size="small"
-                              color="danger"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTrackReport(report);
-                              }}
-                              disabled={report.status === 'resolved' || !hasValidCoords}
-                              style={{
-                                '--padding-start': '8px',
-                                '--padding-end': '8px',
-                                fontSize: '11px',
-                                height: '28px'
-                              } as any}
-                            >
-                              <IonIcon icon={navigateOutline} slot="start" style={{ fontSize: '12px' }} />
-                              Track
-                            </IonButton>
-                          </div>
-                        </div>
-                      </IonItem>
-                    );
-                  })}
-                </IonList>
-              </div>
+              </>
             )}
           </div>
 
-          {/* Middle Panel - Map */}
-          <div style={{ flex: 1, position: 'relative' }}>
+          {/* Main Content - Map */}
+          <div style={{ flex: 1, position: 'relative', background: '#f1f5f9' }}>
             {mapError && (
               <div style={{
                 position: 'absolute',
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                background: '#fef2f2',
+                background: '#fee2e2',
                 border: '1px solid #fecaca',
                 color: '#dc2626',
                 padding: '16px',
                 borderRadius: '8px',
-                zIndex: 1000,
-                textAlign: 'center'
+                textAlign: 'center',
+                zIndex: 1000
               }}>
                 <IonIcon icon={alertCircleOutline} style={{ fontSize: '24px', marginBottom: '8px' }} />
-                <div style={{ fontSize: '14px', fontWeight: '500' }}>Map Error</div>
-                <div style={{ fontSize: '12px', marginTop: '4px' }}>{mapError}</div>
-                <IonButton 
-                  size="small" 
-                  onClick={() => {
-                    setMapError(null);
-                    initializeMap();
-                  }}
-                  style={{ marginTop: '8px' }}
-                >
-                  Retry
-                </IonButton>
+                <p style={{ margin: 0 }}>{mapError}</p>
               </div>
             )}
+
+            {isCalculatingRoute && (
+              <div style={{
+                position: 'absolute',
+                top: '16px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'white',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                zIndex: 1000
+              }}>
+                <IonSpinner style={{ width: '16px', height: '16px' }} />
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>Calculating route...</span>
+              </div>
+            )}
+
+            {routeInfo && (
+              <div style={{
+                position: 'absolute',
+                top: '16px',
+                left: '16px',
+                background: 'white',
+                padding: '16px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+                minWidth: '200px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', color: '#1f2937' }}>Response Route</h4>
+                  <IonButton
+                    fill="clear"
+                    size="small"
+                    onClick={clearRoute}
+                    style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
+                  >
+                    <IonIcon icon={closeOutline} />
+                  </IonButton>
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                  From Command Center to Incident
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#374151' }}>Distance:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
+                    {routeInfo.distance.toFixed(1)} km
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', color: '#374151' }}>ETA:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
+                    {Math.round(routeInfo.duration)} min
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div
               ref={mapRef}
               style={{
@@ -1054,7 +1220,7 @@ const AdminDashboard: React.FC = () => {
 
           {/* Right Panel - Users */}
           <div style={{
-            width: isUsersCollapsed ? '60px' : '350px',
+            width: isUsersCollapsed ? '60px' : '300px',
             borderLeft: '1px solid #e5e7eb',
             background: 'white',
             transition: 'width 0.3s',
@@ -1068,137 +1234,127 @@ const AdminDashboard: React.FC = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              background: '#f8fafc'
+              background: 'white'
             }}>
-              {!isUsersCollapsed ? (
-                <>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>User Management</h3>
-                  <IonButton
-                    fill="clear"
-                    size="small"
-                    onClick={() => setIsUsersCollapsed(true)}
-                  >
-                    <IonIcon icon={chevronForwardOutline} />
-                  </IonButton>
-                </>
-              ) : (
-                <div style={{ width: '100%', textAlign: 'center' }}>
-                  <IonButton
-                    fill="clear"
-                    size="small"
-                    onClick={() => setIsUsersCollapsed(false)}
-                    style={{ margin: '0 auto' }}
-                  >
-                    <IonIcon icon={peopleOutline} style={{ fontSize: '24px' }} />
-                  </IonButton>
+              {!isUsersCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IonIcon icon={peopleOutline} style={{ color: '#3b82f6' }} />
+                  <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Users</span>
+                  <IonBadge color="primary" style={{ marginLeft: '8px' }}>{stats.totalUsers}</IonBadge>
                 </div>
               )}
+              <IonButton
+                fill="clear"
+                size="small"
+                onClick={() => setIsUsersCollapsed(!isUsersCollapsed)}
+                style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
+              >
+                <IonIcon icon={isUsersCollapsed ? chevronBackOutline : chevronForwardOutline} />
+              </IonButton>
             </div>
 
             {!isUsersCollapsed && (
-              <div style={{ flex: 1, overflow: 'auto', padding: '12px' }}>
-                {/* User Stats - Clickable Filters */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-                  {[
-                    { label: 'Active', value: stats.activeUsers, color: '#10b981', status: 'active' },
-                    { label: 'Inactive', value: stats.inactiveUsers, color: '#6b7280', status: 'inactive' },
-                    { label: 'Total', value: stats.totalUsers, color: '#3b82f6', status: 'all' }
-                  ].map((stat, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => setUserFilter(stat.status as any)}
-                      style={{
-                        padding: '12px',
-                        background: userFilter === stat.status ? stat.color + '20' : '#f8fafc',
-                        borderRadius: '8px',
-                        border: `1px solid ${userFilter === stat.status ? stat.color : '#e5e7eb'}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{ fontSize: '11px', color: '#6b7280', fontWeight: '500', marginBottom: '4px' }}>
-                        {stat.label}
-                      </div>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Alphabetical Filter Button */}
-                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>
-                    User List
+              <>
+                {/* User Filters */}
+                <div style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
+                  <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: 'bold', color: '#6b7280' }}>
+                    USER FILTER
                   </div>
-                  <IonButton
-                    fill={userSort === 'alphabetical' ? 'solid' : 'outline'}
-                    size="small"
-                    onClick={() => setUserSort('alphabetical')}
-                    style={{ '--border-radius': '20px' } as any}
-                  >
-                    <IonIcon icon={filterOutline} slot="start" style={{ fontSize: '14px' }} />
-                    A-Z
-                  </IonButton>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {[
+                      { value: 'all', label: 'All', count: stats.totalUsers, color: '#6b7280' },
+                      { value: 'active', label: 'Active', count: stats.activeUsers, color: '#10b981' },
+                      { value: 'inactive', label: 'Inactive', count: stats.inactiveUsers, color: '#ef4444' }
+                    ].map(filter => (
+                      <IonChip
+                        key={filter.value}
+                        outline={userFilter !== filter.value}
+                        color={userFilter === filter.value ? 'primary' : undefined}
+                        onClick={() => setUserFilter(filter.value as any)}
+                        style={{
+                          '--background': userFilter === filter.value ? filter.color : 'transparent',
+                          '--color': userFilter === filter.value ? 'white' : filter.color,
+                          cursor: 'pointer',
+                          margin: 0,
+                          fontSize: '12px'
+                        } as any}
+                      >
+                        {filter.label} ({filter.count})
+                      </IonChip>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Users List */}
-                <IonList style={{ background: 'transparent' }}>
-                  {filteredAndSortedUsers.map(user => (
-                    <IonItem
-                      key={user.id}
-                      button
-                      onClick={() => {
-                        setSelectedUser(user);
-                        setShowUserActionAlert(true);
-                      }}
-                      style={{
-                        '--padding-start': '0',
-                        '--inner-padding-end': '0',
-                        '--background': 'transparent',
-                        '--border-color': '#f1f5f9',
-                        marginBottom: '8px'
-                      } as any}
-                    >
-                      <div style={{ width: '100%', padding: '12px', background: '#f8fafc', borderRadius: '8px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                          <div style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>
-                            {user.first_name} {user.last_name}
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  {filteredAndSortedUsers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px', color: '#9ca3af' }}>
+                      <IonIcon icon={peopleOutline} style={{ fontSize: '48px', marginBottom: '16px' }} />
+                      <p>No users found</p>
+                    </div>
+                  ) : (
+                    <IonList style={{ padding: 0 }}>
+                      {filteredAndSortedUsers.map((user) => (
+                        <IonItem
+                          key={user.id}
+                          button
+                          detail={false}
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowUserActionAlert(true);
+                          }}
+                        >
+                          <div style={{ width: '100%', padding: '8px 0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#1f2937' }}>
+                                {user.first_name} {user.last_name}
+                              </span>
+                              <IonBadge
+                                style={{
+                                  fontSize: '10px',
+                                  '--background': user.status === 'active' ? '#10b981' : user.status === 'suspended' ? '#f59e0b' : '#ef4444',
+                                  '--color': 'white'
+                                } as any}
+                              >
+                                {user.status}
+                              </IonBadge>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                              {user.user_email}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                              Joined: {new Date(user.created_at).toLocaleDateString()}
+                            </div>
+                            {user.warnings > 0 && (
+                              <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '4px' }}>
+                                ⚠️ {user.warnings} warning{user.warnings > 1 ? 's' : ''}
+                              </div>
+                            )}
                           </div>
-                          <span style={{
-                            background: user.status === 'active' ? '#10b98120' : '#6b728020',
-                            color: user.status === 'active' ? '#10b981' : '#6b7280',
-                            padding: '2px 6px',
-                            borderRadius: '8px',
-                            fontSize: '10px',
-                            fontWeight: 'bold'
-                          }}>
-                            {user.status}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
-                          {user.user_email}
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                            Warnings: {user.warnings}
-                          </div>
-                        </div>
-                      </div>
-                    </IonItem>
-                  ))}
-                </IonList>
-              </div>
+                        </IonItem>
+                      ))}
+                    </IonList>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
 
-        {/* Report Details Modal */}
+        {/* Report Detail Modal */}
         <IonModal isOpen={showReportModal} onDidDismiss={() => setShowReportModal(false)}>
           <IonHeader>
             <IonToolbar>
-              <IonTitle>Incident Details</IonTitle>
-              <IonButtons slot="end">
+              <IonButtons slot="start">
                 <IonButton onClick={() => setShowReportModal(false)}>
                   <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Incident Details</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => selectedReport && handleTrackReport(selectedReport)}>
+                  <IonIcon icon={navigateOutline} slot="start" />
+                  Track
                 </IonButton>
               </IonButtons>
             </IonToolbar>
@@ -1206,116 +1362,191 @@ const AdminDashboard: React.FC = () => {
           <IonContent>
             {selectedReport && (
               <div style={{ padding: '16px' }}>
-                <IonGrid>
-                  <IonRow>
-                    <IonCol size="12">
-                      <h2 style={{ margin: '0 0 16px 0', color: '#1f2937' }}>{selectedReport.title}</h2>
-                      
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                        <IonChip color={getStatusChipColor(selectedReport.status)}>
-                          {selectedReport.status.toUpperCase()}
-                        </IonChip>
-                        <IonChip color={getPriorityChipColor(selectedReport.priority)}>
-                          {selectedReport.priority.toUpperCase()}
-                        </IonChip>
-                      </div>
+                <IonCard>
+                  <IonCardContent>
+                    <h2 style={{ marginTop: 0, marginBottom: '16px' }}>{selectedReport.title}</h2>
+                    
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                      <IonBadge style={{ '--background': getStatusColor(selectedReport.status) } as any}>
+                        {selectedReport.status}
+                      </IonBadge>
+                      <IonBadge style={{ '--background': getPriorityColor(selectedReport.priority) } as any}>
+                        {selectedReport.priority}
+                      </IonBadge>
+                    </div>
 
-                      <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#374151' }}>Incident Information</h3>
-                        <p style={{ margin: '0 0 8px 0', color: '#6b7280' }}>{selectedReport.description}</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <IonIcon icon={locationOutline} style={{ color: '#6b7280' }} />
-                          <span style={{ color: '#6b7280', fontSize: '14px' }}>{selectedReport.location}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <IonIcon icon={timeOutline} style={{ color: '#6b7280' }} />
-                          <span style={{ color: '#6b7280', fontSize: '14px' }}>
-                            {new Date(selectedReport.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        {selectedReport.barangay && (
-                          <div style={{ color: '#6b7280', fontSize: '14px', marginBottom: '8px' }}>
-                            Barangay: {selectedReport.barangay}
+                    <IonGrid>
+                      <IonRow>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Location:</strong>
+                            <p>{selectedReport.location}</p>
                           </div>
-                        )}
-                        {selectedReport.category && (
-                          <div style={{ color: '#6b7280', fontSize: '14px' }}>
-                            Category: {selectedReport.category}
+                        </IonCol>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Barangay:</strong>
+                            <p>{selectedReport.barangay}</p>
                           </div>
-                        )}
-                      </div>
-
-                      <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#0369a1' }}>Reporter Information</h3>
-                        <p style={{ margin: '0 0 8px 0', color: '#0c4a6e' }}><strong>Name:</strong> {selectedReport.reporter_name}</p>
-                        <p style={{ margin: '0 0 8px 0', color: '#0c4a6e' }}><strong>Email:</strong> {selectedReport.reporter_email}</p>
-                        <p style={{ margin: '0 0 8px 0', color: '#0c4a6e' }}><strong>Contact:</strong> {selectedReport.reporter_contact}</p>
-                        <p style={{ margin: '0 0 8px 0', color: '#0c4a6e' }}><strong>Address:</strong> {selectedReport.reporter_address}</p>
-                      </div>
-
-                      {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
-                        <div style={{ marginBottom: '16px' }}>
-                          <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#374151' }}>Attached Images</h3>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
-                            {selectedReport.image_urls.map((url, index) => (
-                              <IonImg
-                                key={index}
-                                src={url}
-                                style={{ borderRadius: '8px', height: '100px', objectFit: 'cover' }}
-                              />
-                            ))}
+                        </IonCol>
+                      </IonRow>
+                      <IonRow>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Category:</strong>
+                            <p>{selectedReport.category}</p>
                           </div>
-                        </div>
-                      )}
+                        </IonCol>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Reported:</strong>
+                            <p>{new Date(selectedReport.created_at).toLocaleString()}</p>
+                          </div>
+                        </IonCol>
+                      </IonRow>
+                    </IonGrid>
 
-                      {selectedReport.admin_response && (
-                        <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-                          <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#166534' }}>Admin Response</h3>
-                          <p style={{ margin: '0 0 8px 0', color: '#166534' }}>{selectedReport.admin_response}</p>
-                          {selectedReport.updated_at && (
-                            <div style={{ color: '#166534', fontSize: '12px', fontStyle: 'italic' }}>
-                              Last updated: {new Date(selectedReport.updated_at).toLocaleString()}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    <div style={{ marginBottom: '16px' }}>
+                      <strong>Description:</strong>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.description}</p>
+                    </div>
 
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {selectedReport.status !== 'resolved' && (
-                          <>
-                            <IonButton 
-                              onClick={() => handleTrackReport(selectedReport)}
-                              disabled={!selectedReport.coordinates || 
-                                typeof selectedReport.coordinates?.lat !== 'number' || 
-                                typeof selectedReport.coordinates?.lng !== 'number' ||
-                                isNaN(selectedReport.coordinates.lat) || 
-                                isNaN(selectedReport.coordinates.lng)}
-                            >
-                              <IonIcon icon={carOutline} slot="start" />
-                              Track Response
-                            </IonButton>
-                            <IonButton 
-                              fill="outline" 
-                              onClick={() => setShowNotifyModal(true)}
-                            >
-                              <IonIcon icon={sendOutline} slot="start" />
-                              Send Update
-                            </IonButton>
-                          </>
-                        )}
-                        <IonButton 
-                          fill="clear" 
-                          color="medium" 
-                          onClick={() => setShowReportModal(false)}
-                        >
-                          Close
-                        </IonButton>
+                    {/* Reporter Information */}
+                    <IonCard style={{ background: '#f8fafc' }}>
+                      <IonCardContent>
+                        <h3 style={{ marginTop: 0 }}>Reporter Information</h3>
+                        <IonGrid>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Name:</strong>
+                              <p>{selectedReport.reporter_name}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Email:</strong>
+                              <p>{selectedReport.reporter_email}</p>
+                            </IonCol>
+                          </IonRow>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Contact:</strong>
+                              <p>{selectedReport.reporter_contact}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Address:</strong>
+                              <p>{selectedReport.reporter_address}</p>
+                            </IonCol>
+                          </IonRow>
+                        </IonGrid>
+                      </IonCardContent>
+                    </IonCard>
+
+                    {/* Images */}
+                    {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
+                      <div style={{ marginTop: '16px' }}>
+                        <strong>Attached Images:</strong>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                          {selectedReport.image_urls.map((url, index) => (
+                            <IonImg
+                              key={index}
+                              src={url}
+                              style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </IonCol>
-                  </IonRow>
-                </IonGrid>
+                    )}
+
+                    {/* Admin Response */}
+                    {selectedReport.admin_response && (
+                      <div style={{ marginTop: '16px', padding: '12px', background: '#eff6ff', borderRadius: '8px' }}>
+                        <strong>Admin Response:</strong>
+                        <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{selectedReport.admin_response}</p>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+                      <IonButton
+                        expand="block"
+                        color="primary"
+                        onClick={() => selectedReport && handleTrackReport(selectedReport)}
+                        disabled={selectedReport.status === 'resolved'}
+                      >
+                        <IonIcon icon={navigateOutline} slot="start" />
+                        Track Response Route
+                      </IonButton>
+                      <IonButton
+                        expand="block"
+                        color="secondary"
+                        onClick={() => {
+                          setShowReportModal(false);
+                          setShowNotifyModal(true);
+                        }}
+                      >
+                        <IonIcon icon={sendOutline} slot="start" />
+                        Notify Reporter
+                      </IonButton>
+                    </div>
+                  </IonCardContent>
+                </IonCard>
               </div>
             )}
+          </IonContent>
+        </IonModal>
+
+        {/* Notify Reporter Modal */}
+        <IonModal isOpen={showNotifyModal} onDidDismiss={() => setShowNotifyModal(false)}>
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => setShowNotifyModal(false)}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Notify Reporter</IonTitle>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              <IonCard>
+                <IonCardContent>
+                  <p>Send notification to {selectedReport?.reporter_name}</p>
+                  
+                  <div style={{ marginBottom: '16px' }}>
+                    <IonTextarea
+                      label="Message"
+                      labelPlacement="floating"
+                      placeholder="Enter your message..."
+                      value={notificationMessage}
+                      onIonInput={(e) => setNotificationMessage(e.detail.value!)}
+                      rows={6}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                      Select estimated resolution time
+                    </div>
+                    <IonDatetime
+                      presentation="date-time"
+                      onIonChange={(e) => setEstimatedTime(e.detail.value as string)}
+                    />
+                  </div>
+
+                  <IonButton expand="block" onClick={() => {
+                    // Handle notification sending
+                    setToastMessage('Notification sent to reporter');
+                    setShowToast(true);
+                    setShowNotifyModal(false);
+                    setNotificationMessage('');
+                    setEstimatedTime('');
+                  }}>
+                    <IonIcon icon={sendOutline} slot="start" />
+                    Send Notification
+                  </IonButton>
+                </IonCardContent>
+              </IonCard>
+            </div>
           </IonContent>
         </IonModal>
 
@@ -1357,50 +1588,68 @@ const AdminDashboard: React.FC = () => {
       </IonContent>
     </IonPage>
   );
-};
 
-// Helper functions
-const getStatusColor = (status: string): string => {
-  switch (status) {
-    case 'pending': return '#f59e0b';
-    case 'active': return '#3b82f6';
-    case 'resolved': return '#10b981';
-    default: return '#6b7280';
+  // Helper functions
+  function getStatusColor(status: string): string {
+    const colors: { [key: string]: string } = {
+      pending: '#f59e0b',
+      active: '#3b82f6',
+      resolved: '#10b981'
+    };
+    return colors[status] || '#6b7280';
   }
-};
 
-const getPriorityColor = (priority: string): string => {
-  switch (priority) {
-    case 'low': return '#10b981';
-    case 'medium': return '#f59e0b';
-    case 'high': return '#f97316';
-    case 'critical': return '#dc2626';
-    default: return '#6b7280';
+  function getPriorityColor(priority: string): string {
+    const colors: { [key: string]: string } = {
+      critical: '#dc2626',
+      high: '#f97316',
+      medium: '#eab308',
+      low: '#84cc16'
+    };
+    return colors[priority] || '#6b7280';
   }
-};
 
-const getStatusChipColor = (status: string): any => {
-  switch (status) {
-    case 'pending': return 'warning';
-    case 'active': return 'primary';
-    case 'resolved': return 'success';
-    default: return 'medium';
+  async function handleUserAction(action: 'warn' | 'suspend' | 'ban') {
+    if (!selectedUser) return;
+
+    try {
+      let newStatus = selectedUser.status;
+      let warnings = selectedUser.warnings || 0;
+
+      switch (action) {
+        case 'warn':
+          warnings += 1;
+          if (warnings >= 3) newStatus = 'suspended';
+          break;
+        case 'suspend':
+          newStatus = 'suspended';
+          break;
+        case 'ban':
+          newStatus = 'banned';
+          break;
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          status: newStatus,
+          warnings: warnings,
+          last_warning_date: action === 'warn' ? new Date().toISOString() : selectedUser.last_warning_date
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
+
+      setToastMessage(`User ${action}ed successfully`);
+      setShowToast(true);
+      await fetchInitialData();
+
+    } catch (error) {
+      console.error('Error updating user:', error);
+      setToastMessage('Error updating user');
+      setShowToast(true);
+    }
   }
-};
-
-const getPriorityChipColor = (priority: string): any => {
-  switch (priority) {
-    case 'low': return 'success';
-    case 'medium': return 'warning';
-    case 'high': return 'danger';
-    case 'critical': return 'danger';
-    default: return 'medium';
-  }
-};
-
-const handleUserAction = async (action: 'warn' | 'suspend' | 'ban') => {
-  // Implementation for user actions
-  console.log(`User action: ${action}`);
 };
 
 export default AdminDashboard;
