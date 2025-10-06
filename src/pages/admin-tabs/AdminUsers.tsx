@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminUsers.tsx - Fixed with proper error handling
+// src/pages/admin-tabs/AdminUsers.tsx - Updated with consistent changes
 import React, { useState, useEffect } from 'react';
 import {
   IonPage,
@@ -30,7 +30,6 @@ import {
   banOutline,
   pauseCircleOutline,
   checkmarkCircleOutline,
-  searchOutline,
   filterOutline,
   statsChartOutline,
   alertCircleOutline,
@@ -40,8 +39,8 @@ import { supabase } from '../../utils/supabaseClient';
 
 interface User {
   id: string;
-  first_name: string;
-  last_name: string;
+  user_firstname: string;
+  user_lastname: string;
   user_email: string;
   status: 'active' | 'suspended' | 'banned';
   warnings: number;
@@ -111,7 +110,7 @@ const AdminUsers: React.FC = () => {
   const filterAndSortUsers = () => {
     let filtered = users.filter(user => {
       const matchesSearch = 
-        `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchText.toLowerCase()) ||
+        `${user.user_firstname} ${user.user_lastname}`.toLowerCase().includes(searchText.toLowerCase()) ||
         user.user_email.toLowerCase().includes(searchText.toLowerCase());
       
       const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
@@ -122,8 +121,8 @@ const AdminUsers: React.FC = () => {
     // Sort alphabetically by name
     if (sortAlphabetical) {
       filtered = filtered.sort((a, b) => {
-        const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
-        const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+        const nameA = `${a.user_firstname} ${a.user_lastname}`.toLowerCase();
+        const nameB = `${b.user_firstname} ${b.user_lastname}`.toLowerCase();
         return nameA.localeCompare(nameB);
       });
     }
@@ -306,7 +305,13 @@ const AdminUsers: React.FC = () => {
                   value={searchText}
                   onIonInput={e => setSearchText(e.detail.value!)}
                   placeholder="Search users by name or email..."
-                  style={{ flex: 1 }}
+                  style={{ 
+                    flex: 1,
+                    '--background': '#f8fafc',
+                    '--border-radius': '8px',
+                    '--box-shadow': 'none',
+                    fontSize: '14px'
+                  } as any}
                 />
                 <IonButton
                   fill={sortAlphabetical ? 'solid' : 'outline'}
@@ -345,9 +350,9 @@ const AdminUsers: React.FC = () => {
                     <div style={{ width: '100%', padding: '16px 0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <div style={{ flex: 1 }}>
-                          {/* FIXED: Show name before email */}
+                          {/* FIXED: Show name before email with correct field names */}
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', marginBottom: '4px' }}>
-                            {user.first_name} {user.last_name}
+                            {user.user_firstname} {user.user_lastname}
                           </div>
                           <div style={{ fontSize: '14px', color: '#6b7280' }}>
                             {user.user_email}
@@ -355,21 +360,25 @@ const AdminUsers: React.FC = () => {
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                           {/* FIXED: Use safe status display */}
-                          <IonChip style={{
-                            '--background': getStatusColor(user.status) + '20',
-                            '--color': getStatusColor(user.status),
-                            height: '24px',
-                            fontSize: '11px',
-                            fontWeight: '600'
-                          } as any}>
+                          <IonBadge
+                            style={{
+                              fontSize: '10px',
+                              '--background': getStatusColor(user.status),
+                              '--color': 'white'
+                            } as any}
+                          >
                             {getStatusDisplay(user.status)}
-                          </IonChip>
+                          </IonBadge>
                           {user.warnings > 0 && (
                             <IonBadge color="warning" style={{ fontSize: '10px' }}>
                               {user.warnings} ⚠️
                             </IonBadge>
                           )}
                         </div>
+                      </div>
+
+                      <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '12px' }}>
+                        Joined: {new Date(user.created_at).toLocaleDateString()}
                       </div>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -441,7 +450,7 @@ const AdminUsers: React.FC = () => {
           isOpen={showActionAlert}
           onDidDismiss={() => setShowActionAlert(false)}
           header={'User Action'}
-          message={`Are you sure you want to ${userAction} ${selectedUser?.first_name} ${selectedUser?.last_name}?`}
+          message={`Are you sure you want to ${userAction} ${selectedUser?.user_firstname} ${selectedUser?.user_lastname}?`}
           buttons={[
             { text: 'Cancel', role: 'cancel' },
             { 

@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminIncidents.tsx - Updated with clickable filters
+// src/pages/admin-tabs/AdminIncidents.tsx - Updated with consistent changes
 import React, { useState, useEffect } from 'react';
 import {
   IonPage,
@@ -21,7 +21,11 @@ import {
   IonToast,
   IonSpinner,
   IonImg,
-  useIonRouter
+  useIonRouter,
+  IonBadge,
+  IonGrid,
+  IonRow,
+  IonCol
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -35,7 +39,10 @@ import {
   peopleOutline,
   documentTextOutline,
   timeOutline,
-  checkmarkCircleOutline
+  checkmarkCircleOutline,
+  carOutline,
+  calendarOutline,
+  checkmarkDoneOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -56,6 +63,9 @@ interface IncidentReport {
   category: string;
   image_urls?: string[];
   admin_response?: string;
+  scheduled_response_time?: string;
+  estimated_arrival_time?: string;
+  current_eta_minutes?: number;
 }
 
 const AdminIncidents: React.FC = () => {
@@ -330,50 +340,84 @@ const AdminIncidents: React.FC = () => {
                           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
                             {report.title}
                           </h3>
+                          {/* CHANGED: Location replaced with Barangay */}
                           <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
                             <IonIcon icon={locationOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
-                            {report.location}
+                            {report.barangay}
                           </p>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                          <IonChip style={{
-                            '--background': getStatusColor(report.status) + '20',
-                            '--color': getStatusColor(report.status),
-                            height: '24px',
-                            fontSize: '10px',
-                            fontWeight: '600'
-                          } as any}>
-                            {report.status.toUpperCase()}
-                          </IonChip>
-                          <IonChip style={{
-                            '--background': getPriorityColor(report.priority) + '20',
-                            '--color': getPriorityColor(report.priority),
-                            height: '24px',
-                            fontSize: '10px',
-                            fontWeight: '600'
-                          } as any}>
-                            {report.priority.toUpperCase()}
-                          </IonChip>
+                          <IonBadge
+                            style={{
+                              fontSize: '10px',
+                              '--background': getStatusColor(report.status),
+                              '--color': 'white'
+                            } as any}
+                          >
+                            {report.status}
+                          </IonBadge>
+                          <IonBadge
+                            style={{
+                              fontSize: '10px',
+                              '--background': getPriorityColor(report.priority),
+                              '--color': 'white'
+                            } as any}
+                          >
+                            {report.priority}
+                          </IonBadge>
                         </div>
                       </div>
                       
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-                          {new Date(report.created_at).toLocaleString()}
+                      {/* CHANGED: Date and Time swapped */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
+                        <IonIcon icon={timeOutline} style={{ fontSize: '12px', color: '#6b7280' }} />
+                        <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                          {new Date(report.created_at).toLocaleDateString()} - {new Date(report.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
+                      </div>
+
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                        Reporter: {report.reporter_name}
+                      </div>
+
+                      {/* NEW: Track button positioned below status and priority */}
+                      <div style={{ marginTop: '8px' }}>
                         <IonButton
                           size="small"
-                          fill="solid"
-                          color="danger"
+                          fill="outline"
                           onClick={(e) => {
                             e.stopPropagation();
                             navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
                           }}
+                          disabled={report.status === 'resolved'}
+                          style={{
+                            '--background': '#dc2626',
+                            '--color': 'white',
+                            '--border-color': '#dc2626',
+                            fontSize: '10px',
+                            height: '24px'
+                          } as any}
                         >
-                          <IonIcon icon={navigateOutline} slot="start" />
+                          <IonIcon icon={navigateOutline} slot="start" style={{ fontSize: '10px' }} />
                           Track
                         </IonButton>
                       </div>
+
+                      {/* NEW: Show scheduled time if exists */}
+                      {report.scheduled_response_time && (
+                        <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '4px' }}>
+                          <IonIcon icon={calendarOutline} style={{ fontSize: '10px', marginRight: '4px' }} />
+                          Scheduled: {new Date(report.scheduled_response_time).toLocaleString()}
+                        </div>
+                      )}
+
+                      {/* NEW: Show ETA if exists */}
+                      {report.current_eta_minutes && report.status === 'active' && (
+                        <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '2px' }}>
+                          <IonIcon icon={carOutline} style={{ fontSize: '10px', marginRight: '4px' }} />
+                          ETA: {report.current_eta_minutes} min
+                        </div>
+                      )}
                     </div>
                   </IonItem>
                 ))}
@@ -396,61 +440,175 @@ const AdminIncidents: React.FC = () => {
         <IonModal isOpen={showReportModal} onDidDismiss={() => setShowReportModal(false)}>
           <IonHeader>
             <IonToolbar>
-              <IonTitle>Report Details</IonTitle>
-              <IonButtons slot="end">
+              <IonButtons slot="start">
                 <IonButton onClick={() => setShowReportModal(false)}>
                   <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Incident Details</IonTitle>
+              <IonButtons slot="end">
+                <IonButton 
+                  onClick={() => {
+                    navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
+                    setShowReportModal(false);
+                  }}
+                  style={{ '--background': '#dc2626', '--color': 'white' } as any}
+                >
+                  <IonIcon icon={navigateOutline} slot="start" />
+                  Track
                 </IonButton>
               </IonButtons>
             </IonToolbar>
           </IonHeader>
           <IonContent>
             {selectedReport && (
-              <div style={{ padding: '20px' }}>
+              <div style={{ padding: '16px' }}>
                 <IonCard>
                   <IonCardContent>
+                    <h2 style={{ marginTop: 0, marginBottom: '16px' }}>{selectedReport.title}</h2>
+
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                      <IonBadge style={{ '--background': getStatusColor(selectedReport.status) } as any}>
+                        {selectedReport.status}
+                      </IonBadge>
+                      <IonBadge style={{ '--background': getPriorityColor(selectedReport.priority) } as any}>
+                        {selectedReport.priority}
+                      </IonBadge>
+                    </div>
+
+                    {/* NEW: Scheduled and ETA Information */}
+                    {selectedReport.scheduled_response_time && (
+                      <div style={{
+                        background: '#fffbeb',
+                        border: '1px solid #fcd34d',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <IonIcon icon={calendarOutline} style={{ color: '#f59e0b' }} />
+                          <strong style={{ color: '#92400e' }}>Scheduled Response</strong>
+                        </div>
+                        <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
+                          {new Date(selectedReport.scheduled_response_time).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedReport.current_eta_minutes && selectedReport.status === 'active' && (
+                      <div style={{
+                        background: '#eff6ff',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <IonIcon icon={carOutline} style={{ color: '#3b82f6' }} />
+                          <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
+                        </div>
+                        <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
+                          {selectedReport.current_eta_minutes} minutes
+                        </p>
+                        {selectedReport.estimated_arrival_time && (
+                          <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '12px' }}>
+                            Arrival at: {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <IonGrid>
+                      <IonRow>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Barangay:</strong>
+                            <p>{selectedReport.barangay}</p>
+                          </div>
+                        </IonCol>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Reported Date:</strong>
+                            <p>{new Date(selectedReport.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </IonCol>
+                      </IonRow>
+                      <IonRow>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Category:</strong>
+                            <p>{selectedReport.category}</p>
+                          </div>
+                        </IonCol>
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Reported Time:</strong>
+                            <p>{new Date(selectedReport.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                          </div>
+                        </IonCol>
+                      </IonRow>
+                    </IonGrid>
+
+                    <div style={{ marginBottom: '16px' }}>
+                      <strong>Description:</strong>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.description}</p>
+                    </div>
+
+                    {/* Reporter Information */}
+                    <IonCard style={{ background: '#f8fafc' }}>
+                      <IonCardContent>
+                        <h3 style={{ marginTop: 0 }}>Reporter Information</h3>
+                        <IonGrid>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Name:</strong>
+                              <p>{selectedReport.reporter_name}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Email:</strong>
+                              <p>{selectedReport.reporter_email}</p>
+                            </IonCol>
+                          </IonRow>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Contact:</strong>
+                              <p>{selectedReport.reporter_contact}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Address:</strong>
+                              <p>{selectedReport.reporter_address}</p>
+                            </IonCol>
+                          </IonRow>
+                        </IonGrid>
+                      </IonCardContent>
+                    </IonCard>
+
+                    {/* Images */}
                     {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
-                          {selectedReport.image_urls.map((url, idx) => (
-                            <IonImg key={idx} src={url} style={{ borderRadius: '8px', border: '1px solid #e5e7eb' }} />
+                      <div style={{ marginTop: '16px' }}>
+                        <strong>Attached Images:</strong>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                          {selectedReport.image_urls.map((url, index) => (
+                            <IonImg
+                              key={index}
+                              src={url}
+                              style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }}
+                            />
                           ))}
                         </div>
                       </div>
                     )}
 
-                    <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: 'bold' }}>{selectedReport.title}</h2>
-                    
-                    <div style={{ marginBottom: '16px' }}>
-                      <strong>Description:</strong>
-                      <p style={{ color: '#6b7280', marginTop: '4px' }}>{selectedReport.description}</p>
-                    </div>
-
-                    <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
-                      <div><strong>Location:</strong> {selectedReport.location}</div>
-                      <div><strong>Barangay:</strong> {selectedReport.barangay}</div>
-                      <div><strong>Category:</strong> {selectedReport.category}</div>
-                      <div><strong>Reported:</strong> {new Date(selectedReport.created_at).toLocaleString()}</div>
-                    </div>
-
-                    <div style={{
-                      marginTop: '20px',
-                      padding: '16px',
-                      background: '#f8fafc',
-                      borderRadius: '8px'
-                    }}>
-                      <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600' }}>
-                        Reporter Information
-                      </h3>
-                      <div style={{ display: 'grid', gap: '8px', fontSize: '14px' }}>
-                        <div><strong>Name:</strong> {selectedReport.reporter_name}</div>
-                        <div><strong>Contact:</strong> {selectedReport.reporter_contact}</div>
-                        <div><strong>Address:</strong> {selectedReport.reporter_address}</div>
-                        <div><strong>Email:</strong> {selectedReport.reporter_email}</div>
+                    {/* Admin Response */}
+                    {selectedReport.admin_response && (
+                      <div style={{ marginTop: '16px', padding: '12px', background: '#eff6ff', borderRadius: '8px' }}>
+                        <strong>Admin Response:</strong>
+                        <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{selectedReport.admin_response}</p>
                       </div>
-                    </div>
+                    )}
 
-                    <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
                       <IonButton
                         expand="block"
                         color="primary"
@@ -458,18 +616,6 @@ const AdminIncidents: React.FC = () => {
                       >
                         <IonIcon icon={sendOutline} slot="start" />
                         Notify User
-                      </IonButton>
-                      
-                      <IonButton
-                        expand="block"
-                        fill="outline"
-                        onClick={() => {
-                          navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
-                          setShowReportModal(false);
-                        }}
-                      >
-                        <IonIcon icon={navigateOutline} slot="start" />
-                        Track on Map
                       </IonButton>
                     </div>
                   </IonCardContent>
