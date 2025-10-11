@@ -15,10 +15,21 @@ import {
   IonCol
 } from "@ionic/react";
 import { shield, logIn, locationOutline, cameraOutline, notificationsOutline, mapOutline, peopleOutline, checkmarkCircleOutline } from "ionicons/icons";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const LandingPage: React.FC = () => {
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
   useEffect(() => {
+    // Device detection logic
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      setIsMobileDevice(isMobile);
+    };
+
+    checkDevice();
+
     const timer = setTimeout(() => {
       const elements = document.querySelectorAll('.fade-in');
       elements.forEach((el, index) => {
@@ -45,23 +56,27 @@ const LandingPage: React.FC = () => {
             fontSize: '22px',
             letterSpacing: '1px'
           }}>iAMUMA ta</IonTitle>
-          <div slot="end">
-            <IonButton 
-              routerLink="/it35-lab2/admin-login"
-              fill="clear"
-              size="small"
-              style={{ 
-                color: 'white',
-                fontWeight: '600',
-                fontSize: '14px',
-                '--border-radius': '20px',
-                border: '1px solid rgba(255,255,255,0.3)'
-              }}
-            >
-              <IonIcon icon={shield} slot="start" />
-              Admin Portal
-            </IonButton>
-          </div>
+          
+          {/* Only show admin portal button on desktop devices */}
+          {!isMobileDevice && (
+            <div slot="end">
+              <IonButton 
+                routerLink="/it35-lab2/admin-login"
+                fill="clear"
+                size="small"
+                style={{ 
+                  color: 'white',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  '--border-radius': '20px',
+                  border: '1px solid rgba(255,255,255,0.3)'
+                }}
+              >
+                <IonIcon icon={shield} slot="start" />
+                Admin Portal
+              </IonButton>
+            </div>
+          )}
         </IonToolbar>
       </IonHeader>
 

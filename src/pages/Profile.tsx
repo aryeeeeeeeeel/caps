@@ -61,12 +61,12 @@ const Profile: React.FC = () => {
             backgroundColor: '#f4f5f8',
             borderRadius: '50%'
         }}>
-            <IonIcon 
-                icon={personOutline} 
-                style={{ 
+            <IonIcon
+                icon={personOutline}
+                style={{
                     fontSize: '48px',
                     color: '#666'
-                }} 
+                }}
             />
         </div>
     );
@@ -78,7 +78,7 @@ const Profile: React.FC = () => {
                 // Get current user
                 const { data: { user }, error: userError } = await supabase.auth.getUser();
                 if (userError) throw userError;
-                
+
                 if (!user) {
                     history.push('/login');
                     return;
@@ -88,7 +88,7 @@ const Profile: React.FC = () => {
 
                 // Get profile data
                 await ensureProfileExists(user);
-                
+
             } catch (error: any) {
                 console.error('Error fetching user data:', error);
                 setToastMessage('Failed to load profile. Please try again.');
@@ -104,7 +104,7 @@ const Profile: React.FC = () => {
     const ensureProfileExists = async (authUser: any) => {
         try {
             console.log("Looking for user with auth_uuid:", authUser.id);
-            
+
             // FIRST: Try to get data from the 'users' table using auth_uuid
             const { data: userData, error: userError } = await supabase
                 .from('users')
@@ -144,7 +144,7 @@ const Profile: React.FC = () => {
 
                 if (userByEmail && !emailError) {
                     console.log("Found user by email in 'users' table:", userByEmail);
-                    
+
                     // Update the auth_uuid if it's missing
                     try {
                         if (!userByEmail.auth_uuid) {
@@ -152,7 +152,7 @@ const Profile: React.FC = () => {
                                 .from('users')
                                 .update({ auth_uuid: authUser.id })
                                 .eq('user_id', userByEmail.user_id);
-                            
+
                             if (updateError) {
                                 console.log('Cannot update auth_uuid, column might not exist:', updateError);
                             } else {
@@ -162,7 +162,7 @@ const Profile: React.FC = () => {
                     } catch (updateError) {
                         console.log('Error updating auth_uuid:', updateError);
                     }
-                    
+
                     setProfile(userByEmail);
                     setFirstName(userByEmail.user_firstname || '');
                     setLastName(userByEmail.user_lastname || '');
@@ -179,7 +179,7 @@ const Profile: React.FC = () => {
             console.error('USER NOT FOUND IN DATABASE');
             setToastMessage('Profile not found. Please contact support.');
             setShowToast(true);
-            
+
             // Use basic info from auth user as fallback
             setFirstName(authUser?.user_metadata?.first_name || '');
             setLastName(authUser?.user_metadata?.last_name || '');
@@ -198,10 +198,10 @@ const Profile: React.FC = () => {
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
         if (!user) return;
-      
+
         setIsLoading(true);
         const file = e.target.files[0];
-        
+
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
             setToastMessage('File size too large. Please select an image under 5MB.');
@@ -220,7 +220,7 @@ const Profile: React.FC = () => {
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         const filePath = `avatars/${fileName}`;
-      
+
         try {
             // Try different bucket names
             const bucketNames = ['user-avatars', 'avatars'];
@@ -253,10 +253,10 @@ const Profile: React.FC = () => {
             // Store the new avatar URL temporarily instead of updating immediately
             setPendingAvatarUrl(publicUrl);
             setIsAvatarChanged(true);
-            
+
             // Show preview of new avatar
             setAvatarUrl(publicUrl);
-            
+
             setToastMessage('Profile picture selected. Please verify changes to save.');
             setShowToast(true);
         } catch (error: any) {
@@ -301,7 +301,7 @@ const Profile: React.FC = () => {
         }
 
         // Check if there are any changes
-        const hasChanges = 
+        const hasChanges =
             firstName !== profile?.user_firstname ||
             lastName !== profile?.user_lastname ||
             username !== profile?.username ||
@@ -342,7 +342,7 @@ const Profile: React.FC = () => {
             setShowOtpModal(true);
             setToastMessage('Verification code sent to your email!');
             setShowToast(true);
-            
+
         } catch (error: any) {
             console.error('OTP send error:', error);
             setToastMessage('Failed to send verification code. Please try again.');
@@ -377,7 +377,7 @@ const Profile: React.FC = () => {
 
             // OTP verified successfully, now update the profile
             await updateProfile();
-            
+
         } catch (error: any) {
             console.error('OTP verification error:', error);
             setToastMessage('Failed to verify code. Please try again.');
@@ -391,7 +391,7 @@ const Profile: React.FC = () => {
         if (!user || !profile) return;
 
         try {
-            const updateData: any = { 
+            const updateData: any = {
                 user_firstname: firstName,
                 user_lastname: lastName,
                 username: username,
@@ -421,11 +421,11 @@ const Profile: React.FC = () => {
             setPendingAvatarUrl('');
             setOtp('');
             setIsOtpSent(false);
-            
+
             // Show success
             setShowOtpModal(false);
             setShowSuccessModal(true);
-            
+
         } catch (error: any) {
             console.error('Update error:', error);
             setToastMessage('Failed to update profile. Please try again.');
@@ -444,9 +444,9 @@ const Profile: React.FC = () => {
                     '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     '--color': 'white'
                 } as any}>
-                    <IonButton 
-                        slot="start" 
-                        fill="clear" 
+                    <IonButton
+                        slot="start"
+                        fill="clear"
                         onClick={handleBack}
                         style={{ color: 'white' }}
                     >
@@ -459,7 +459,7 @@ const Profile: React.FC = () => {
             <IonContent style={{
                 '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
             } as any}>
-                <div style={{ 
+                <div style={{
                     minHeight: '100vh',
                     display: 'flex',
                     alignItems: 'center',
@@ -490,7 +490,7 @@ const Profile: React.FC = () => {
                                 backgroundImage: `radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 50%)`,
                                 pointerEvents: 'none'
                             }}></div>
-                            
+
                             <div style={{ position: 'relative', zIndex: 1 }}>
                                 {/* Profile Picture */}
                                 <div style={{
@@ -508,12 +508,12 @@ const Profile: React.FC = () => {
                                     overflow: 'hidden',
                                     cursor: 'pointer'
                                 }}
-                                onClick={() => fileInputRef.current?.click()}
+                                    onClick={() => fileInputRef.current?.click()}
                                 >
                                     {avatarUrl ? (
-                                        <img 
-                                            src={avatarUrl} 
-                                            alt="Profile" 
+                                        <img
+                                            src={avatarUrl}
+                                            alt="Profile"
                                             style={{
                                                 width: '100%',
                                                 height: '100%',
@@ -523,14 +523,14 @@ const Profile: React.FC = () => {
                                     ) : (
                                         <DefaultAvatarIcon />
                                     )}
-                                    <input 
-                                        type="file" 
+                                    <input
+                                        type="file"
                                         ref={fileInputRef}
                                         onChange={handleImageUpload}
                                         accept="image/*"
                                         style={{ display: 'none' }}
                                     />
-                                    <div 
+                                    <div
                                         style={{
                                             position: 'absolute',
                                             bottom: '5px',
@@ -549,13 +549,13 @@ const Profile: React.FC = () => {
                                             fileInputRef.current?.click();
                                         }}
                                     >
-                                        <IonIcon icon={cameraOutline} style={{ 
+                                        <IonIcon icon={cameraOutline} style={{
                                             fontSize: '16px',
                                             color: '#667eea'
                                         }} />
                                     </div>
                                 </div>
-                                
+
                                 <h1 style={{
                                     fontSize: '28px',
                                     fontWeight: 'bold',
@@ -563,7 +563,7 @@ const Profile: React.FC = () => {
                                     margin: '0 0 8px 0',
                                     letterSpacing: '0.5px'
                                 }}>Manage Account</h1>
-                                
+
                                 <p style={{
                                     fontSize: '14px',
                                     color: 'rgba(255,255,255,0.9)',
@@ -779,7 +779,7 @@ const Profile: React.FC = () => {
                                 />
                             </div>
 
-                            <IonButton 
+                            <IonButton
                                 onClick={handleOpenVerificationModal}
                                 expand="block"
                                 size="large"
@@ -836,7 +836,7 @@ const Profile: React.FC = () => {
                                         alignItems: 'center',
                                         justifyContent: 'center'
                                     }}>
-                                        <IonIcon icon={checkmarkCircleOutline} style={{ 
+                                        <IonIcon icon={checkmarkCircleOutline} style={{
                                             fontSize: '28px',
                                             color: 'white'
                                         }} />
@@ -857,7 +857,7 @@ const Profile: React.FC = () => {
                                 <IonCardContent style={{ padding: '32px 24px' }}>
                                     {/* Show avatar preview if changed */}
                                     {isAvatarChanged && (
-                                        <div style={{ 
+                                        <div style={{
                                             marginBottom: '20px',
                                             textAlign: 'center'
                                         }}>
@@ -875,9 +875,9 @@ const Profile: React.FC = () => {
                                                 overflow: 'hidden',
                                                 border: '2px solid #e2e8f0'
                                             }}>
-                                                <img 
-                                                    src={pendingAvatarUrl} 
-                                                    alt="New Profile" 
+                                                <img
+                                                    src={pendingAvatarUrl}
+                                                    alt="New Profile"
                                                     style={{
                                                         width: '100%',
                                                         height: '100%',
@@ -962,8 +962,8 @@ const Profile: React.FC = () => {
                                             margin: 0
                                         }}>{contactNumber}</p>
                                     </div>
-                                    
-                                    <IonButton 
+
+                                    <IonButton
                                         onClick={handleSendOtp}
                                         expand="block"
                                         size="large"
@@ -982,8 +982,8 @@ const Profile: React.FC = () => {
                                     >
                                         {isLoading ? 'Sending Code...' : 'SEND VERIFICATION CODE'}
                                     </IonButton>
-                                    
-                                    <IonButton 
+
+                                    <IonButton
                                         expand="block"
                                         fill="clear"
                                         onClick={() => setShowVerificationModal(false)}
@@ -1001,150 +1001,176 @@ const Profile: React.FC = () => {
                 </IonModal>
 
                 {/* OTP Verification Modal */}
-                <IonModal isOpen={showOtpModal} onDidDismiss={() => setShowOtpModal(false)}>
-                    <IonContent style={{
-                        '--background': 'linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)',
-                    } as any}>
-                        <div style={{
-                            minHeight: '100vh',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '20px'
+                <IonModal
+                    isOpen={showOtpModal}
+                    onDidDismiss={() => setShowOtpModal(false)}
+                    style={{
+                        '--height': 'auto',
+                        '--width': '90%',
+                        '--max-width': '400px',
+                        '--border-radius': '20px'
+                    }}
+                >
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        background: 'rgba(0,0,0,0.5)'
+                    }}>
+                        <IonCard style={{
+                            width: '100%',
+                            borderRadius: '20px',
+                            boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
+                            overflow: 'hidden',
+                            margin: '0'
                         }}>
-                            <IonCard style={{
-                                maxWidth: '400px',
-                                width: '100%',
-                                borderRadius: '20px',
-                                boxShadow: '0 20px 64px rgba(0,0,0,0.15)',
-                                overflow: 'hidden'
+                            {/* Modal Header */}
+                            <div style={{
+                                background: 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
+                                padding: '24px 20px',
+                                textAlign: 'center'
                             }}>
                                 <div style={{
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                    padding: '30px 24px',
-                                    textAlign: 'center'
+                                    width: '50px',
+                                    height: '50px',
+                                    background: 'rgba(255,255,255,0.2)',
+                                    borderRadius: '50%',
+                                    margin: '0 auto 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
                                 }}>
-                                    <div style={{
-                                        width: '60px',
-                                        height: '60px',
-                                        background: 'rgba(255,255,255,0.2)',
-                                        borderRadius: '50%',
-                                        margin: '0 auto 16px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}>
-                                        <IonIcon icon={keyOutline} style={{ 
-                                            fontSize: '28px',
-                                            color: 'white'
-                                        }} />
-                                    </div>
-                                    <h2 style={{
-                                        fontSize: '22px',
-                                        fontWeight: 'bold',
-                                        color: 'white',
-                                        margin: '0 0 8px 0'
-                                    }}>Enter Verification Code</h2>
-                                    <p style={{
-                                        fontSize: '14px',
-                                        color: 'rgba(255,255,255,0.9)',
-                                        margin: 0
-                                    }}>Check your email for the verification code</p>
+                                    <IonIcon icon={checkmarkCircleOutline} style={{
+                                        fontSize: '24px',
+                                        color: 'white'
+                                    }} />
                                 </div>
+                                <h2 style={{
+                                    fontSize: '20px',
+                                    fontWeight: 'bold',
+                                    color: 'white',
+                                    margin: '0 0 6px 0'
+                                }}>Security Verification</h2>
+                                <p style={{
+                                    fontSize: '13px',
+                                    color: 'rgba(255,255,255,0.9)',
+                                    margin: 0
+                                }}>We've sent a 6-digit code to</p>
+                                <p style={{
+                                    fontSize: '13px',
+                                    color: 'white',
+                                    fontWeight: '600',
+                                    margin: '2px 0 0 0'
+                                }}>{user?.email}</p>
+                            </div>
 
-                                <IonCardContent style={{ padding: '32px 24px' }}>
-                                    <div style={{ marginBottom: '24px' }}>
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            marginBottom: '8px'
-                                        }}>
-                                            <IonIcon icon={keyOutline} style={{
-                                                fontSize: '16px',
-                                                color: '#4a5568',
-                                                marginRight: '6px'
-                                            }} />
-                                            <label style={{
-                                                fontSize: '13px',
-                                                fontWeight: '600',
-                                                color: '#2d3748'
-                                            }}>Verification Code</label>
-                                        </div>
+                            <IonCardContent style={{ padding: '24px 20px' }}>
+                                {/* Wrap OTP form for Enter key handling */}
+                                <form
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        handleVerifyOtp();
+                                    }}
+                                >
+                                    <div style={{ marginBottom: '20px' }}>
+                                        <label style={{
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            color: '#2d3748',
+                                            display: 'block',
+                                            marginBottom: '10px'
+                                        }}>Verification Code</label>
                                         <IonInput
                                             fill="outline"
                                             type="text"
-                                            placeholder="Enter 6-digit code"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            maxlength={6}
+                                            placeholder="000000"
                                             value={otp}
                                             onIonChange={e => setOtp(e.detail.value!)}
+                                            onKeyPress={(e: React.KeyboardEvent) => {
+                                                // Only allow numbers
+                                                if (!/^\d$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                                                    e.preventDefault();
+                                                }
+                                            }}
                                             style={{
                                                 '--border-radius': '10px',
                                                 '--border-color': '#e2e8f0',
-                                                '--padding-start': '12px',
-                                                '--padding-end': '12px',
+                                                '--padding-start': '16px',
+                                                '--padding-end': '16px',
                                                 fontSize: '16px',
-                                                textAlign: 'center'
+                                                fontWeight: '600',
+                                                textAlign: 'center',
+                                                letterSpacing: '3px'
                                             } as any}
                                         />
                                     </div>
 
-                                    <IonButton 
-                                        onClick={handleVerifyOtp}
+                                    <IonButton
+                                        type="submit"
                                         expand="block"
                                         size="large"
-                                        disabled={isLoading}
+                                        onClick={handleVerifyOtp}
+                                        disabled={isLoading || otp.length < 6}
                                         style={{
-                                            '--border-radius': '12px',
-                                            '--padding-top': '16px',
-                                            '--padding-bottom': '16px',
+                                            '--border-radius': '10px',
+                                            '--padding-top': '14px',
+                                            '--padding-bottom': '14px',
                                             fontWeight: '600',
-                                            fontSize: '16px',
-                                            height: '52px',
-                                            '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            fontSize: '15px',
+                                            height: '48px',
+                                            '--background': 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
                                             '--color': 'white',
                                             marginBottom: '12px'
                                         } as any}
                                     >
+                                        <IonIcon icon={keyOutline} slot="start" />
                                         {isLoading ? 'Verifying...' : 'VERIFY & UPDATE PROFILE'}
                                     </IonButton>
-                                    
-                                    <IonButton 
-                                        expand="block"
-                                        fill="clear"
-                                        onClick={() => {
-                                            setShowOtpModal(false);
-                                            setShowVerificationModal(true);
-                                        }}
-                                        style={{
-                                            color: '#718096',
-                                            fontWeight: '500'
-                                        }}
-                                    >
-                                        Back to Changes
-                                    </IonButton>
+                                </form>
 
-                                    <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                                        <p style={{
-                                            fontSize: '12px',
-                                            color: '#718096',
-                                            margin: 0
-                                        }}>
-                                            Didn't receive the code?{' '}
-                                            <span 
-                                                style={{
-                                                    color: '#667eea',
-                                                    cursor: 'pointer',
-                                                    fontWeight: '500'
-                                                }}
-                                                onClick={handleSendOtp}
-                                            >
-                                                Resend
-                                            </span>
-                                        </p>
-                                    </div>
-                                </IonCardContent>
-                            </IonCard>
-                        </div>
-                    </IonContent>
+                                {/* Resend Code Section */}
+                                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                                    <p style={{
+                                        fontSize: '12px',
+                                        color: '#718096',
+                                        margin: 0
+                                    }}>
+                                        Didn't receive the code?{' '}
+                                        <span
+                                            style={{
+                                                color: '#667eea',
+                                                cursor: 'pointer',
+                                                fontWeight: '500'
+                                            }}
+                                            onClick={handleSendOtp}
+                                        >
+                                            Resend
+                                        </span>
+                                    </p>
+                                </div>
+
+                                <IonButton
+                                    expand="block"
+                                    fill="clear"
+                                    onClick={() => {
+                                        setShowOtpModal(false);
+                                        setShowVerificationModal(true);
+                                    }}
+                                    style={{
+                                        color: '#718096',
+                                        fontWeight: '500',
+                                        fontSize: '14px'
+                                    }}
+                                >
+                                    Back to Changes
+                                </IonButton>
+                            </IonCardContent>
+                        </IonCard>
+                    </div>
                 </IonModal>
 
                 {/* Success Modal */}
@@ -1173,7 +1199,7 @@ const Profile: React.FC = () => {
                                     alignItems: 'center',
                                     justifyContent: 'center'
                                 }}>
-                                    <IonIcon icon={checkmarkCircleOutline} style={{ 
+                                    <IonIcon icon={checkmarkCircleOutline} style={{
                                         fontSize: '50px',
                                         color: 'white'
                                     }} />
@@ -1185,15 +1211,15 @@ const Profile: React.FC = () => {
                                     color: '#065f46',
                                     margin: '0 0 16px 0'
                                 }}>Profile Updated!</h1>
-                                
+
                                 <p style={{
                                     fontSize: '16px',
                                     color: '#047857',
                                     lineHeight: '1.6',
                                     margin: '0 0 30px 0'
                                 }}>Your account information has been successfully updated.</p>
-                                
-                                <IonButton 
+
+                                <IonButton
                                     expand="block"
                                     size="large"
                                     onClick={() => {

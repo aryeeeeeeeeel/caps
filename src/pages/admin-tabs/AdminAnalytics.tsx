@@ -20,7 +20,8 @@ import {
   IonCol,
   IonSpinner,
   IonBadge,
-  useIonRouter
+  useIonRouter,
+  IonText
 } from '@ionic/react';
 import {
   arrowBackOutline,
@@ -31,7 +32,8 @@ import {
   notificationsOutline,
   logOutOutline,
   peopleOutline,
-  alertCircleOutline
+  alertCircleOutline,
+  desktopOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -57,6 +59,53 @@ const AdminAnalytics: React.FC = () => {
   const [endDate, setEndDate] = useState<string>('');
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    // Device detection logic
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      setIsMobileDevice(isMobile);
+    };
+
+    checkDevice();
+  }, []);
+
+  // Show mobile restriction message if accessed from mobile
+  if (isMobileDevice) {
+    return (
+      <IonPage>
+        <IonContent className="ion-padding" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
+            <IonIcon 
+              icon={desktopOutline} 
+              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
+            />
+            <IonText>
+              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
+                Admin Access Restricted
+              </h2>
+              <p style={{ color: '#718096', lineHeight: '1.6' }}>
+                This analytics page is only accessible by an admin.
+              </p>
+            </IonText>
+            <IonButton 
+              onClick={() => navigation.push('/it35-lab2')}
+              style={{ marginTop: '20px' }}
+            >
+              Return to Home
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   useEffect(() => {
     setDefaultDates();

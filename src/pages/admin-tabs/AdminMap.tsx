@@ -1,5 +1,6 @@
 // src/pages/AdminMap.tsx - With MDRRMO Command Center and Incident Tracking
 import React, { useState, useEffect, useRef } from 'react';
+import { desktopOutline } from 'ionicons/icons';
 import {
   IonPage,
   IonHeader,
@@ -25,7 +26,8 @@ import {
   IonFooter,
   IonGrid,
   IonRow,
-  IonCol
+  IonCol,
+  IonText
 } from '@ionic/react';
 import {
   arrowBackOutline,
@@ -86,7 +88,6 @@ const AdminMap: React.FC = () => {
   const markersRef = useRef<L.Marker[]>([]);
   const routeLayerRef = useRef<L.Polyline | null>(null);
   const commandCenterMarkerRef = useRef<L.Marker | null>(null);
-  
   const [reports, setReports] = useState<IncidentReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,6 +97,50 @@ const AdminMap: React.FC = () => {
   const [filterPriority, setFilterPriority] = useState('all');
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      setIsMobileDevice(isMobile);
+    };
+    checkDevice();
+  }, []);
+
+  if (isMobileDevice) {
+    return (
+      <IonPage>
+        <IonContent className="ion-padding" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
+            <IonIcon 
+              icon={desktopOutline} 
+              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
+            />
+            <IonText>
+              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
+                Admin Access Restricted
+              </h2>
+              <p style={{ color: '#718096', lineHeight: '1.6' }}>
+                This admin page is only accessible by an admin.
+              </p>
+            </IonText>
+            <IonButton 
+              onClick={() => navigation.push('/it35-lab2')}
+              style={{ marginTop: '20px' }}
+            >
+              Return to Home
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   useEffect(() => {
     initializeMap();

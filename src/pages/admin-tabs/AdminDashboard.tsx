@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminDashboard.tsx - Fixed with all corrections
+// src/pages/admin-tabs/AdminDashboard.tsx - Fixed with requested changes
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   IonPage,
@@ -28,7 +28,8 @@ import {
   IonGrid,
   IonRow,
   IonCol,
-  IonSearchbar
+  IonSearchbar,
+  IonText
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -52,7 +53,8 @@ import {
   calendarOutline,
   playOutline,
   checkmarkDoneOutline,
-  searchOutline
+  searchOutline,
+  desktopOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import L from 'leaflet';
@@ -121,13 +123,13 @@ interface IncidentResponseRoute {
 }
 
 const AdminDashboard: React.FC = () => {
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
   const navigation = useIonRouter();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const commandCenterMarkerRef = useRef<L.Marker | null>(null);
   const routeLayerRef = useRef<L.Polyline | null>(null);
-
   const [isIncidentsCollapsed, setIsIncidentsCollapsed] = useState(false);
   const [isUsersCollapsed, setIsUsersCollapsed] = useState(false);
   const [reports, setReports] = useState<IncidentReport[]>([]);
@@ -156,6 +158,53 @@ const AdminDashboard: React.FC = () => {
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [userSearchText, setUserSearchText] = useState('');
+  const [isRouteDisplayed, setIsRouteDisplayed] = useState(false);
+
+  useEffect(() => {
+    // Device detection logic
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      setIsMobileDevice(isMobile);
+    };
+
+    checkDevice();
+  }, []);
+
+  // Show mobile restriction message if accessed from mobile
+  if (isMobileDevice) {
+    return (
+      <IonPage>
+        <IonContent className="ion-padding" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
+            <IonIcon 
+              icon={desktopOutline} 
+              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
+            />
+            <IonText>
+              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
+                Admin Access Restricted
+              </h2>
+              <p style={{ color: '#718096', lineHeight: '1.6' }}>
+                This admin dashboard is only accessible by an admin.
+              </p>
+            </IonText>
+            <IonButton 
+              onClick={() => navigation.push('/it35-lab2')}
+              style={{ marginTop: '20px' }}
+            >
+              Return to Home
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   useEffect(() => {
     console.log('📊 Current reports with ETA:', reports.map(r => ({
@@ -704,6 +753,14 @@ const AdminDashboard: React.FC = () => {
       // Add Command Center marker
       addCommandCenterMarker();
 
+      // Add click event to map to clear route only when route is displayed
+      mapInstanceRef.current.on('click', (e) => {
+        // Only clear route if one is currently displayed and user clicks on the map (not on a marker)
+        if (isRouteDisplayed && e.originalEvent && (e.originalEvent.target as HTMLElement).className === 'leaflet-container') {
+          clearRoute();
+        }
+      });
+
       // Force map to render
       setTimeout(() => {
         mapInstanceRef.current?.invalidateSize();
@@ -909,8 +966,10 @@ const AdminDashboard: React.FC = () => {
 
           marker.on('click', () => {
             setSelectedReport(report);
-            // Clear route when selecting another report
-            clearRoute();
+            // Clear route when selecting another report ONLY if route is displayed
+            if (isRouteDisplayed) {
+              clearRoute();
+            }
             // Zoom and center on selected marker
             mapInstanceRef.current?.setView([lat, lng], 15);
           });
@@ -927,8 +986,10 @@ const AdminDashboard: React.FC = () => {
         if (report) {
           setSelectedReport(report);
           setShowReportModal(true);
-          // Clear route when selecting another report
-          clearRoute();
+          // Clear route when selecting another report ONLY if route is displayed
+          if (isRouteDisplayed) {
+            clearRoute();
+          }
           // Zoom and center on selected report
           if (report.coordinates) {
             mapInstanceRef.current?.setView([report.coordinates.lat, report.coordinates.lng], 15);
@@ -1122,6 +1183,7 @@ const AdminDashboard: React.FC = () => {
           duration: route.duration / 60 // Convert to minutes
         };
         setRouteInfo(routeInfoData);
+        setIsRouteDisplayed(true); // Set route as displayed
 
         // NEW: Save route data to Supabase if reportId is provided
         if (reportId) {
@@ -1172,7 +1234,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // FIXED: Clear Route Function with better cleanup
+  // FIXED: Clear Route Function with better cleanup and state management
   const clearRoute = () => {
     if (routeLayerRef.current && mapInstanceRef.current) {
       try {
@@ -1183,6 +1245,17 @@ const AdminDashboard: React.FC = () => {
       }
     }
     setRouteInfo(null);
+    setIsRouteDisplayed(false); // Reset route display state
+  };
+
+  // NEW: Center map on MDRRMO command center
+  const centerOnCommandCenter = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([COMMAND_CENTER.lat, COMMAND_CENTER.lng], 15);
+      if (commandCenterMarkerRef.current) {
+        commandCenterMarkerRef.current.openPopup();
+      }
+    }
   };
 
   const stats = useMemo(() => ({
@@ -1427,8 +1500,10 @@ const AdminDashboard: React.FC = () => {
                           onClick={() => {
                             setSelectedReport(report);
                             setShowReportModal(true);
-                            // Clear route when selecting another report
-                            clearRoute();
+                            // Clear route when selecting another report ONLY if route is displayed
+                            if (isRouteDisplayed) {
+                              clearRoute();
+                            }
                             // Zoom and center on selected report
                             if (report.coordinates) {
                               mapInstanceRef.current?.setView([report.coordinates.lat, report.coordinates.lng], 15);
@@ -1545,7 +1620,7 @@ const AdminDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Moved Route Info to Upper Right */}
+            {/* Moved Route Info to Upper Right - ADDED FONT SIZE */}
             {routeInfo && (
               <div style={{
                 position: 'absolute',
@@ -1556,10 +1631,11 @@ const AdminDashboard: React.FC = () => {
                 borderRadius: '8px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                 zIndex: 1000,
-                minWidth: '200px'
+                minWidth: '200px',
+                fontSize: '14px' // ADDED: Font size for mini details
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', color: '#1f2937' }}>Response Route</h4>
+                  <h4 style={{ margin: 0, fontSize: '16px', color: '#1f2937', fontWeight: 'bold' }}>Response Route</h4>
                   <IonButton
                     fill="clear"
                     size="small"
@@ -1569,18 +1645,18 @@ const AdminDashboard: React.FC = () => {
                     <IonIcon icon={closeOutline} />
                   </IonButton>
                 </div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
                   From MDRRMO to Incident
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#374151' }}>Distance:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>Distance:</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#1f2937' }}>
                     {routeInfo.distance.toFixed(1)} km
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', color: '#374151' }}>ETA:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#1f2937' }}>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>ETA:</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#1f2937' }}>
                     {Math.round(routeInfo.duration)} min
                   </span>
                 </div>
@@ -1607,23 +1683,36 @@ const AdminDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* MDRRMO Container - Made smaller */}
-            <div style={{
-              position: 'absolute',
-              bottom: '16px',
-              left: '16px',
-              background: 'white',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              zIndex: 1000,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              color: '#dc2626'
-            }}>
+            {/* UPDATED: MDRRMO Container - Made clickable and centered */}
+            <div 
+              style={{
+                position: 'absolute',
+                bottom: '16px',
+                left: '16px',
+                background: 'white',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: '#dc2626',
+                cursor: 'pointer', // ADDED: Show pointer cursor
+                transition: 'all 0.2s ease'
+              }}
+              onClick={centerOnCommandCenter} // ADDED: Click handler
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#fef2f2'; // ADDED: Hover effect
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'white';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
               <IonIcon icon={businessOutline} />
               <span>MDRRMO</span>
             </div>

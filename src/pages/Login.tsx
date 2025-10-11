@@ -40,7 +40,10 @@ import {
   addOutline,
   keyOutline,
   shieldOutline,
-  refreshOutline
+  refreshOutline,
+  checkmarkCircleOutline,
+  helpCircleOutline,
+  informationCircleOutline
 } from 'ionicons/icons';
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -166,8 +169,6 @@ const Login: React.FC = () => {
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
   const popoverRef = useRef<HTMLIonPopoverElement>(null);
   const avatarButtonRef = useRef<HTMLIonButtonElement>(null);
-  const [show2FAModal, setShow2FAModal] = useState(false);
-  const [twoFACode, setTwoFACode] = useState('');
   const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
   const [isSendingOTP, setIsSendingOTP] = useState(false);
 
@@ -195,51 +196,51 @@ const Login: React.FC = () => {
 
   // Check if device is trusted
   const isDeviceTrusted = async (userId: string, fingerprint: string): Promise<boolean> => {
-  try {
-    const { data, error } = await supabase
-      .from('device_fingerprints')
-      .select('is_trusted')
-      .eq('user_id', userId)
-      .eq('device_fingerprint', fingerprint)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('device_fingerprints')
+        .select('is_trusted')
+        .eq('user_id', userId)
+        .eq('device_fingerprint', fingerprint)
+        .single();
 
-    if (error) {
-      console.warn('Device trust check error:', error);
+      if (error) {
+        console.warn('Device trust check error:', error);
+        return false;
+      }
+
+      return data?.is_trusted || false;
+    } catch (error) {
+      console.warn('Error checking device trust:', error);
       return false;
     }
-    
-    return data?.is_trusted || false;
-  } catch (error) {
-    console.warn('Error checking device trust:', error);
-    return false;
-  }
-};
+  };
 
   // Save device as trusted
   const saveTrustedDevice = async (userId: string, fingerprint: string, deviceName?: string) => {
-  try {
-    const { error } = await supabase
-      .from('device_fingerprints')
-      .upsert({
-        user_id: userId,
-        device_fingerprint: fingerprint,
-        device_name: deviceName || 'Unknown Device',
-        user_agent: navigator.userAgent,
-        is_trusted: true,
-        last_used_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,device_fingerprint'
-      });
+    try {
+      const { error } = await supabase
+        .from('device_fingerprints')
+        .upsert({
+          user_id: userId,
+          device_fingerprint: fingerprint,
+          device_name: deviceName || 'Unknown Device',
+          user_agent: navigator.userAgent,
+          is_trusted: true,
+          last_used_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,device_fingerprint'
+        });
 
-    if (error) {
-      console.error('Error saving trusted device:', error);
+      if (error) {
+        console.error('Error saving trusted device:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Failed to save trusted device:', error);
       throw error;
     }
-  } catch (error) {
-    console.error('Failed to save trusted device:', error);
-    throw error;
-  }
-};
+  };
 
   // Send OTP using Supabase's built-in OTP system
   const sendOTP = async (email: string, fingerprint: string): Promise<boolean> => {
@@ -630,6 +631,7 @@ const Login: React.FC = () => {
             fill="clear"
             routerLink="/it35-lab2"
             style={{ color: 'white' }}
+            aria-hidden="false"
           >
             <IonIcon icon={arrowBackOutline} />
           </IonButton>
@@ -646,7 +648,7 @@ const Login: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           padding: '20px'
-        }}>
+        }} aria-hidden="false">
           <IonCard style={{
             maxWidth: '440px',
             width: '100%',
@@ -655,7 +657,7 @@ const Login: React.FC = () => {
             border: '1px solid rgba(226,232,240,0.8)',
             overflow: 'hidden',
             position: 'relative'
-          }}>
+          }} aria-hidden="false">
             {/* Header Section */}
             <div style={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -755,6 +757,7 @@ const Login: React.FC = () => {
                         '--padding-end': savedAccounts.length > 0 ? '50px' : '16px',
                         fontSize: '16px'
                       } as any}
+                      aria-hidden="false"
                     />
 
                     {/* Show saved accounts avatar icon when accounts exist */}
@@ -1095,6 +1098,7 @@ const Login: React.FC = () => {
                       '--padding-end': '2px',
                       fontSize: '16px'
                     } as any}
+                    aria-hidden="false"
                   >
                     <IonButton
                       fill="clear"
@@ -1257,87 +1261,117 @@ const Login: React.FC = () => {
         <IonModal
           isOpen={showOTPModal}
           onDidDismiss={() => {
-            // Only dismiss if explicitly cancelled, not on background click
             if (!isVerifyingOTP) {
               setShowOTPModal(false);
             }
           }}
+          style={{
+            '--height': 'auto',
+            '--width': '90%',
+            '--max-width': '400px',
+            '--border-radius': '20px'
+          }}
         >
-          <IonContent style={{
-            '--background': 'linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)',
-          } as any}>
-            <div style={{
-              minHeight: '100vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '20px'
-            }}>
-              <IonCard style={{
-                maxWidth: '450px',
-                width: '100%',
-                borderRadius: '20px',
-                boxShadow: '0 20px 64px rgba(0,0,0,0.15)',
-                overflow: 'hidden'
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            background: 'rgba(0,0,0,0.5)'
+          }} aria-hidden={!showOTPModal}>
+            <IonCard style={{
+              width: '100%',
+              borderRadius: '20px',
+              boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
+              overflow: 'hidden',
+              margin: '0'
+            }} aria-hidden={!showOTPModal}>
+              {/* Modal Header */}
+              <div style={{
+                background: 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
+                padding: '24px 20px',
+                textAlign: 'center'
               }}>
                 <div style={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  padding: '30px 24px',
-                  textAlign: 'center'
+                  width: '50px',
+                  height: '50px',
+                  background: 'rgba(255,255,255,0.2)',
+                  borderRadius: '50%',
+                  margin: '0 auto 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}>
-                  <div style={{
-                    width: '60px',
-                    height: '60px',
-                    background: 'rgba(255,255,255,0.2)',
-                    borderRadius: '50%',
-                    margin: '0 auto 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <IonIcon icon={shieldOutline} style={{
-                      fontSize: '28px',
-                      color: 'white'
-                    }} />
-                  </div>
-                  <h2 style={{
-                    fontSize: '22px',
-                    fontWeight: 'bold',
-                    color: 'white',
-                    margin: '0 0 8px 0'
-                  }}>New Device Detected</h2>
-                  <p style={{
-                    fontSize: '14px',
-                    color: 'rgba(255,255,255,0.9)',
-                    margin: 0
-                  }}>
-                    For security, please verify this device with the code sent to {otpEmail}
-                  </p>
+                  <IonIcon icon={checkmarkCircleOutline} style={{
+                    fontSize: '24px',
+                    color: 'white'
+                  }} />
                 </div>
+                <h2 style={{
+                  fontSize: '20px',
+                  fontWeight: 'bold',
+                  color: 'white',
+                  margin: '0 0 6px 0'
+                }}>Security Verification</h2>
+                <p style={{
+                  fontSize: '13px',
+                  color: 'rgba(255,255,255,0.9)',
+                  margin: 0
+                }}>We've sent a 6-digit code to</p>
+                <p style={{
+                  fontSize: '13px',
+                  color: 'white',
+                  fontWeight: '600',
+                  margin: '2px 0 0 0'
+                }}>{otpEmail}</p>
+              </div>
 
-                <IonCardContent style={{ padding: '32px 24px' }}>
-                  <div style={{ marginBottom: '24px' }}>
+              <IonCardContent style={{ padding: '24px 20px' }}>
+                {/* Wrap OTP form for Enter key handling */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleOTPVerification();
+                  }}
+                >
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: '#2d3748',
+                      display: 'block',
+                      marginBottom: '10px'
+                    }}>Verification Code</label>
                     <IonInput
                       fill="outline"
                       type="text"
-                      placeholder="Enter verification code"
-                      value={otpCode}
-                      onIonInput={(e) => setOtpCode(e.detail.value || '')}
-                      onIonChange={(e) => setOtpCode(e.detail.value || '')}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxlength={6}
+                      placeholder="000000"
+                      value={otpCode}
+                      onIonChange={e => setOtpCode(e.detail.value || '')}
+                      onKeyPress={(e: React.KeyboardEvent) => {
+                        // Only allow numbers
+                        if (!/^\d$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                          e.preventDefault();
+                        }
+                      }}
                       style={{
-                        '--border-radius': '12px',
+                        '--border-radius': '10px',
                         '--border-color': '#e2e8f0',
                         '--padding-start': '16px',
                         '--padding-end': '16px',
-                        fontSize: '18px',
+                        fontSize: '16px',
+                        fontWeight: '600',
                         textAlign: 'center',
-                        fontWeight: 'bold'
+                        letterSpacing: '3px'
                       } as any}
                     />
                   </div>
 
-                  <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+                  {/* Resend Code Section */}
+                  <div style={{ marginBottom: '20px', textAlign: 'center' }}>
                     <IonButton
                       onClick={resendOTP}
                       fill="clear"
@@ -1357,160 +1391,48 @@ const Login: React.FC = () => {
                   </div>
 
                   <IonButton
-                    onClick={handleOTPVerification}
+                    type="submit"
                     expand="block"
                     size="large"
+                    onClick={handleOTPVerification}
                     disabled={isVerifyingOTP || otpCode.length < 6}
                     style={{
-                      '--border-radius': '12px',
-                      '--padding-top': '16px',
-                      '--padding-bottom': '16px',
+                      '--border-radius': '10px',
+                      '--padding-top': '14px',
+                      '--padding-bottom': '14px',
                       fontWeight: '600',
-                      fontSize: '16px',
-                      height: '52px',
-                      '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      fontSize: '15px',
+                      height: '48px',
+                      '--background': 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
                       '--color': 'white',
                       marginBottom: '12px'
                     } as any}
                   >
-                    {isVerifyingOTP ? (
-                      <IonSpinner name="crescent" />
-                    ) : (
-                      'VERIFY DEVICE'
-                    )}
+                    <IonIcon icon={shieldOutline} slot="start" />
+                    {isVerifyingOTP ? 'Verifying...' : 'VERIFY & ACCESS'}
                   </IonButton>
+                </form>
 
-                  <IonButton
-                    expand="block"
-                    fill="clear"
-                    onClick={() => {
-                      setShowOTPModal(false);
-                      setIsLoggingIn(false);
-                      setOtpCode('');
-                      setIsOtpSent(false);
-                    }}
-                    style={{
-                      color: '#718096',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Cancel Login
-                  </IonButton>
-                </IonCardContent>
-              </IonCard>
-            </div>
-          </IonContent>
-        </IonModal>
-
-        {/* 2FA Modal */}
-        <IonModal isOpen={show2FAModal} onDidDismiss={() => setShow2FAModal(false)}>
-          <IonContent style={{
-            '--background': 'linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)',
-          } as any}>
-            <div style={{
-              minHeight: '100vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '20px'
-            }}>
-              <IonCard style={{
-                maxWidth: '450px',
-                width: '100%',
-                borderRadius: '20px',
-                boxShadow: '0 20px 64px rgba(0,0,0,0.15)',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  padding: '30px 24px',
-                  textAlign: 'center'
-                }}>
-                  <div style={{
-                    width: '60px',
-                    height: '60px',
-                    background: 'rgba(255,255,255,0.2)',
-                    borderRadius: '50%',
-                    margin: '0 auto 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <IonIcon icon={phonePortraitOutline} style={{
-                      fontSize: '28px',
-                      color: 'white'
-                    }} />
-                  </div>
-                  <h2 style={{
-                    fontSize: '22px',
-                    fontWeight: 'bold',
-                    color: 'white',
-                    margin: '0 0 8px 0'
-                  }}>Two-Factor Authentication</h2>
-                  <p style={{
-                    fontSize: '14px',
-                    color: 'rgba(255,255,255,0.9)',
-                    margin: 0
-                  }}>Please enter the code sent to your registered device.</p>
-                </div>
-
-                <IonCardContent style={{ padding: '32px 24px' }}>
-                  <div style={{ marginBottom: '32px' }}>
-                    <IonInput
-                      fill="outline"
-                      type="text"
-                      placeholder="Enter 6-digit code"
-                      value={twoFACode}
-                      onIonChange={e => setTwoFACode(e.detail.value!)}
-                      style={{
-                        '--border-radius': '12px',
-                        '--border-color': '#e2e8f0',
-                        '--padding-start': '16px',
-                        '--padding-end': '16px',
-                        fontSize: '16px',
-                        textAlign: 'center'
-                      } as any}
-                    />
-                  </div>
-
-                  <IonButton
-                    onClick={() => {
-                      setAlertMessage('2FA verification is not fully implemented in this demo.');
-                      setShowAlert(true);
-                      setShow2FAModal(false);
-                    }}
-                    expand="block"
-                    size="large"
-                    style={{
-                      '--border-radius': '12px',
-                      '--padding-top': '16px',
-                      '--padding-bottom': '16px',
-                      fontWeight: '600',
-                      fontSize: '16px',
-                      height: '52px',
-                      '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      '--color': 'white',
-                      marginBottom: '12px'
-                    } as any}
-                  >
-                    VERIFY CODE
-                  </IonButton>
-
-                  <IonButton
-                    expand="block"
-                    fill="clear"
-                    onClick={() => setShow2FAModal(false)}
-                    style={{
-                      color: '#718096',
-                      fontWeight: '500'
-                    }}
-                  >
-                    Cancel
-                  </IonButton>
-                </IonCardContent>
-              </IonCard>
-            </div>
-          </IonContent>
+                <IonButton
+                  expand="block"
+                  fill="clear"
+                  onClick={() => {
+                    setShowOTPModal(false);
+                    setIsLoggingIn(false);
+                    setOtpCode('');
+                    setIsOtpSent(false);
+                  }}
+                  style={{
+                    color: '#718096',
+                    fontWeight: '500',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </IonButton>
+              </IonCardContent>
+            </IonCard>
+          </div>
         </IonModal>
       </IonContent>
     </IonPage>

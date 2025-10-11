@@ -1,4 +1,4 @@
-// src/pages/AdminLogin.tsx
+// src/pages/AdminLogin.tsx - UPDATED WITH TOAST MESSAGES
 import {
   IonButton,
   IonContent,
@@ -18,10 +18,11 @@ import {
   IonCardContent,
   IonHeader,
   IonToolbar,
-  IonTitle
+  IonTitle,
+  IonText
 } from '@ionic/react';
-import { shield, lockClosedOutline, mailOutline, keyOutline, checkmarkCircleOutline, arrowBackOutline } from 'ionicons/icons';
-import { useState, useRef } from 'react';
+import { shield, lockClosedOutline, mailOutline, keyOutline, checkmarkCircleOutline, arrowBackOutline, desktopOutline } from 'ionicons/icons';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
 const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
@@ -37,6 +38,7 @@ const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void
 };
 
 const AdminLogin: React.FC = () => {
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
   const navigation = useIonRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,10 +49,91 @@ const AdminLogin: React.FC = () => {
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
-
-  // Refs for handling Enter key navigation
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastColor, setToastColor] = useState<'primary' | 'success' | 'warning' | 'danger'>('primary');
   const passwordInputRef = useRef<HTMLIonInputElement>(null);
   const otpInputRef = useRef<HTMLIonInputElement>(null);
+
+  useEffect(() => {
+    // Device detection logic
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      setIsMobileDevice(isMobile);
+    };
+
+    checkDevice();
+  }, []);
+
+  // Show mobile restriction message if accessed from mobile
+  if (isMobileDevice) {
+    return (
+      <IonPage>
+        <IonContent className="ion-padding" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        }}>
+          <div style={{ 
+            maxWidth: '400px', 
+            padding: '40px 20px',
+            background: 'white',
+            borderRadius: '20px',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
+            margin: '20px'
+          }}>
+            <IonIcon 
+              icon={desktopOutline} 
+              style={{ 
+                fontSize: '64px', 
+                color: '#667eea', 
+                marginBottom: '20px' 
+              }} 
+            />
+            <IonText>
+              <h2 style={{ 
+                color: '#2d3748', 
+                marginBottom: '16px',
+                fontSize: '24px',
+                fontWeight: 'bold'
+              }}>
+                Admin Portal Restricted
+              </h2>
+              <p style={{ 
+                color: '#718096', 
+                lineHeight: '1.6',
+                marginBottom: '30px',
+                fontSize: '16px'
+              }}>
+                For security reasons, the admin portal is only accessible by an admin. 
+              </p>
+            </IonText>
+            <IonButton 
+              expand="block" 
+              onClick={() => navigation.push('/it35-lab2')}
+              style={{
+                '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                '--border-radius': '12px',
+                marginTop: '20px'
+              }}
+            >
+              <IonIcon icon={arrowBackOutline} slot="start" />
+              Return to Home
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
+  // Show toast with custom message and color
+  const showCustomToast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') => {
+    setToastMessage(message);
+    setToastColor(color);
+    setShowToast(true);
+  };
 
   // Password validation - similar to your user login
   const validateCredentials = async (email: string, password: string): Promise<boolean> => {
@@ -110,10 +193,11 @@ const AdminLogin: React.FC = () => {
 
     setIsSendingOtp(true);
     try {
+      // FIX: Use signInWithOtp with proper options
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/it35-lab2/admin-dashboard`,
           shouldCreateUser: false
         }
       });
@@ -121,10 +205,11 @@ const AdminLogin: React.FC = () => {
       if (error) throw error;
 
       setShowOtpModal(true);
-      setShowToast(true);
+      showCustomToast('Verification code sent to your email!', 'success');
       return true;
     } catch (error: any) {
-      setAlertMessage(error.message || 'Failed to send verification code');
+      console.error('OTP Send Error:', error);
+      setAlertMessage(error.message || 'Failed to send verification code. Please try again.');
       setShowAlert(true);
       return false;
     } finally {
@@ -133,34 +218,51 @@ const AdminLogin: React.FC = () => {
   };
 
   const verifyAndLogin = async () => {
-    if (!otp) {
-      setAlertMessage('Please enter the verification code');
+    // FIX: Better OTP validation
+    if (!otp || otp.trim().length < 6) {
+      setAlertMessage('Please enter a valid 6-digit verification code');
       setShowAlert(true);
       return;
     }
 
     setIsVerifying(true);
     try {
-      // Verify OTP - this automatically signs the user in
-      const { error: otpError } = await supabase.auth.verifyOtp({
+      // FIX: Use the correct verification method
+      // First try with email type
+      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
         email,
-        token: otp,
+        token: otp.trim(),
         type: 'email'
       });
-      if (otpError) throw otpError;
+
+      if (verifyError) {
+        // If email type fails, try magiclink type
+        const { data: magicLinkData, error: magicLinkError } = await supabase.auth.verifyOtp({
+          email,
+          token: otp.trim(),
+          type: 'magiclink'
+        });
+
+        if (magicLinkError) {
+          // If both fail, throw the original error
+          throw verifyError;
+        }
+      }
 
       // User is now authenticated, check their role
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not found');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Authentication failed. Please try again.');
+      }
 
-      const { data: userData, error: userError } = await supabase
+      const { data: userData, error: dbError } = await supabase
         .from('users')
         .select('role')
         .eq('auth_uuid', user.id)
         .maybeSingle();
 
-      if (userError) {
-        console.error('Database error:', userError);
+      if (dbError) {
+        console.error('Database error:', dbError);
         await supabase.auth.signOut();
         throw new Error('Database configuration error. Please contact administrator.');
       }
@@ -170,14 +272,32 @@ const AdminLogin: React.FC = () => {
         throw new Error('Access denied: Administrative privileges required.');
       }
 
-      setShowToast(true);
+      // SUCCESSFUL LOGIN TOAST
+      showCustomToast('Login successful! Redirecting to dashboard...', 'success');
+      
+      // FIX: Use proper navigation
       setTimeout(() => {
         navigation.push('/it35-lab2/admin-dashboard', 'forward', 'replace');
-      }, 500);
+      }, 1500);
 
       setShowOtpModal(false);
     } catch (error: any) {
-      setAlertMessage(error.message || 'Verification failed. Please try again.');
+      console.error('Verification Error:', error);
+      
+      // FIX: Better error messages
+      let errorMessage = 'Verification failed. Please try again.';
+      if (error.message.includes('token has expired')) {
+        errorMessage = 'Verification code has expired. Please request a new one.';
+        showCustomToast('Verification code expired. Please request a new one.', 'warning');
+      } else if (error.message.includes('invalid')) {
+        errorMessage = 'Invalid verification code. Please check and try again.';
+        showCustomToast('Invalid verification code. Please try again.', 'danger');
+      } else {
+        errorMessage = error.message || 'Verification failed. Please try again.';
+        showCustomToast('Verification failed. Please try again.', 'danger');
+      }
+      
+      setAlertMessage(errorMessage);
       setShowAlert(true);
     } finally {
       setIsVerifying(false);
@@ -186,6 +306,13 @@ const AdminLogin: React.FC = () => {
 
   const handleLogin = async () => {
     await sendOtp();
+  };
+
+  // FIX: Improved OTP input handling
+  const handleOtpChange = (value: string) => {
+    // Only allow numbers and limit to 6 characters
+    const numericValue = value.replace(/\D/g, '').slice(0, 6);
+    setOtp(numericValue);
   };
 
   // Handle Enter key in email field
@@ -221,6 +348,7 @@ const AdminLogin: React.FC = () => {
             fill="clear"
             routerLink="/it35-lab2"
             style={{ color: 'white' }}
+            onClick={() => showCustomToast('Returning to home page...', 'primary')}
           >
             <IonIcon icon={arrowBackOutline} />
           </IonButton>
@@ -433,7 +561,11 @@ const AdminLogin: React.FC = () => {
         {/* OTP Verification Modal */}
         <IonModal
           isOpen={showOtpModal}
-          onDidDismiss={() => setShowOtpModal(false)}
+          onDidDismiss={() => {
+            setShowOtpModal(false);
+            setOtp(''); // Reset OTP when modal closes
+            showCustomToast('Verification cancelled', 'warning');
+          }}
           style={{
             '--height': 'auto',
             '--width': '90%',
@@ -520,7 +652,8 @@ const AdminLogin: React.FC = () => {
                       maxlength={6}
                       placeholder="000000"
                       value={otp}
-                      onIonChange={e => setOtp(e.detail.value!)}
+                      // FIX: Use the improved OTP change handler
+                      onIonInput={e => handleOtpChange(e.detail.value!)}
                       onKeyPress={handleOtpKeyPress}
                       style={{
                         '--border-radius': '10px',
@@ -539,8 +672,7 @@ const AdminLogin: React.FC = () => {
                     type="submit"
                     expand="block"
                     size="large"
-                    onClick={verifyAndLogin}
-                    disabled={isVerifying}
+                    disabled={isVerifying || otp.length < 6}
                     style={{
                       '--border-radius': '10px',
                       '--padding-top': '14px',
@@ -561,7 +693,11 @@ const AdminLogin: React.FC = () => {
                 <IonButton
                   expand="block"
                   fill="clear"
-                  onClick={() => setShowOtpModal(false)}
+                  onClick={() => {
+                    setShowOtpModal(false);
+                    setOtp(''); // Reset OTP
+                    showCustomToast('Verification cancelled', 'warning');
+                  }}
                   style={{
                     color: '#718096',
                     fontWeight: '500',
@@ -584,10 +720,10 @@ const AdminLogin: React.FC = () => {
         <IonToast
           isOpen={showToast}
           onDidDismiss={() => setShowToast(false)}
-          message="Verification code sent to your administrative email!"
+          message={toastMessage}
           duration={3000}
           position="top"
-          color="primary"
+          color={toastColor}
         />
       </IonContent>
     </IonPage>
