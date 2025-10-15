@@ -385,9 +385,7 @@ const History: React.FC = () => {
           const button = document.getElementById(`viewResolvedDetails-${report.id}`);
           if (button) {
             button.addEventListener('click', () => {
-              if (mapInstanceRef.current && report.coordinates) {
-                mapInstanceRef.current.setView([report.coordinates.lat, report.coordinates.lng], 18);
-              }
+              centerMapOnReport(report);
               viewReport(report);
               marker.closePopup();
             });
@@ -426,6 +424,18 @@ const History: React.FC = () => {
   const centerMapOnReport = (report: UserReport) => {
     if (mapInstanceRef.current && report.coordinates) {
       mapInstanceRef.current.setView([report.coordinates.lat, report.coordinates.lng], 18);
+      
+      // Find and open the marker's popup
+      const marker = markersRef.current.find(m => {
+        const latLng = m.getLatLng();
+        return latLng.lat === report.coordinates.lat && latLng.lng === report.coordinates.lng;
+      });
+      
+      if (marker) {
+        setTimeout(() => {
+          marker.openPopup();
+        }, 500);
+      }
     }
   };
 

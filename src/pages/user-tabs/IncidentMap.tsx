@@ -380,9 +380,7 @@ const IncidentMap: React.FC = () => {
           const button = document.getElementById(`viewDetails-${report.id}`);
           if (button) {
             button.addEventListener('click', () => {
-              if (mapInstanceRef.current && report.coordinates) {
-                mapInstanceRef.current.setView([report.coordinates.lat, report.coordinates.lng], 18);
-              }
+              centerMapOnReport(report);
               viewReport(report);
               marker.closePopup();
             });
@@ -421,6 +419,18 @@ const IncidentMap: React.FC = () => {
   const centerMapOnReport = (report: UserReport) => {
     if (mapInstanceRef.current && report.coordinates) {
       mapInstanceRef.current.setView([report.coordinates.lat, report.coordinates.lng], 18);
+      
+      // Find and open the marker's popup
+      const marker = markersRef.current.find(m => {
+        const latLng = m.getLatLng();
+        return latLng.lat === report.coordinates.lat && latLng.lng === report.coordinates.lng;
+      });
+      
+      if (marker) {
+        setTimeout(() => {
+          marker.openPopup();
+        }, 500);
+      }
     }
   };
 
@@ -631,7 +641,7 @@ const IncidentMap: React.FC = () => {
               bottom: '16px',
               left: '16px',
               zIndex: 1000,
-              background: 'rgba(255,255,255,0.95)',
+              background: 'transparent',
               borderRadius: '12px',
               padding: '12px',
               boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
@@ -896,7 +906,7 @@ const IncidentMap: React.FC = () => {
                               '--padding-end': '4px'
                             } as any}
                           >
-                            <IonIcon icon={locationOutline} color="primary" />
+                            <IonIcon icon={eyeOutline} color="primary" />
                           </IonButton>
                         </div>
                       </IonCardContent>
@@ -978,43 +988,59 @@ const IncidentMap: React.FC = () => {
                 </p>
 
                 <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-                  <IonIcon icon={timeOutline} style={{ marginRight: '4px' }} />
-                  Reported: {new Date(selectedReport.created_at).toLocaleString()}
+                  <strong>Description:</strong> {selectedReport.description}
                 </p>
 
-                <div style={{ marginBottom: '16px' }}>
-                  <h4 style={{ color: '#1f2937', marginBottom: '8px', fontWeight: '600' }}>Description</h4>
-                  <p style={{ color: '#6b7280', margin: 0 }}>{selectedReport.description}</p>
-                </div>
+                <p style={{ color: '#6b7280', marginBottom: '16px' }}>
+                  <strong>Reported:</strong> {new Date(selectedReport.created_at).toLocaleString()}
+                </p>
 
                 {selectedReport.admin_response && (
                   <div style={{
                     background: '#f0f9ff',
-                    border: '1px solid #bae6fd',
-                    borderRadius: '12px',
-                    padding: '16px',
+                    padding: '12px',
+                    borderRadius: '8px',
                     marginBottom: '16px'
                   }}>
-                    <h4 style={{
-                      color: '#075985',
-                      marginBottom: '8px',
-                      fontWeight: '600',
-                      fontSize: '16px'
-                    }}>
-                      LDRRMO Response
-                    </h4>
-                    <p style={{ color: '#0c4a6e', margin: 0 }}>{selectedReport.admin_response}</p>
+                    <p style={{ color: '#0369a1', margin: '0' }}>
+                      <strong>Admin Response:</strong> {selectedReport.admin_response}
+                    </p>
+                  </div>
+                )}
+
+                {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <p style={{ color: '#6b7280', marginBottom: '8px' }}>
+                      <strong>Images:</strong>
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
+                      {selectedReport.image_urls.map((url, index) => (
+                        <img
+                          key={index}
+                          src={url}
+                          alt={`Report image ${index + 1}`}
+                          style={{
+                            width: '80px',
+                            height: '80px',
+                            borderRadius: '8px',
+                            objectFit: 'cover'
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 <IonButton
                   expand="block"
-                  fill="outline"
+                  style={{
+                    '--border-radius': '8px',
+                    marginTop: '16px'
+                  } as any}
                   onClick={() => {
                     centerMapOnReport(selectedReport);
                     setShowViewModal(false);
                   }}
-                  style={{ '--border-radius': '12px' } as any}
                 >
                   <IonIcon icon={locationOutline} slot="start" />
                   View on Map
