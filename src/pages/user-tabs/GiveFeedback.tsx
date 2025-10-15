@@ -19,7 +19,8 @@ import {
   IonList,
   IonAlert,
   IonToast,
-  IonModal 
+  IonModal,
+  IonSkeletonText
 } from '@ionic/react';
 import {
   chatbubbleOutline,
@@ -73,6 +74,8 @@ const GiveFeedback: React.FC = () => {
   const [alertMessage, setAlertMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isReportsLoading, setIsReportsLoading] = useState(true);
 
   const feedbackCategories = [
     'Response Speed',
@@ -92,15 +95,23 @@ const GiveFeedback: React.FC = () => {
   ];
 
   useEffect(() => {
-    fetchUserReports();
+    const initializeData = async () => {
+      try {
+        await fetchUserReports();
+      } catch (error) {
+        console.error('Error initializing data:', error);
+        setIsLoading(false);
+      }
+    };
+    initializeData();
   }, []);
 
   const fetchUserReports = async () => {
+    setIsReportsLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch resolved or investigated reports for feedback - removed resolved_at column
       const { data, error } = await supabase
         .from('incident_reports')
         .select('id, title, status, created_at')
@@ -114,6 +125,9 @@ const GiveFeedback: React.FC = () => {
       console.error('Error fetching user reports:', error);
       setToastMessage('Failed to load your reports');
       setShowToast(true);
+    } finally {
+      setIsReportsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -131,7 +145,7 @@ const GiveFeedback: React.FC = () => {
   };
 
   const renderStarRating = (
-    rating: number, 
+    rating: number,
     onChange: (rating: number) => void,
     label: string
   ) => {
@@ -152,7 +166,7 @@ const GiveFeedback: React.FC = () => {
               fill="clear"
               size="small"
               onClick={() => onChange(starNumber)}
-              style={{ 
+              style={{
                 '--color': starNumber <= rating ? '#fbbf24' : '#d1d5db',
                 margin: 0,
                 minHeight: '36px',
@@ -169,6 +183,44 @@ const GiveFeedback: React.FC = () => {
           }}>
             {rating > 0 ? `${rating}/5` : 'No rating'}
           </span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSkeletonStarRating = (label: string) => {
+    return (
+      <div style={{ marginBottom: '20px' }}>
+        <IonSkeletonText
+          animated
+          style={{
+            width: '120px',
+            height: '14px',
+            marginBottom: '8px',
+            borderRadius: '4px'
+          }}
+        />
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          {[1, 2, 3, 4, 5].map((starNumber) => (
+            <IonSkeletonText
+              key={starNumber}
+              animated
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%'
+              }}
+            />
+          ))}
+          <IonSkeletonText
+            animated
+            style={{
+              width: '60px',
+              height: '14px',
+              marginLeft: '8px',
+              borderRadius: '4px'
+            }}
+          />
         </div>
       </div>
     );
@@ -235,6 +287,154 @@ const GiveFeedback: React.FC = () => {
     }
   };
 
+  // Skeleton Loading Component
+  const SkeletonLoader = () => (
+    <div style={{ padding: '20px' }}>
+      {/* Header Skeleton */}
+      <IonCard style={{
+        borderRadius: '16px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+        marginBottom: '20px'
+      }}>
+        <IonCardHeader>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                marginRight: '16px'
+              }}
+            />
+            <div style={{ flex: 1 }}>
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '60%',
+                  height: '20px',
+                  borderRadius: '4px',
+                  marginBottom: '8px'
+                }}
+              />
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '80%',
+                  height: '14px',
+                  borderRadius: '4px'
+                }}
+              />
+            </div>
+          </div>
+        </IonCardHeader>
+      </IonCard>
+
+      {/* Report Selection Skeleton */}
+      <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+        <IonCardHeader>
+          <IonSkeletonText
+            animated
+            style={{
+              width: '40%',
+              height: '18px',
+              borderRadius: '4px'
+            }}
+          />
+        </IonCardHeader>
+        <IonCardContent>
+          <IonSkeletonText
+            animated
+            style={{
+              width: '100%',
+              height: '48px',
+              borderRadius: '12px'
+            }}
+          />
+        </IonCardContent>
+      </IonCard>
+
+      {/* Form Sections Skeleton */}
+      {[1, 2, 3, 4].map((section) => (
+        <IonCard key={section} style={{ borderRadius: '16px', marginBottom: '20px' }}>
+          <IonCardHeader>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '50%',
+                height: '18px',
+                borderRadius: '4px'
+              }}
+            />
+          </IonCardHeader>
+          <IonCardContent>
+            {section === 1 && (
+              <>
+                {renderSkeletonStarRating('Overall Experience')}
+                {renderSkeletonStarRating('Response Time')}
+                {renderSkeletonStarRating('Communication Quality')}
+                {renderSkeletonStarRating('Problem Resolution')}
+              </>
+            )}
+            {section === 2 && (
+              <div>
+                {[1, 2, 3, 4, 5, 6].map((item) => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                    <IonSkeletonText
+                      animated
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '4px',
+                        marginRight: '12px'
+                      }}
+                    />
+                    <IonSkeletonText
+                      animated
+                      style={{
+                        width: '60%',
+                        height: '16px',
+                        borderRadius: '4px'
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {section === 3 && (
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '100%',
+                  height: '120px',
+                  borderRadius: '12px'
+                }}
+              />
+            )}
+            {section === 4 && (
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '100%',
+                  height: '48px',
+                  borderRadius: '12px'
+                }}
+              />
+            )}
+          </IonCardContent>
+        </IonCard>
+      ))}
+    </div>
+  );
+
+  if (isLoading) {
+    return (
+      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+        <SkeletonLoader />
+      </IonContent>
+    );
+  }
+
   return (
     <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
       <div style={{ padding: '20px' }}>
@@ -278,13 +478,22 @@ const GiveFeedback: React.FC = () => {
             </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
-            {userReports.length === 0 ? (
+            {isReportsLoading ? (
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '100%',
+                  height: '48px',
+                  borderRadius: '12px'
+                }}
+              />
+            ) : userReports.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px' }}>
                 <p style={{ color: '#9ca3af', marginBottom: '16px' }}>
                   No reports available for feedback
                 </p>
-                <IonButton 
-                  fill="outline" 
+                <IonButton
+                  fill="outline"
                   onClick={fetchUserReports}
                 >
                   <IonIcon icon={refreshOutline} slot="start" />
@@ -300,7 +509,7 @@ const GiveFeedback: React.FC = () => {
               >
                 {userReports.map(report => (
                   <IonSelectOption key={report.id} value={report.id}>
-                    {report.title} - {report.status} 
+                    {report.title} - {report.status}
                     ({new Date(report.created_at).toLocaleDateString()})
                   </IonSelectOption>
                 ))}
@@ -356,7 +565,7 @@ const GiveFeedback: React.FC = () => {
               <IonCardContent>
                 <IonList style={{ background: 'transparent' }}>
                   {feedbackCategories.map(category => (
-                    <IonItem 
+                    <IonItem
                       key={category}
                       style={{ '--padding-start': '0', '--inner-padding-end': '0' } as any}
                     >
@@ -384,7 +593,7 @@ const GiveFeedback: React.FC = () => {
                   <IonLabel position="stacked">Your feedback and suggestions</IonLabel>
                   <IonTextarea
                     value={feedbackData.comments}
-                    onIonChange={e => setFeedbackData(prev => ({...prev, comments: e.detail.value!}))}
+                    onIonChange={e => setFeedbackData(prev => ({ ...prev, comments: e.detail.value! }))}
                     placeholder="Tell us about your experience, what could be improved, or any suggestions you have..."
                     rows={5}
                     maxlength={500}
@@ -406,7 +615,7 @@ const GiveFeedback: React.FC = () => {
                 </p>
                 <IonRadioGroup
                   value={feedbackData.would_recommend}
-                  onIonChange={e => setFeedbackData(prev => ({...prev, would_recommend: e.detail.value}))}
+                  onIonChange={e => setFeedbackData(prev => ({ ...prev, would_recommend: e.detail.value }))}
                 >
                   <IonItem style={{ '--padding-start': '0' } as any}>
                     <IonRadio slot="start" value={true} />
@@ -432,7 +641,7 @@ const GiveFeedback: React.FC = () => {
               <IonCardContent>
                 <IonSelect
                   value={feedbackData.contact_method}
-                  onIonChange={e => setFeedbackData(prev => ({...prev, contact_method: e.detail.value}))}
+                  onIonChange={e => setFeedbackData(prev => ({ ...prev, contact_method: e.detail.value }))}
                   interface="popover"
                   placeholder="How do you prefer to be contacted about your reports?"
                 >
@@ -446,7 +655,7 @@ const GiveFeedback: React.FC = () => {
             {/* Submit Button */}
             <IonCard style={{ borderRadius: '16px' }}>
               <IonCardContent>
-                <IonButton 
+                <IonButton
                   expand="block"
                   size="large"
                   onClick={submitFeedback}
@@ -488,75 +697,80 @@ const GiveFeedback: React.FC = () => {
       </div>
 
       {/* Success Modal */}
-      <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
-        <IonContent>
+      <IonModal
+        isOpen={showSuccessModal}
+        onDidDismiss={() => setShowSuccessModal(false)}
+        style={{ '--border-radius': '20px' } as any}
+      >
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          padding: '32px',
+          textAlign: 'center',
+          background: 'white',
+          borderRadius: '20px'
+        }}>
           <div style={{
+            width: '100px',
+            height: '100px',
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            borderRadius: '50%',
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: '100%',
-            padding: '40px',
-            textAlign: 'center'
+            marginBottom: '24px'
           }}>
-            <div style={{
-              width: '100px',
-              height: '100px',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '24px'
-            }}>
-              <IonIcon icon={checkmarkCircleOutline} style={{ fontSize: '50px', color: 'white' }} />
-            </div>
-
-            <h2 style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              color: '#065f46',
-              margin: '0 0 12px 0'
-            }}>Thank You!</h2>
-
-            <p style={{
-              fontSize: '16px',
-              color: '#047857',
-              lineHeight: '1.6',
-              marginBottom: '32px'
-            }}>
-              Your feedback has been submitted successfully. LDRRMO values your input 
-              and will use it to improve emergency response services.
-            </p>
-
-            <IonButton 
-              routerLink="/it35-lab2/app/home/dashboard"
-              expand="block"
-              size="large"
-              onClick={() => setShowSuccessModal(false)}
-              style={{
-                '--border-radius': '12px',
-                '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                '--color': 'white',
-                marginBottom: '12px'
-              } as any}
-            >
-              Back to Dashboard
-            </IonButton>
-
-            <IonButton 
-              fill="clear"
-              expand="block"
-              onClick={() => {
-                setShowSuccessModal(false);
-                fetchUserReports();
-              }}
-              style={{ '--color': '#6b7280' }}
-            >
-              Give More Feedback
-            </IonButton>
+            <IonIcon icon={checkmarkCircleOutline} style={{ fontSize: '50px', color: 'white' }} />
           </div>
-        </IonContent>
+
+          <h2 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: '#065f46',
+            margin: '0 0 12px 0'
+          }}>Thank You!</h2>
+
+          <p style={{
+            fontSize: '16px',
+            color: '#047857',
+            lineHeight: '1.6',
+            marginBottom: '32px'
+          }}>
+            Your feedback has been submitted successfully. LDRRMO values your input
+            and will use it to improve emergency response services.
+          </p>
+
+          <IonButton
+            routerLink="/it35-lab2/app/home/dashboard"
+            expand="block"
+            size="large"
+            onClick={() => setShowSuccessModal(false)}
+            style={{
+              '--border-radius': '12px',
+              '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              '--color': 'white',
+              marginBottom: '12px',
+              width: '100%'
+            } as any}
+          >
+            Back to Dashboard
+          </IonButton>
+
+          <IonButton
+            fill="clear"
+            expand="block"
+            onClick={() => {
+              setShowSuccessModal(false);
+              fetchUserReports();
+            }}
+            style={{ '--color': '#6b7280', width: '100%' }}
+          >
+            Give More Feedback
+          </IonButton>
+        </div>
       </IonModal>
 
       {/* Alert */}

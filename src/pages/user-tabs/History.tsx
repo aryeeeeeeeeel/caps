@@ -1,4 +1,4 @@
-// src/pages/user-tabs/History.tsx
+// src/pages/user-tabs/History.tsx - Fixed Map Container Size
 import React, { useState, useEffect, useRef } from 'react';
 import {
   IonContent,
@@ -26,7 +26,9 @@ import {
   IonSegmentButton,
   IonBadge,
   IonAvatar,
-  IonSpinner
+  IonSpinner,
+  IonSkeletonText,
+  IonProgressBar
 } from '@ionic/react';
 import {
   listOutline,
@@ -37,7 +39,8 @@ import {
   star,
   starOutline,
   refreshOutline,
-  closeCircleOutline
+  closeCircleOutline,
+  mapOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import L from 'leaflet';
@@ -62,6 +65,72 @@ interface UserReport {
   feedback_comment?: string;
 }
 
+// Skeleton Components
+const SkeletonHistoryMap: React.FC = () => (
+  <div style={{ height: '450px', margin: '0 0px 0px' }}>
+    <IonCard style={{
+      borderRadius: '16px',
+      height: '100%',
+      overflow: 'hidden',
+      position: 'relative'
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        flexDirection: 'column',
+        padding: '20px'
+      }}>
+        <IonSkeletonText animated style={{
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
+          marginBottom: '16px'
+        }} />
+        <IonSkeletonText animated style={{ width: '200px', height: '16px', marginBottom: '8px' }} />
+        <IonSkeletonText animated style={{ width: '150px', height: '12px' }} />
+      </div>
+    </IonCard>
+  </div>
+);
+
+const SkeletonHistoryItem: React.FC = () => (
+  <IonCard style={{
+    borderRadius: '16px',
+    marginBottom: '16px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+  }}>
+    <IonCardContent style={{ padding: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1 }}>
+          {/* Status Skeleton */}
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', gap: '8px' }}>
+            <IonSkeletonText animated style={{ width: '80px', height: '28px', borderRadius: '14px' }} />
+          </div>
+
+          {/* Title Skeleton */}
+          <IonSkeletonText animated style={{ width: '80%', height: '18px', marginBottom: '12px' }} />
+
+          {/* Location and Date Skeleton */}
+          <div style={{ marginBottom: '12px' }}>
+            <IonSkeletonText animated style={{ width: '70%', height: '14px', marginBottom: '8px' }} />
+            <IonSkeletonText animated style={{ width: '50%', height: '12px' }} />
+          </div>
+
+          {/* Admin Response Skeleton */}
+          <IonSkeletonText animated style={{ width: '100%', height: '60px', borderRadius: '8px', marginTop: '12px' }} />
+
+          {/* Feedback Button Skeleton */}
+          <IonSkeletonText animated style={{ width: '100px', height: '32px', borderRadius: '8px', marginTop: '12px' }} />
+        </div>
+
+        <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+      </div>
+    </IonCardContent>
+  </IonCard>
+);
+
 const History: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -78,12 +147,67 @@ const History: React.FC = () => {
   const [feedbackComment, setFeedbackComment] = useState('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
+  // Define fetchResolvedReports BEFORE useEffect
+  const fetchResolvedReports = async () => {
+    setIsLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .eq('status', 'resolved')
+        .or(`reporter_email.eq.${user.email},reporter_email.is.null`)
+        .not('coordinates', 'is', null)
+        .order('resolved_at', { ascending: false });
+
+      if (error) throw error;
+
+      const processedReports = data?.map(report => {
+        let coordinates = null;
+        if (report.coordinates) {
+          try {
+            if (typeof report.coordinates === 'string') {
+              coordinates = JSON.parse(report.coordinates);
+            } else if (typeof report.coordinates === 'object' &&
+              report.coordinates.lat && report.coordinates.lng) {
+              coordinates = report.coordinates;
+            }
+          } catch (e) {
+            console.warn(`Failed to parse coordinates for report ${report.id}:`, e);
+          }
+        }
+        return { ...report, coordinates };
+      }) || [];
+
+      setReports(processedReports);
+    } catch (error) {
+      console.error('Error fetching resolved reports:', error);
+      setToastMessage('Failed to load resolved reports');
+      setShowToast(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetchResolvedReports();
+    const initializeData = async () => {
+      try {
+        await fetchResolvedReports();
+      } catch (error) {
+        console.error('Error initializing data:', error);
+        setIsLoading(false);
+      }
+    };
+    initializeData();
   }, []);
 
   // Map initialization useEffect
   useEffect(() => {
+    // Only initialize map when data is loaded
+    if (isLoading) return;
+
     const initializeMap = () => {
       if (!mapRef.current) return;
 
@@ -117,7 +241,12 @@ const History: React.FC = () => {
 
         tileLayer.addTo(map);
         mapInstanceRef.current = map;
-        setMapLoaded(true);
+
+        // Small delay to ensure map renders properly
+        setTimeout(() => {
+          map.invalidateSize();
+          setMapLoaded(true);
+        }, 100);
 
         console.log('History map initialized successfully');
 
@@ -126,7 +255,7 @@ const History: React.FC = () => {
       }
     };
 
-    const timer = setTimeout(initializeMap, 100);
+    const timer = setTimeout(initializeMap, 200);
 
     return () => {
       clearTimeout(timer);
@@ -135,12 +264,21 @@ const History: React.FC = () => {
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (mapInstanceRef.current && mapLoaded) {
+      // Re-invalidate map size when container changes
+      setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 100);
+    }
+  }, [mapLoaded]);
 
   // Update markers when reports change
   useEffect(() => {
     if (mapLoaded && reports.length > 0) {
-      const timer = setTimeout(updateMapMarkers, 200);
+      const timer = setTimeout(updateMapMarkers, 300);
       return () => clearTimeout(timer);
     }
   }, [reports, mapLoaded]);
@@ -282,31 +420,6 @@ const History: React.FC = () => {
     }
   };
 
-  const fetchResolvedReports = async () => {
-    setIsLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('incident_reports')
-        .select('*')
-        .eq('status', 'resolved')
-        .or(`reporter_email.eq.${user.email},reporter_email.is.null`)
-        .not('coordinates', 'is', null) // Add this line
-        .order('resolved_at', { ascending: false });
-
-      if (error) throw error;
-      setReports(data || []);
-    } catch (error) {
-      console.error('Error fetching resolved reports:', error);
-      setToastMessage('Failed to load resolved reports');
-      setShowToast(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const viewReport = (report: UserReport) => {
     setSelectedReport(report);
     setShowViewModal(true);
@@ -370,13 +483,68 @@ const History: React.FC = () => {
     );
   };
 
+  if (isLoading) {
+    return (
+      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+        <div style={{ padding: '20px 20px 0' }}>
+          {/* Header Skeleton */}
+          <IonCard style={{
+            borderRadius: '16px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+            marginBottom: '20px'
+          }}>
+            <IonCardHeader>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <IonSkeletonText animated style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    marginRight: '16px'
+                  }} />
+                  <div>
+                    <IonSkeletonText animated style={{ width: '180px', height: '20px', marginBottom: '4px' }} />
+                    <IonSkeletonText animated style={{ width: '120px', height: '14px' }} />
+                  </div>
+                </div>
+                <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+              </div>
+            </IonCardHeader>
+          </IonCard>
+
+          {/* Map Skeleton */}
+          <SkeletonHistoryMap />
+
+          {/* Reports List Skeleton */}
+          <div style={{ padding: '0 0px 0px' }}>
+            <IonCard style={{ borderRadius: '16px' }}>
+              <IonCardHeader>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+                  <IonSkeletonText animated style={{ width: '60px', height: '32px', borderRadius: '8px' }} />
+                </div>
+              </IonCardHeader>
+              <IonCardContent style={{ padding: 0 }}>
+                <IonList style={{ background: 'transparent' }}>
+                  {[1, 2, 3, 4].map((item) => (
+                    <SkeletonHistoryItem key={item} />
+                  ))}
+                </IonList>
+              </IonCardContent>
+            </IonCard>
+          </div>
+        </div>
+      </IonContent>
+    );
+  }
+
   return (
     <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
       <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
         <IonRefresherContent />
       </IonRefresher>
 
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '20px 20px 0' }}>
         {/* Header */}
         <IonCard style={{
           borderRadius: '16px',
@@ -415,29 +583,46 @@ const History: React.FC = () => {
         </IonCard>
 
         {/* Map Container for Resolved Reports */}
-        <div style={{ height: '400px', margin: '0 20px 20px' }}>
+        <div style={{ height: '450px', margin: '0 0px 0px' }}>
           <IonCard style={{
             borderRadius: '16px',
             height: '100%',
             overflow: 'hidden',
             position: 'relative'
           }}>
+            {isLoading && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 1000,
+                background: 'rgba(255,255,255,0.9)',
+                padding: '8px'
+              }}>
+                <IonProgressBar type="indeterminate" />
+              </div>
+            )}
+
             <style>
               {`
-        @import url('https://unpkg.com/leaflet@1.7.1/dist/leaflet.css');
-        .leaflet-container {
-          height: 100%;
-          width: 100%;
-          background: #f8fafc;
-        }
-        .custom-marker {
-          background: transparent;
-          border: none;
-        }
-        .leaflet-popup-content-wrapper {
-          border-radius: 12px;
-        }
-      `}
+                @import url('https://unpkg.com/leaflet@1.7.1/dist/leaflet.css');
+                .leaflet-container {
+                  height: 100%;
+                  width: 100%;
+                  background: #f8fafc;
+                }
+                .custom-marker {
+                  background: transparent;
+                  border: none;
+                }
+                .leaflet-popup-content-wrapper {
+                  border-radius: 12px;
+                }
+                .leaflet-popup-tip {
+                  background: white;
+                }
+              `}
             </style>
 
             <div
@@ -445,24 +630,34 @@ const History: React.FC = () => {
               style={{
                 width: '100%',
                 height: '100%',
-                background: '#f8fafc'
+                background: '#f8fafc',
+                position: 'relative',
+                zIndex: 1
               }}
-            >
-              {!mapLoaded && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  flexDirection: 'column'
-                }}>
-                  <IonSpinner name="circular" style={{ '--color': '#10b981' }} />
-                  <h3 style={{ color: '#6b7280', marginTop: '16px' }}>
-                    Loading resolved reports map...
-                  </h3>
-                </div>
-              )}
-            </div>
+            />
+
+            {/* Error state */}
+            {!mapLoaded && !isLoading && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column',
+                padding: '20px',
+                background: '#f8fafc',
+                zIndex: 10
+              }}>
+                <IonIcon icon={mapOutline} style={{ fontSize: '64px', color: '#d1d5db' }} />
+                <h3 style={{ color: '#9ca3af', marginTop: '16px', marginBottom: '8px' }}>
+                  Map loading...
+                </h3>
+              </div>
+            )}
 
             {/* Map Legend for Resolved Reports */}
             {mapLoaded && (
@@ -509,175 +704,247 @@ const History: React.FC = () => {
         </div>
 
         {/* Reports List */}
-        {isLoading ? (
+        <div style={{ padding: '0 0px 0px' }}>
           <IonCard style={{ borderRadius: '16px' }}>
-            <IonCardContent style={{ textAlign: 'center', padding: '40px' }}>
-              <IonIcon icon={refreshOutline} style={{ fontSize: '48px', color: '#d1d5db' }} />
-              <p style={{ color: '#9ca3af', marginTop: '16px' }}>Loading resolved reports...</p>
-            </IonCardContent>
-          </IonCard>
-        ) : reports.length === 0 ? (
-          <IonCard style={{ borderRadius: '16px' }}>
-            <IonCardContent style={{ textAlign: 'center', padding: '40px' }}>
-              <IonIcon icon={listOutline} style={{ fontSize: '48px', color: '#d1d5db' }} />
-              <p style={{ color: '#9ca3af', marginTop: '16px', marginBottom: '20px' }}>
-                No resolved reports found
-              </p>
-            </IonCardContent>
-          </IonCard>
-        ) : (
-          <IonList style={{ background: 'transparent' }}>
-            {reports.map((report) => (
-              <IonCard key={report.id} style={{
-                borderRadius: '16px',
-                marginBottom: '16px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-              }}>
-                <IonCardContent style={{ padding: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                    <div style={{ flex: 1 }}>
-                      {/* Status */}
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', gap: '8px' }}>
-                        <IonChip
-                          style={{
-                            '--background': getStatusColor(report.status) + '20',
-                            '--color': getStatusColor(report.status),
-                            height: '28px',
-                            fontSize: '12px',
-                            fontWeight: '600'
-                          } as any}
-                        >
-                          <IonIcon icon={checkmarkCircleOutline} style={{ marginRight: '4px' }} />
-                          RESOLVED
-                        </IonChip>
-                      </div>
-
-                      {/* Title */}
-                      <h3 style={{
-                        fontSize: '18px',
-                        fontWeight: '600',
-                        color: '#1f2937',
-                        margin: '0 0 8px 0',
-                        cursor: 'pointer'
-                      }}
-                        onClick={() => viewReport(report)}>
-                        {report.title}
-                      </h3>
-
-                      {/* Location and Date */}
-                      <div style={{ marginBottom: '12px' }}>
-                        <p style={{
-                          fontSize: '14px',
-                          color: '#6b7280',
-                          margin: '0 0 4px 0'
-                        }}>
-                          <IonIcon icon={locationOutline} style={{ fontSize: '14px', marginRight: '4px' }} />
-                          {report.location}, {report.barangay}
-                        </p>
-                        <p style={{
-                          fontSize: '12px',
-                          color: '#9ca3af',
-                          margin: 0
-                        }}>
-                          <IonIcon icon={timeOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
-                          Resolved {report.resolved_at && new Date(report.resolved_at).toLocaleDateString()}
-                        </p>
-                      </div>
-
-                      {/* Admin Response */}
-                      {report.admin_response && (
-                        <div style={{
-                          background: '#f0f9ff',
-                          border: '1px solid #bae6fd',
-                          borderRadius: '8px',
-                          padding: '12px',
-                          marginTop: '12px'
-                        }}>
-                          <p style={{
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            color: '#075985',
-                            margin: '0 0 4px 0'
-                          }}>LDRRMO Response:</p>
-                          <p style={{
-                            fontSize: '13px',
-                            color: '#0c4a6e',
-                            margin: 0
-                          }}>{report.admin_response}</p>
-                        </div>
-                      )}
-
-                      {/* Feedback */}
-                      {report.feedback_rating ? (
-                        <div style={{
-                          background: '#f5f3ff',
-                          border: '1px solid #ddd6fe',
-                          borderRadius: '8px',
-                          padding: '12px',
-                          marginTop: '12px'
-                        }}>
-                          <p style={{
-                            fontSize: '12px',
-                            fontWeight: '600',
-                            color: '#5b21b6',
-                            margin: '0 0 4px 0'
-                          }}>Your Feedback:</p>
-                          {renderStars(report.feedback_rating)}
-                          {report.feedback_comment && (
-                            <p style={{
-                              fontSize: '13px',
-                              color: '#5b21b6',
-                              margin: '8px 0 0 0'
-                            }}>{report.feedback_comment}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <IonButton
-                          size="small"
-                          fill="outline"
-                          style={{
-                            marginTop: '12px',
-                            '--border-radius': '8px'
-                          } as any}
-                          onClick={() => openFeedbackModal(report)}
-                        >
-                          Rate Response
-                        </IonButton>
-                      )}
-                    </div>
-
+            <IonCardHeader>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
+                  Recent Resolved Reports ({reports.length})
+                </IonCardTitle>
+                <IonButton
+                  fill="clear"
+                  size="small"
+                  routerLink="/it35-lab2/app/home/history"
+                >
+                  View All
+                </IonButton>
+              </div>
+            </IonCardHeader>
+            <IonCardContent style={{ padding: 0 }}>
+              {reports.length === 0 ? (
+                <div style={{
+                  padding: '40px 20px',
+                  textAlign: 'center'
+                }}>
+                  <IonIcon icon={listOutline} style={{ fontSize: '48px', color: '#d1d5db' }} />
+                  <h3 style={{ color: '#9ca3af', marginTop: '16px', fontSize: '18px' }}>
+                    No resolved reports found
+                  </h3>
+                  <p style={{ color: '#d1d5db', fontSize: '14px', margin: '8px 0 20px 0' }}>
+                    No incident reports have been resolved yet.
+                  </p>
+                  {!isLoading && (
                     <IonButton
-                      fill="clear"
-                      onClick={() => viewReport(report)}
-                      style={{
-                        '--padding-start': '4px',
-                        '--padding-end': '4px'
-                      } as any}
+                      fill="outline"
+                      onClick={fetchResolvedReports}
+                      style={{ marginRight: '8px' }}
                     >
-                      <IonIcon icon={eyeOutline} color="primary" />
+                      <IonIcon icon={refreshOutline} slot="start" />
+                      Refresh
                     </IonButton>
-                  </div>
-                </IonCardContent>
-              </IonCard>
-            ))}
-          </IonList>
-        )}
+                  )}
+                </div>
+              ) : (
+                <IonList style={{ background: 'transparent' }}>
+                  {reports.slice(0, 10).map((report) => (
+                    <IonCard key={report.id} style={{
+                      borderRadius: '16px',
+                      margin: '0 0 16px 0',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                    }}>
+                      <IonCardContent style={{ padding: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                          <div style={{ flex: 1 }}>
+                            {/* Status */}
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', gap: '8px' }}>
+                              <IonChip
+                                style={{
+                                  '--background': getStatusColor(report.status) + '20',
+                                  '--color': getStatusColor(report.status),
+                                  height: '28px',
+                                  fontSize: '12px',
+                                  fontWeight: '600'
+                                } as any}
+                              >
+                                <IonIcon icon={checkmarkCircleOutline} style={{ marginRight: '4px' }} />
+                                RESOLVED
+                              </IonChip>
+                            </div>
+
+                            {/* Title */}
+                            <h3 style={{
+                              fontSize: '18px',
+                              fontWeight: '600',
+                              color: '#1f2937',
+                              margin: '0 0 8px 0',
+                              cursor: 'pointer'
+                            }}
+                              onClick={() => viewReport(report)}>
+                              {report.title}
+                            </h3>
+
+                            {/* Location and Date */}
+                            <div style={{ marginBottom: '12px' }}>
+                              <p style={{
+                                fontSize: '14px',
+                                color: '#6b7280',
+                                margin: '0 0 4px 0'
+                              }}>
+                                <IonIcon icon={locationOutline} style={{ fontSize: '14px', marginRight: '4px' }} />
+                                {report.location}, {report.barangay}
+                              </p>
+                              <p style={{
+                                fontSize: '12px',
+                                color: '#9ca3af',
+                                margin: 0
+                              }}>
+                                <IonIcon icon={timeOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
+                                Resolved {report.resolved_at && new Date(report.resolved_at).toLocaleDateString()}
+                              </p>
+                            </div>
+
+                            {/* Admin Response */}
+                            {report.admin_response && (
+                              <div style={{
+                                background: '#f0f9ff',
+                                border: '1px solid #bae6fd',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                marginTop: '12px'
+                              }}>
+                                <p style={{
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  color: '#075985',
+                                  margin: '0 0 4px 0'
+                                }}>LDRRMO Response:</p>
+                                <p style={{
+                                  fontSize: '13px',
+                                  color: '#0c4a6e',
+                                  margin: 0
+                                }}>{report.admin_response}</p>
+                              </div>
+                            )}
+
+                            {/* Feedback */}
+                            {report.feedback_rating ? (
+                              <div style={{
+                                background: '#f5f3ff',
+                                border: '1px solid #ddd6fe',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                marginTop: '12px'
+                              }}>
+                                <p style={{
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  color: '#5b21b6',
+                                  margin: '0 0 4px 0'
+                                }}>Your Feedback:</p>
+                                {renderStars(report.feedback_rating)}
+                                {report.feedback_comment && (
+                                  <p style={{
+                                    fontSize: '13px',
+                                    color: '#5b21b6',
+                                    margin: '8px 0 0 0'
+                                  }}>{report.feedback_comment}</p>
+                                )}
+                              </div>
+                            ) : (
+                              <IonButton
+                                size="small"
+                                fill="outline"
+                                style={{
+                                  marginTop: '12px',
+                                  '--border-radius': '8px'
+                                } as any}
+                                onClick={() => openFeedbackModal(report)}
+                              >
+                                Rate Response
+                              </IonButton>
+                            )}
+                          </div>
+
+                          <IonButton
+                            fill="clear"
+                            onClick={() => viewReport(report)}
+                            style={{
+                              '--padding-start': '4px',
+                              '--padding-end': '4px'
+                            } as any}
+                          >
+                            <IonIcon icon={eyeOutline} color="primary" />
+                          </IonButton>
+                        </div>
+                      </IonCardContent>
+                    </IonCard>
+                  ))}
+
+                  {reports.length > 10 && (
+                    <IonItem style={{ '--background': '#f8fafc' } as any}>
+                      <div style={{
+                        width: '100%',
+                        textAlign: 'center',
+                        padding: '12px'
+                      }}>
+                        <p style={{ color: '#6b7280', margin: '0 0 8px 0' }}>
+                          Showing 10 of {reports.length} reports
+                        </p>
+                        <IonButton
+                          fill="outline"
+                          size="small"
+                          routerLink="/it35-lab2/app/home/history"
+                        >
+                          View All Reports
+                        </IonButton>
+                      </div>
+                    </IonItem>
+                  )}
+                </IonList>
+              )}
+            </IonCardContent>
+          </IonCard>
+        </div>
       </div>
 
       {/* View Report Modal */}
-      <IonModal isOpen={showViewModal} onDidDismiss={() => setShowViewModal(false)}>
+      <IonModal
+        isOpen={showViewModal}
+        onDidDismiss={() => setShowViewModal(false)}
+        style={{ '--border-radius': '20px' } as any}
+      >
         {selectedReport && (
-          <IonContent>
-            <IonCard style={{ margin: '0', height: '100%' }}>
-              <IonCardHeader>
+          <div style={{
+            padding: '0',
+            height: '100%',
+            background: 'white',
+            borderRadius: '20px',
+            overflow: 'hidden'
+          }}>
+            <IonCard style={{
+              margin: '0',
+              height: '100%',
+              borderRadius: '0',
+              boxShadow: 'none'
+            }}>
+              <IonCardHeader style={{ paddingBottom: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <IonCardTitle>{selectedReport.title}</IonCardTitle>
-                  <IonButton fill="clear" onClick={() => setShowViewModal(false)}>
+                  <IonCardTitle style={{ fontSize: '20px', margin: '0' }}>{selectedReport.title}</IonCardTitle>
+                  <IonButton
+                    fill="clear"
+                    onClick={() => setShowViewModal(false)}
+                    style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
+                  >
                     <IonIcon icon={closeCircleOutline} />
                   </IonButton>
                 </div>
               </IonCardHeader>
-              <IonCardContent>
+
+              <div style={{
+                height: 'calc(100% - 80px)',
+                overflowY: 'auto',
+                padding: '0 16px 16px'
+              }}>
                 <p style={{ color: '#6b7280', marginBottom: '16px' }}>
                   <IonIcon icon={locationOutline} style={{ marginRight: '4px' }} />
                   {selectedReport.location}, {selectedReport.barangay}
@@ -695,12 +962,12 @@ const History: React.FC = () => {
                   </p>
                 )}
 
-                <h3 style={{ margin: '16px 0 8px 0' }}>Description</h3>
+                <h3 style={{ margin: '16px 0 8px 0', fontSize: '18px' }}>Description</h3>
                 <p style={{ color: '#4b5563', marginBottom: '16px' }}>{selectedReport.description}</p>
 
                 {selectedReport.admin_response && (
                   <>
-                    <h3 style={{ margin: '16px 0 8px 0' }}>Response from LDRRMO</h3>
+                    <h3 style={{ margin: '16px 0 8px 0', fontSize: '18px' }}>Response from LDRRMO</h3>
                     <p style={{
                       color: '#4b5563',
                       marginBottom: '16px',
@@ -715,7 +982,7 @@ const History: React.FC = () => {
 
                 {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
                   <>
-                    <h3 style={{ margin: '16px 0 8px 0' }}>Images</h3>
+                    <h3 style={{ margin: '16px 0 8px 0', fontSize: '18px' }}>Images</h3>
                     <IonGrid>
                       <IonRow>
                         {selectedReport.image_urls.map((url, index) => (
@@ -749,27 +1016,45 @@ const History: React.FC = () => {
                     )}
                   </>
                 )}
-              </IonCardContent>
+              </div>
             </IonCard>
-          </IonContent>
+          </div>
         )}
       </IonModal>
 
       {/* Feedback Modal */}
-      <IonModal isOpen={showFeedbackModal} onDidDismiss={() => setShowFeedbackModal(false)}>
-        <IonContent>
-          <IonCard style={{ margin: '0', height: '100%' }}>
-            <IonCardHeader>
-              <IonCardTitle>Rate Response</IonCardTitle>
+      <IonModal
+        isOpen={showFeedbackModal}
+        onDidDismiss={() => setShowFeedbackModal(false)}
+        style={{ '--border-radius': '20px' } as any}
+      >
+        <div style={{
+          padding: '24px',
+          height: '100%',
+          background: 'white',
+          borderRadius: '20px'
+        }}>
+          <IonCard style={{
+            margin: '0',
+            height: '100%',
+            borderRadius: '0',
+            boxShadow: 'none'
+          }}>
+            <IonCardHeader style={{ paddingBottom: '8px' }}>
+              <IonCardTitle style={{ fontSize: '20px', margin: '0' }}>Rate Response</IonCardTitle>
             </IonCardHeader>
-            <IonCardContent>
+
+            <div style={{
+              height: 'calc(100% - 80px)',
+              padding: '0 16px 16px'
+            }}>
               {selectedReport && (
                 <>
-                  <h3 style={{ marginBottom: '16px' }}>How would you rate the response to:</h3>
-                  <p style={{ fontWeight: '600', marginBottom: '24px' }}>{selectedReport.title}</p>
+                  <h3 style={{ marginBottom: '16px', fontSize: '16px' }}>How would you rate the response to:</h3>
+                  <p style={{ fontWeight: '600', marginBottom: '24px', fontSize: '16px' }}>{selectedReport.title}</p>
 
                   <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <p style={{ marginBottom: '12px' }}>Rating:</p>
+                    <p style={{ marginBottom: '12px', fontSize: '16px' }}>Rating:</p>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
                       {[1, 2, 3, 4, 5].map((star) => (
                         <IonButton
@@ -808,14 +1093,15 @@ const History: React.FC = () => {
                     expand="block"
                     onClick={submitFeedback}
                     disabled={feedbackRating === 0}
+                    style={{ marginTop: 'auto' }}
                   >
                     Submit Feedback
                   </IonButton>
                 </>
               )}
-            </IonCardContent>
+            </div>
           </IonCard>
-        </IonContent>
+        </div>
       </IonModal>
 
       <IonToast

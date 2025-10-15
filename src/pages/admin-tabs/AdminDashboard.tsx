@@ -29,7 +29,7 @@ import {
   IonRow,
   IonCol,
   IonSearchbar,
-  IonText
+  IonSkeletonText
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -53,8 +53,7 @@ import {
   calendarOutline,
   playOutline,
   checkmarkDoneOutline,
-  searchOutline,
-  desktopOutline
+  searchOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import L from 'leaflet';
@@ -123,13 +122,13 @@ interface IncidentResponseRoute {
 }
 
 const AdminDashboard: React.FC = () => {
-  const [isMobileDevice, setIsMobileDevice] = useState(false);
   const navigation = useIonRouter();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const commandCenterMarkerRef = useRef<L.Marker | null>(null);
   const routeLayerRef = useRef<L.Polyline | null>(null);
+
   const [isIncidentsCollapsed, setIsIncidentsCollapsed] = useState(false);
   const [isUsersCollapsed, setIsUsersCollapsed] = useState(false);
   const [reports, setReports] = useState<IncidentReport[]>([]);
@@ -158,53 +157,9 @@ const AdminDashboard: React.FC = () => {
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [userSearchText, setUserSearchText] = useState('');
+
+  // NEW: Track if route is currently displayed
   const [isRouteDisplayed, setIsRouteDisplayed] = useState(false);
-
-  useEffect(() => {
-    // Device detection logic
-    const checkDevice = () => {
-      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
-      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
-      setIsMobileDevice(isMobile);
-    };
-
-    checkDevice();
-  }, []);
-
-  // Show mobile restriction message if accessed from mobile
-  if (isMobileDevice) {
-    return (
-      <IonPage>
-        <IonContent className="ion-padding" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          textAlign: 'center'
-        }}>
-          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
-            <IonIcon 
-              icon={desktopOutline} 
-              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
-            />
-            <IonText>
-              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
-                Admin Access Restricted
-              </h2>
-              <p style={{ color: '#718096', lineHeight: '1.6' }}>
-                This admin dashboard is only accessible by an admin.
-              </p>
-            </IonText>
-            <IonButton 
-              onClick={() => navigation.push('/it35-lab2')}
-              style={{ marginTop: '20px' }}
-            >
-              Return to Home
-            </IonButton>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
-  }
 
   useEffect(() => {
     console.log('📊 Current reports with ETA:', reports.map(r => ({
@@ -1322,10 +1277,160 @@ const AdminDashboard: React.FC = () => {
   if (isLoading) {
     return (
       <IonPage>
-        <IonContent className="ion-padding" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <IonSpinner />
-            <p>Loading dashboard...</p>
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+            <IonTitle style={{ fontWeight: 'bold' }}>
+              <IonSkeletonText animated style={{ width: '250px', height: '20px' }} />
+            </IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+
+          <IonToolbar style={{ '--background': 'white' } as any}>
+            <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} style={{ flex: 1, padding: '12px', textAlign: 'center' }}>
+                  <IonSkeletonText animated style={{ width: '80%', height: '16px', margin: '0 auto' }} />
+                </div>
+              ))}
+            </div>
+          </IonToolbar>
+        </IonHeader>
+
+        <IonContent style={{ '--background': '#f8fafc' } as any} fullscreen>
+          <div style={{ display: 'flex', height: 'calc(100vh - 112px)', width: '100%' }}>
+            {/* Left Panel Skeleton - Incidents */}
+            <div style={{
+              width: '360px',
+              borderRight: '1px solid #e5e7eb',
+              background: 'white',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{
+                padding: '12px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IonSkeletonText animated style={{ width: '24px', height: '24px' }} />
+                  <IonSkeletonText animated style={{ width: '120px', height: '16px' }} />
+                  <IonSkeletonText animated style={{ width: '32px', height: '20px', borderRadius: '10px' }} />
+                </div>
+              </div>
+
+              {/* Status Filter Skeleton */}
+              <div style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
+                <IonSkeletonText animated style={{ width: '100px', height: '12px', marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {[1, 2, 3, 4].map((item) => (
+                    <IonSkeletonText key={item} animated style={{ width: '70px', height: '28px', borderRadius: '14px' }} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Priority Filter Skeleton */}
+              <div style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
+                <IonSkeletonText animated style={{ width: '100px', height: '12px', marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <IonSkeletonText key={item} animated style={{ width: '60px', height: '28px', borderRadius: '14px' }} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Reports List Skeleton */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <IonList style={{ padding: 0 }}>
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <IonItem key={item} style={{ '--background': 'transparent', '--border-color': '#f3f4f6' } as any}>
+                      <div style={{ width: '100%', padding: '8px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <IonSkeletonText animated style={{ width: '60%', height: '14px' }} />
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <IonSkeletonText animated style={{ width: '50px', height: '20px', borderRadius: '10px' }} />
+                            <IonSkeletonText animated style={{ width: '50px', height: '20px', borderRadius: '10px' }} />
+                          </div>
+                        </div>
+                        <IonSkeletonText animated style={{ width: '40%', height: '12px', marginBottom: '4px' }} />
+                        <IonSkeletonText animated style={{ width: '70%', height: '12px', marginBottom: '8px' }} />
+                        <IonSkeletonText animated style={{ width: '50%', height: '12px', marginBottom: '8px' }} />
+                        <IonSkeletonText animated style={{ width: '80px', height: '24px', borderRadius: '12px' }} />
+                      </div>
+                    </IonItem>
+                  ))}
+                </IonList>
+              </div>
+            </div>
+
+            {/* Main Content Skeleton - Map */}
+            <div style={{ flex: 1, position: 'relative', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
+                <IonSkeletonText animated style={{ width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 16px' }} />
+                <IonSkeletonText animated style={{ width: '200px', height: '16px', margin: '0 auto 8px' }} />
+                <IonSkeletonText animated style={{ width: '150px', height: '12px', margin: '0 auto' }} />
+              </div>
+            </div>
+
+            {/* Right Panel Skeleton - Users */}
+            <div style={{
+              width: '300px',
+              borderLeft: '1px solid #e5e7eb',
+              background: 'white',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{
+                padding: '12px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <IonSkeletonText animated style={{ width: '24px', height: '24px' }} />
+                  <IonSkeletonText animated style={{ width: '60px', height: '16px' }} />
+                  <IonSkeletonText animated style={{ width: '32px', height: '20px', borderRadius: '10px' }} />
+                </div>
+              </div>
+
+              {/* Search Skeleton */}
+              <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
+                <IonSkeletonText animated style={{ width: '100%', height: '40px', borderRadius: '8px' }} />
+              </div>
+
+              {/* User Filter Skeleton */}
+              <div style={{ padding: '12px', borderBottom: '1px solid #e5e7eb' }}>
+                <IonSkeletonText animated style={{ width: '80px', height: '12px', marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {[1, 2, 3].map((item) => (
+                    <IonSkeletonText key={item} animated style={{ width: '70px', height: '28px', borderRadius: '14px' }} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Users List Skeleton */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <IonList style={{ padding: 0 }}>
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <IonItem key={item}>
+                      <div style={{ width: '100%', padding: '8px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <IonSkeletonText animated style={{ width: '60%', height: '14px' }} />
+                          <IonSkeletonText animated style={{ width: '50px', height: '20px', borderRadius: '10px' }} />
+                        </div>
+                        <IonSkeletonText animated style={{ width: '70%', height: '12px', marginBottom: '4px' }} />
+                        <IonSkeletonText animated style={{ width: '50%', height: '11px' }} />
+                      </div>
+                    </IonItem>
+                  ))}
+                </IonList>
+              </div>
+            </div>
           </div>
         </IonContent>
       </IonPage>

@@ -1,3 +1,4 @@
+// src/pages/user-tabs/IncidentReport.tsx - Updated with Skeleton Screen
 import React, { useState, useRef, useEffect } from 'react';
 import {
   IonContent,
@@ -21,7 +22,8 @@ import {
   IonCol,
   IonModal,
   IonCheckbox,
-  IonSpinner
+  IonSpinner,
+  IonSkeletonText
 } from '@ionic/react';
 import {
   cameraOutline,
@@ -630,6 +632,75 @@ const formatDateTimeForDisplay = (dateTime: string): string => {
   });
 };
 
+// Skeleton Components
+const SkeletonFormCard: React.FC<{ title?: string }> = ({ title }) => (
+  <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+    <IonCardHeader>
+      <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
+        {title && <IonSkeletonText animated style={{ width: '120px', height: '18px' }} />}
+      </IonCardTitle>
+    </IonCardHeader>
+    <IonCardContent>
+      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px', marginBottom: '16px' }} />
+      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px', marginBottom: '16px' }} />
+      <IonSkeletonText animated style={{ width: '100%', height: '120px', borderRadius: '8px' }} />
+    </IonCardContent>
+  </IonCard>
+);
+
+const SkeletonPhotoCard: React.FC = () => (
+  <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+    <IonCardHeader>
+      <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
+        <IonSkeletonText animated style={{ width: '100px', height: '18px' }} />
+      </IonCardTitle>
+    </IonCardHeader>
+    <IonCardContent>
+      <IonGrid>
+        <IonRow>
+          <IonCol size="6">
+            <IonSkeletonText animated style={{ width: '100%', height: '60px', borderRadius: '12px' }} />
+          </IonCol>
+          <IonCol size="6">
+            <IonSkeletonText animated style={{ width: '100%', height: '60px', borderRadius: '12px' }} />
+          </IonCol>
+        </IonRow>
+      </IonGrid>
+
+      {/* Image Preview Skeleton */}
+      <div style={{ marginTop: '16px' }}>
+        <IonSkeletonText animated style={{ width: '140px', height: '14px', marginBottom: '12px' }} />
+        <IonGrid>
+          <IonRow>
+            {[1, 2, 3].map((item) => (
+              <IonCol key={item} size="4">
+                <IonSkeletonText animated style={{ width: '100%', height: '80px', borderRadius: '8px' }} />
+              </IonCol>
+            ))}
+          </IonRow>
+        </IonGrid>
+      </div>
+    </IonCardContent>
+  </IonCard>
+);
+
+const SkeletonInfoCard: React.FC = () => (
+  <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+    <IonCardHeader>
+      <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
+        <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+      </IonCardTitle>
+    </IonCardHeader>
+    <IonCardContent>
+      <IonSkeletonText animated style={{ width: '100%', height: '50px', borderRadius: '8px', marginBottom: '16px' }} />
+
+      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px', marginBottom: '12px' }} />
+      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px', marginBottom: '12px' }} />
+      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px' }} />
+    </IonCardContent>
+  </IonCard>
+);
+
 const IncidentReport: React.FC = () => {
   const [formData, setFormData] = useState<IncidentReport>({
     category: '',
@@ -658,6 +729,122 @@ const IncidentReport: React.FC = () => {
   const [extractionLoading, setExtractionLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [isFormLoading, setIsFormLoading] = useState(true);
+
+  // Fetch user profile when component mounts - MUST BE BEFORE ANY CONDITIONAL RETURNS
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error('User not authenticated');
+        return;
+      }
+
+      // Get user profile from users table
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('user_firstname, user_lastname, user_email, user_address, user_contact_number')
+        .eq('user_email', user.email)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        return;
+      }
+
+      if (profile) {
+        setUserProfile(profile);
+
+        // Auto-populate form data with user profile
+        setFormData(prev => ({
+          ...prev,
+          reporter_email: profile.user_email,
+          reporter_name: `${profile.user_firstname || ''} ${profile.user_lastname || ''}`.trim(),
+          reporter_address: profile.user_address || '',
+          reporter_contact: profile.user_contact_number || ''
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Simulate form loading
+    const timer = setTimeout(() => {
+      setIsFormLoading(false);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isFormLoading) {
+    return (
+      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+        <div style={{ padding: '20px' }}>
+          {/* Header Skeleton */}
+          <IonCard style={{
+            borderRadius: '16px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+            marginBottom: '20px'
+          }}>
+            <IonCardHeader>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <IonSkeletonText animated style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '12px',
+                  marginRight: '16px'
+                }} />
+                <div>
+                  <IonSkeletonText animated style={{ width: '200px', height: '20px', marginBottom: '4px' }} />
+                  <IonSkeletonText animated style={{ width: '250px', height: '14px' }} />
+                </div>
+              </div>
+            </IonCardHeader>
+          </IonCard>
+
+          {/* Timestamp Skeleton */}
+          <IonCard style={{
+            borderRadius: '16px',
+            marginBottom: '20px',
+            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            border: '1px solid #7dd3fc'
+          }}>
+            <IonCardContent>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <IonSkeletonText animated style={{ width: '20px', height: '20px', marginRight: '12px' }} />
+                <div>
+                  <IonSkeletonText animated style={{ width: '100px', height: '12px', marginBottom: '4px' }} />
+                  <IonSkeletonText animated style={{ width: '180px', height: '14px' }} />
+                </div>
+              </div>
+            </IonCardContent>
+          </IonCard>
+
+          {/* Photo Section Skeleton */}
+          <SkeletonPhotoCard />
+
+          {/* Information Section Skeleton */}
+          <SkeletonInfoCard />
+
+          {/* Incident Details Skeleton */}
+          <SkeletonFormCard title="Incident Details" />
+
+          {/* Submit Button Skeleton */}
+          <IonCard style={{ borderRadius: '16px' }}>
+            <IonCardContent>
+              <IonSkeletonText animated style={{ width: '100%', height: '52px', borderRadius: '12px' }} />
+            </IonCardContent>
+          </IonCard>
+        </div>
+      </IonContent>
+    );
+  }
 
   const incidentCategories = [
     'Road Incidents',
@@ -1122,48 +1309,6 @@ const IncidentReport: React.FC = () => {
       setShowAlert(true);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  // Fetch user profile when component mounts
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
-
-  const fetchUserProfile = async () => {
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        console.error('User not authenticated');
-        return;
-      }
-
-      // Get user profile from users table
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('user_firstname, user_lastname, user_email, user_address, user_contact_number')
-        .eq('user_email', user.email)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching user profile:', profileError);
-        return;
-      }
-
-      if (profile) {
-        setUserProfile(profile);
-        
-        // Auto-populate form data with user profile
-        setFormData(prev => ({
-          ...prev,
-          reporter_email: profile.user_email,
-          reporter_name: `${profile.user_firstname || ''} ${profile.user_lastname || ''}`.trim(),
-          reporter_address: profile.user_address || '',
-          reporter_contact: profile.user_contact_number || ''
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
     }
   };
 

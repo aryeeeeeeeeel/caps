@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminUsers.tsx - Updated with consistent changes
+// src/pages/admin-tabs/AdminUsers.tsx - Updated with skeleton loading screen
 import React, { useState, useEffect } from 'react';
 import { desktopOutline } from 'ionicons/icons';
 import {
@@ -18,10 +18,10 @@ import {
   IonSearchbar,
   IonAlert,
   IonToast,
-  IonSpinner,
   IonBadge,
   useIonRouter,
-  IonText
+  IonText,
+  IonSkeletonText
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -52,6 +52,50 @@ interface User {
   user_address?: string;
 }
 
+// Skeleton Components
+const SkeletonStatsCard: React.FC = () => (
+  <div style={{
+    background: 'white',
+    border: '1px solid #e5e7eb',
+    borderRadius: '12px',
+    padding: '16px',
+    textAlign: 'center'
+  }}>
+    <IonSkeletonText animated style={{ width: '40px', height: '28px', margin: '0 auto 8px' }} />
+    <IonSkeletonText animated style={{ width: '60px', height: '12px', margin: '0 auto' }} />
+  </div>
+);
+
+const SkeletonUserItem: React.FC = () => (
+  <IonItem
+    style={{
+      '--background': 'white',
+      '--border-radius': '8px',
+      marginBottom: '12px'
+    } as any}
+  >
+    <div style={{ width: '100%', padding: '16px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+        <div style={{ flex: 1 }}>
+          <IonSkeletonText animated style={{ width: '60%', height: '16px', marginBottom: '8px' }} />
+          <IonSkeletonText animated style={{ width: '50%', height: '14px' }} />
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <IonSkeletonText animated style={{ width: '50px', height: '20px', borderRadius: '10px' }} />
+        </div>
+      </div>
+
+      <IonSkeletonText animated style={{ width: '40%', height: '12px', marginBottom: '12px' }} />
+
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <IonSkeletonText animated style={{ width: '70px', height: '28px', borderRadius: '14px' }} />
+        <IonSkeletonText animated style={{ width: '80px', height: '28px', borderRadius: '14px' }} />
+        <IonSkeletonText animated style={{ width: '60px', height: '28px', borderRadius: '14px' }} />
+      </div>
+    </div>
+  </IonItem>
+);
+
 const AdminUsers: React.FC = () => {
   const navigation = useIonRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -75,40 +119,6 @@ const AdminUsers: React.FC = () => {
     };
     checkDevice();
   }, []);
-
-  if (isMobileDevice) {
-    return (
-      <IonPage>
-        <IonContent className="ion-padding" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          textAlign: 'center'
-        }}>
-          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
-            <IonIcon 
-              icon={desktopOutline} 
-              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
-            />
-            <IonText>
-              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
-                Admin Access Restricted
-              </h2>
-              <p style={{ color: '#718096', lineHeight: '1.6' }}>
-                This admin page is only accessible by an admin.
-              </p>
-            </IonText>
-            <IonButton 
-              onClick={() => navigation.push('/it35-lab2')}
-              style={{ marginTop: '20px' }}
-            >
-              Return to Home
-            </IonButton>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
-  }
 
   useEffect(() => {
     fetchUsers();
@@ -164,7 +174,6 @@ const AdminUsers: React.FC = () => {
       return matchesSearch && matchesStatus;
     });
 
-    // Sort alphabetically by name
     if (sortAlphabetical) {
       filtered = filtered.sort((a, b) => {
         const nameA = `${a.user_firstname} ${a.user_lastname}`.toLowerCase();
@@ -225,9 +234,8 @@ const AdminUsers: React.FC = () => {
     banned: users.filter(u => u.status === 'banned').length
   };
 
-  // FIXED: Add proper error handling for status
   const getStatusColor = (status: string) => {
-    if (!status) return '#6b7280'; // Default color if status is undefined
+    if (!status) return '#6b7280';
     
     switch (status) {
       case 'active': return '#10b981';
@@ -237,17 +245,105 @@ const AdminUsers: React.FC = () => {
     }
   };
 
-  // FIXED: Safe status display
   const getStatusDisplay = (status: string | undefined) => {
     if (!status) return 'UNKNOWN';
     return status.toUpperCase();
   };
 
+  // Show skeleton loading
   if (isLoading) {
     return (
       <IonPage>
-        <IonContent className="ion-padding" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <IonSpinner />
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+            <IonButtons slot="start">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+            <IonTitle style={{ fontWeight: 'bold' }}>
+              <IonSkeletonText animated style={{ width: '200px', height: '20px' }} />
+            </IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+
+          {/* Menu Bar Skeleton */}
+          <IonToolbar style={{ '--background': 'white' } as any}>
+            <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} style={{ flex: 1, padding: '12px', textAlign: 'center' }}>
+                  <IonSkeletonText animated style={{ width: '80%', height: '16px', margin: '0 auto' }} />
+                </div>
+              ))}
+            </div>
+          </IonToolbar>
+        </IonHeader>
+
+        <IonContent style={{ '--background': '#f8fafc' } as any}>
+          <div style={{ padding: '20px' }}>
+            {/* Stats Cards Skeleton */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+              <SkeletonStatsCard />
+              <SkeletonStatsCard />
+              <SkeletonStatsCard />
+              <SkeletonStatsCard />
+            </div>
+
+            {/* Search and Filter Skeleton */}
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <IonSkeletonText animated style={{ flex: 1, height: '48px', borderRadius: '8px' }} />
+                <IonSkeletonText animated style={{ width: '48px', height: '48px', borderRadius: '12px' }} />
+              </div>
+            </div>
+
+            {/* Users List Skeleton */}
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <IonSkeletonText animated style={{ width: '120px', height: '18px' }} />
+                <IonSkeletonText animated style={{ width: '60px', height: '24px', borderRadius: '12px' }} />
+              </div>
+              {[1, 2, 3, 4, 5, 6].map((item) => (
+                <SkeletonUserItem key={item} />
+              ))}
+            </div>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
+  // Show mobile restriction message
+  if (isMobileDevice) {
+    return (
+      <IonPage>
+        <IonContent className="ion-padding" style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
+            <IonIcon 
+              icon={desktopOutline} 
+              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
+            />
+            <IonText>
+              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
+                Admin Access Restricted
+              </h2>
+              <p style={{ color: '#718096', lineHeight: '1.6' }}>
+                This admin page is only accessible by an admin.
+              </p>
+            </IonText>
+            <IonButton 
+              onClick={() => navigation.push('/it35-lab2')}
+              style={{ marginTop: '20px' }}
+            >
+              Return to Home
+            </IonButton>
+          </div>
         </IonContent>
       </IonPage>
     );
@@ -396,7 +492,6 @@ const AdminUsers: React.FC = () => {
                     <div style={{ width: '100%', padding: '16px 0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <div style={{ flex: 1 }}>
-                          {/* FIXED: Show name before email with correct field names */}
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', marginBottom: '4px' }}>
                             {user.user_firstname} {user.user_lastname}
                           </div>
@@ -405,7 +500,6 @@ const AdminUsers: React.FC = () => {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          {/* FIXED: Use safe status display */}
                           <IonBadge
                             style={{
                               fontSize: '10px',

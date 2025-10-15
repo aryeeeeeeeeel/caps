@@ -60,7 +60,7 @@ const App: React.FC = () => (
         <Route exact path="/it35-lab2/app/dashboard" component={Home} />
         <Route exact path="/it35-lab2/app/submit" component={Home} />
         <Route exact path="/it35-lab2/app/map" component={Home} />
-        <Route exact path="/it35-lab2/app/reports" component={Home} />
+        <Route exact path="/it35-lab2/app/history" component={Home} />
         <Route exact path="/it35-lab2/app/notifications" component={Home} />
         <Route exact path="/it35-lab2/app/feedback" component={Home} />
         <Route exact path="/it35-lab2/app/profile" component={Profile} />

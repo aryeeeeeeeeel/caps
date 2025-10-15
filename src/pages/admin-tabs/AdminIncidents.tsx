@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminIncidents.tsx - Updated with consistent changes
+// src/pages/admin-tabs/AdminIncidents.tsx - Fixed skeleton screen
 import React, { useState, useEffect } from 'react';
 import {
   IonPage,
@@ -13,20 +13,19 @@ import {
   IonIcon,
   IonList,
   IonItem,
-  IonChip,
   IonSearchbar,
   IonModal,
   IonTextarea,
   IonDatetime,
   IonToast,
-  IonSpinner,
   IonImg,
   useIonRouter,
   IonBadge,
   IonGrid,
   IonRow,
   IonCol,
-  IonText
+  IonText,
+  IonSkeletonText
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -43,7 +42,6 @@ import {
   checkmarkCircleOutline,
   carOutline,
   calendarOutline,
-  checkmarkDoneOutline,
   desktopOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
@@ -70,6 +68,56 @@ interface IncidentReport {
   current_eta_minutes?: number;
 }
 
+// Skeleton Components
+const SkeletonStatsCard: React.FC = () => (
+  <div style={{
+    background: 'white',
+    border: '1px solid #e5e7eb',
+    borderRadius: '12px',
+    padding: '16px',
+    textAlign: 'center',
+    cursor: 'pointer'
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+      <IonSkeletonText animated style={{ width: '20px', height: '20px' }} />
+      <IonSkeletonText animated style={{ width: '60px', height: '14px' }} />
+    </div>
+    <IonSkeletonText animated style={{ width: '40px', height: '28px', margin: '0 auto' }} />
+  </div>
+);
+
+const SkeletonIncidentItem: React.FC = () => (
+  <IonItem
+    style={{
+      '--background': 'white',
+      '--border-radius': '8px',
+      marginBottom: '12px'
+    } as any}
+  >
+    <div style={{ width: '100%', padding: '16px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+        <div style={{ flex: 1 }}>
+          <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
+          <IonSkeletonText animated style={{ width: '50%', height: '12px' }} />
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <IonSkeletonText animated style={{ width: '40px', height: '20px', borderRadius: '10px' }} />
+          <IonSkeletonText animated style={{ width: '40px', height: '20px', borderRadius: '10px' }} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
+        <IonSkeletonText animated style={{ width: '12px', height: '12px' }} />
+        <IonSkeletonText animated style={{ width: '40%', height: '12px' }} />
+      </div>
+
+      <IonSkeletonText animated style={{ width: '60%', height: '12px', marginBottom: '12px' }} />
+
+      <IonSkeletonText animated style={{ width: '80px', height: '24px', borderRadius: '12px' }} />
+    </div>
+  </IonItem>
+);
+
 const AdminIncidents: React.FC = () => {
   const navigation = useIonRouter();
   const [reports, setReports] = useState<IncidentReport[]>([]);
@@ -87,7 +135,6 @@ const AdminIncidents: React.FC = () => {
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   useEffect(() => {
-    // Device detection logic
     const checkDevice = () => {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
       const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
@@ -96,41 +143,6 @@ const AdminIncidents: React.FC = () => {
 
     checkDevice();
   }, []);
-
-  // Show mobile restriction message if accessed from mobile
-  if (isMobileDevice) {
-    return (
-      <IonPage>
-        <IonContent className="ion-padding" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          textAlign: 'center'
-        }}>
-          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
-            <IonIcon 
-              icon={desktopOutline} 
-              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
-            />
-            <IonText>
-              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
-                Admin Access Restricted
-              </h2>
-              <p style={{ color: '#718096', lineHeight: '1.6' }}>
-                This incidents management page is only accessible by an admin.
-              </p>
-            </IonText>
-            <IonButton 
-              onClick={() => navigation.push('/it35-lab2')}
-              style={{ marginTop: '20px' }}
-            >
-              Return to Home
-            </IonButton>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
-  }
 
   useEffect(() => {
     fetchReports();
@@ -171,7 +183,7 @@ const AdminIncidents: React.FC = () => {
 
   const handleNotifyUser = async () => {
     if (!selectedReport) return;
-    
+
     try {
       const { error } = await supabase
         .from('notifications')
@@ -199,8 +211,8 @@ const AdminIncidents: React.FC = () => {
 
   const filteredReports = reports.filter(report => {
     const matchesSearch = report.title.toLowerCase().includes(searchText.toLowerCase()) ||
-                         report.location.toLowerCase().includes(searchText.toLowerCase()) ||
-                         report.barangay.toLowerCase().includes(searchText.toLowerCase());
+      report.location.toLowerCase().includes(searchText.toLowerCase()) ||
+      report.barangay.toLowerCase().includes(searchText.toLowerCase());
     const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
     const matchesPriority = priorityFilter === 'all' || report.priority === priorityFilter;
     return matchesSearch && matchesStatus && matchesPriority;
@@ -213,22 +225,114 @@ const AdminIncidents: React.FC = () => {
     resolved: reports.filter(r => r.status === 'resolved').length
   };
 
-  // Handle status filter click - reset priority to 'all'
   const handleStatusFilterClick = (status: 'all' | 'pending' | 'active' | 'resolved') => {
     setStatusFilter(status);
-    setPriorityFilter('all'); // Reset priority filter when status changes
+    setPriorityFilter('all');
   };
 
+  // Show skeleton loading screen - FIRST CHECK
   if (isLoading) {
     return (
       <IonPage>
-        <IonContent className="ion-padding" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <IonSpinner />
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+            <IonTitle style={{ fontWeight: 'bold' }}>
+              <IonSkeletonText animated style={{ width: '200px', height: '20px' }} />
+            </IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+
+          <IonToolbar style={{ '--background': 'white' } as any}>
+            <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} style={{ flex: 1, padding: '12px', textAlign: 'center' }}>
+                  <IonSkeletonText animated style={{ width: '80%', height: '16px', margin: '0 auto' }} />
+                </div>
+              ))}
+            </div>
+          </IonToolbar>
+        </IonHeader>
+
+        <IonContent style={{ '--background': '#f8fafc' } as any}>
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+              <SkeletonStatsCard />
+              <SkeletonStatsCard />
+              <SkeletonStatsCard />
+              <SkeletonStatsCard />
+            </div>
+
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
+              <IonSkeletonText animated style={{ width: '100%', height: '48px', borderRadius: '8px', marginBottom: '16px' }} />
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <IonSkeletonText animated style={{ width: '80px', height: '14px' }} />
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[1, 2, 3, 4].map((item) => (
+                    <IonSkeletonText key={item} animated style={{ width: '60px', height: '28px', borderRadius: '14px' }} />
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <IonSkeletonText animated style={{ width: '80px', height: '14px' }} />
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <IonSkeletonText key={item} animated style={{ width: '50px', height: '28px', borderRadius: '14px' }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: 'white', padding: '16px', borderRadius: '12px' }}>
+              <IonSkeletonText animated style={{ width: '120px', height: '18px', marginBottom: '16px' }} />
+              {[1, 2, 3, 4, 5, 6].map((item) => (
+                <SkeletonIncidentItem key={item} />
+              ))}
+            </div>
+          </div>
         </IonContent>
       </IonPage>
     );
   }
 
+  // Show mobile restriction - SECOND CHECK
+  if (isMobileDevice) {
+    return (
+      <IonPage>
+        <IonContent className="ion-padding" style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
+            <IonIcon
+              icon={desktopOutline}
+              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }}
+            />
+            <IonText>
+              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
+                Admin Access Restricted
+              </h2>
+              <p style={{ color: '#718096', lineHeight: '1.6' }}>
+                This incidents management page is only accessible by an admin.
+              </p>
+            </IonText>
+            <IonButton
+              onClick={() => navigation.push('/it35-lab2')}
+              style={{ marginTop: '20px' }}
+            >
+              Return to Home
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
+  // MAIN CONTENT - Only renders when not loading and not mobile
   return (
     <IonPage>
       <IonHeader>
@@ -238,20 +342,19 @@ const AdminIncidents: React.FC = () => {
             <IonButton fill="clear" style={{ color: 'white' }}>
               <IonIcon icon={notificationsOutline} />
             </IonButton>
-            <IonButton 
-              fill="clear" 
+            <IonButton
+              fill="clear"
               onClick={async () => {
                 await supabase.auth.signOut();
                 navigation.push('/it35-lab2', 'root', 'replace');
-              }} 
+              }}
               style={{ color: 'white' }}
             >
               <IonIcon icon={logOutOutline} />
             </IonButton>
           </IonButtons>
         </IonToolbar>
-        
-        {/* Menu Bar */}
+
         <IonToolbar style={{ '--background': 'white' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[
@@ -287,7 +390,6 @@ const AdminIncidents: React.FC = () => {
 
       <IonContent style={{ '--background': '#f8fafc' } as any}>
         <div style={{ padding: '20px' }}>
-          {/* Stats Cards - Clickable Filters */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
               { label: 'Pending', value: stats.pending, color: '#f59e0b', icon: timeOutline, status: 'pending' },
@@ -295,8 +397,8 @@ const AdminIncidents: React.FC = () => {
               { label: 'Resolved', value: stats.resolved, color: '#10b981', icon: checkmarkCircleOutline, status: 'resolved' },
               { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, status: 'all' }
             ].map((stat, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 onClick={() => handleStatusFilterClick(stat.status as any)}
                 style={{
                   background: statusFilter === stat.status ? stat.color + '20' : 'white',
@@ -317,7 +419,6 @@ const AdminIncidents: React.FC = () => {
             ))}
           </div>
 
-          {/* Priority Filters - Clickable Chips */}
           <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
             <IonCardContent>
               <div style={{ marginBottom: '12px' }}>
@@ -352,8 +453,7 @@ const AdminIncidents: React.FC = () => {
                   ))}
                 </div>
               </div>
-              
-              {/* Search Bar */}
+
               <IonSearchbar
                 value={searchText}
                 onIonInput={e => setSearchText(e.detail.value!)}
@@ -362,7 +462,6 @@ const AdminIncidents: React.FC = () => {
             </IonCardContent>
           </IonCard>
 
-          {/* Incidents List */}
           <IonCard style={{ borderRadius: '16px' }}>
             <IonCardContent style={{ padding: '16px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 'bold' }}>
@@ -389,7 +488,6 @@ const AdminIncidents: React.FC = () => {
                           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>
                             {report.title}
                           </h3>
-                          {/* CHANGED: Location replaced with Barangay */}
                           <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
                             <IonIcon icon={locationOutline} style={{ fontSize: '12px', marginRight: '4px' }} />
                             {report.barangay}
@@ -416,12 +514,11 @@ const AdminIncidents: React.FC = () => {
                           </IonBadge>
                         </div>
                       </div>
-                      
-                      {/* CHANGED: Date and Time swapped */}
+
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
                         <IonIcon icon={timeOutline} style={{ fontSize: '12px', color: '#6b7280' }} />
                         <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                          {new Date(report.created_at).toLocaleDateString()} - {new Date(report.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          {new Date(report.created_at).toLocaleDateString()} - {new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
@@ -429,7 +526,6 @@ const AdminIncidents: React.FC = () => {
                         Reporter: {report.reporter_name}
                       </div>
 
-                      {/* NEW: Track button positioned below status and priority */}
                       <div style={{ marginTop: '8px' }}>
                         <IonButton
                           size="small"
@@ -452,7 +548,6 @@ const AdminIncidents: React.FC = () => {
                         </IonButton>
                       </div>
 
-                      {/* NEW: Show scheduled time if exists */}
                       {report.scheduled_response_time && (
                         <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '4px' }}>
                           <IonIcon icon={calendarOutline} style={{ fontSize: '10px', marginRight: '4px' }} />
@@ -460,7 +555,6 @@ const AdminIncidents: React.FC = () => {
                         </div>
                       )}
 
-                      {/* NEW: Show ETA if exists */}
                       {report.current_eta_minutes && report.status === 'active' && (
                         <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '2px' }}>
                           <IonIcon icon={carOutline} style={{ fontSize: '10px', marginRight: '4px' }} />
@@ -485,7 +579,6 @@ const AdminIncidents: React.FC = () => {
           </IonCard>
         </div>
 
-        {/* Report Detail Modal */}
         <IonModal isOpen={showReportModal} onDidDismiss={() => setShowReportModal(false)}>
           <IonHeader>
             <IonToolbar>
@@ -496,7 +589,7 @@ const AdminIncidents: React.FC = () => {
               </IonButtons>
               <IonTitle>Incident Details</IonTitle>
               <IonButtons slot="end">
-                <IonButton 
+                <IonButton
                   onClick={() => {
                     navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
                     setShowReportModal(false);
@@ -525,7 +618,6 @@ const AdminIncidents: React.FC = () => {
                       </IonBadge>
                     </div>
 
-                    {/* NEW: Scheduled and ETA Information */}
                     {selectedReport.scheduled_response_time && (
                       <div style={{
                         background: '#fffbeb',
@@ -592,7 +684,7 @@ const AdminIncidents: React.FC = () => {
                         <IonCol size="6">
                           <div style={{ marginBottom: '16px' }}>
                             <strong>Reported Time:</strong>
-                            <p>{new Date(selectedReport.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                            <p>{new Date(selectedReport.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </IonCol>
                       </IonRow>
@@ -603,7 +695,6 @@ const AdminIncidents: React.FC = () => {
                       <p style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.description}</p>
                     </div>
 
-                    {/* Reporter Information */}
                     <IonCard style={{ background: '#f8fafc' }}>
                       <IonCardContent>
                         <h3 style={{ marginTop: 0 }}>Reporter Information</h3>
@@ -632,7 +723,6 @@ const AdminIncidents: React.FC = () => {
                       </IonCardContent>
                     </IonCard>
 
-                    {/* Images */}
                     {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
                       <div style={{ marginTop: '16px' }}>
                         <strong>Attached Images:</strong>
@@ -648,7 +738,6 @@ const AdminIncidents: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Admin Response */}
                     {selectedReport.admin_response && (
                       <div style={{ marginTop: '16px', padding: '12px', background: '#eff6ff', borderRadius: '8px' }}>
                         <strong>Admin Response:</strong>
@@ -656,7 +745,6 @@ const AdminIncidents: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Action Buttons */}
                     <div style={{ display: 'flex', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
                       <IonButton
                         expand="block"
@@ -674,7 +762,6 @@ const AdminIncidents: React.FC = () => {
           </IonContent>
         </IonModal>
 
-        {/* Notify User Modal */}
         <IonModal isOpen={showNotifyModal} onDidDismiss={() => setShowNotifyModal(false)}>
           <IonHeader>
             <IonToolbar>

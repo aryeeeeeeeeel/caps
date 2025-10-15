@@ -1,3 +1,4 @@
+// src/pages/Profile.tsx - WITH SKELETON LOADING
 import React, { useState, useEffect, useRef } from 'react';
 import {
     IonPage,
@@ -21,7 +22,8 @@ import {
     IonCol,
     IonIcon,
     IonModal,
-    IonAlert
+    IonAlert,
+    IonSkeletonText
 } from '@ionic/react';
 import { supabase } from '../utils/supabaseClient';
 import { useHistory } from 'react-router-dom';
@@ -48,6 +50,7 @@ const Profile: React.FC = () => {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [otp, setOtp] = useState('');
     const [isOtpSent, setIsOtpSent] = useState(false);
+    const [isPageLoading, setIsPageLoading] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Default avatar as an icon (like Facebook)
@@ -73,9 +76,8 @@ const Profile: React.FC = () => {
 
     useEffect(() => {
         const fetchUserData = async () => {
-            setIsLoading(true);
+            setIsPageLoading(true);
             try {
-                // Get current user
                 const { data: { user }, error: userError } = await supabase.auth.getUser();
                 if (userError) throw userError;
 
@@ -86,7 +88,6 @@ const Profile: React.FC = () => {
                 setUser(user);
                 console.log("Auth user:", user);
 
-                // Get profile data
                 await ensureProfileExists(user);
 
             } catch (error: any) {
@@ -94,7 +95,9 @@ const Profile: React.FC = () => {
                 setToastMessage('Failed to load profile. Please try again.');
                 setShowToast(true);
             } finally {
-                setIsLoading(false);
+                setTimeout(() => {
+                    setIsPageLoading(false);
+                }, 800);
             }
         };
 
@@ -105,7 +108,6 @@ const Profile: React.FC = () => {
         try {
             console.log("Looking for user with auth_uuid:", authUser.id);
 
-            // FIRST: Try to get data from the 'users' table using auth_uuid
             const { data: userData, error: userError } = await supabase
                 .from('users')
                 .select('*')
@@ -114,10 +116,8 @@ const Profile: React.FC = () => {
 
             console.log("User data by auth_uuid:", userData, "Error:", userError);
 
-            // If we get a 406 error, it might mean auth_uuid column doesn't exist
             if (userError && userError.code === '406') {
                 console.log('auth_uuid column might not exist or RLS policy blocking access');
-                // Skip to email lookup
             } else if (userData && !userError) {
                 console.log("Found user in 'users' table:", userData);
                 setProfile(userData);
@@ -131,7 +131,6 @@ const Profile: React.FC = () => {
                 return;
             }
 
-            // SECOND: Find by user_email
             if (authUser.email) {
                 console.log("Looking for user by email:", authUser.email);
                 const { data: userByEmail, error: emailError } = await supabase
@@ -145,7 +144,6 @@ const Profile: React.FC = () => {
                 if (userByEmail && !emailError) {
                     console.log("Found user by email in 'users' table:", userByEmail);
 
-                    // Update the auth_uuid if it's missing
                     try {
                         if (!userByEmail.auth_uuid) {
                             const { error: updateError } = await supabase
@@ -175,12 +173,10 @@ const Profile: React.FC = () => {
                 }
             }
 
-            // If we reach here, the user doesn't exist in our database
             console.error('USER NOT FOUND IN DATABASE');
             setToastMessage('Profile not found. Please contact support.');
             setShowToast(true);
 
-            // Use basic info from auth user as fallback
             setFirstName(authUser?.user_metadata?.first_name || '');
             setLastName(authUser?.user_metadata?.last_name || '');
             setUsername(authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || '');
@@ -202,7 +198,6 @@ const Profile: React.FC = () => {
         setIsLoading(true);
         const file = e.target.files[0];
 
-        // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
             setToastMessage('File size too large. Please select an image under 5MB.');
             setShowToast(true);
@@ -222,7 +217,6 @@ const Profile: React.FC = () => {
         const filePath = `avatars/${fileName}`;
 
         try {
-            // Try different bucket names
             const bucketNames = ['user-avatars', 'avatars'];
             let uploadSuccess = false;
             let publicUrl = '';
@@ -250,11 +244,8 @@ const Profile: React.FC = () => {
                 return;
             }
 
-            // Store the new avatar URL temporarily instead of updating immediately
             setPendingAvatarUrl(publicUrl);
             setIsAvatarChanged(true);
-
-            // Show preview of new avatar
             setAvatarUrl(publicUrl);
 
             setToastMessage('Profile picture selected. Please verify changes to save.');
@@ -300,7 +291,6 @@ const Profile: React.FC = () => {
             return;
         }
 
-        // Check if there are any changes
         const hasChanges =
             firstName !== profile?.user_firstname ||
             lastName !== profile?.user_lastname ||
@@ -322,7 +312,6 @@ const Profile: React.FC = () => {
     const handleSendOtp = async () => {
         setIsLoading(true);
         try {
-            // Send OTP to user's email for verification
             const { error: otpError } = await supabase.auth.signInWithOtp({
                 email: user.email,
                 options: {
@@ -361,7 +350,6 @@ const Profile: React.FC = () => {
 
         setIsLoading(true);
         try {
-            // Verify the OTP
             const { error: verifyError } = await supabase.auth.verifyOtp({
                 email: user.email,
                 token: otp,
@@ -375,7 +363,6 @@ const Profile: React.FC = () => {
                 return;
             }
 
-            // OTP verified successfully, now update the profile
             await updateProfile();
 
         } catch (error: any) {
@@ -400,12 +387,10 @@ const Profile: React.FC = () => {
                 user_contact_number: contactNumber
             };
 
-            // Only include avatar if it was changed
             if (isAvatarChanged && pendingAvatarUrl) {
                 updateData.user_avatar_url = pendingAvatarUrl;
             }
 
-            // Update using user_id
             const { error } = await supabase
                 .from('users')
                 .update(updateData)
@@ -416,13 +401,11 @@ const Profile: React.FC = () => {
                 throw error;
             }
 
-            // Reset states
             setIsAvatarChanged(false);
             setPendingAvatarUrl('');
             setOtp('');
             setIsOtpSent(false);
 
-            // Show success
             setShowOtpModal(false);
             setShowSuccessModal(true);
 
@@ -436,6 +419,180 @@ const Profile: React.FC = () => {
     const handleBack = () => {
         history.goBack();
     };
+
+    // Skeleton Loading Component
+    const SkeletonLoader = () => (
+        <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+        }}>
+            <IonCard style={{
+                maxWidth: '500px',
+                width: '100%',
+                borderRadius: '20px',
+                boxShadow: '0 20px 64px rgba(0,0,0,0.12)',
+                border: '1px solid rgba(226,232,240,0.8)',
+                overflow: 'hidden'
+            }}>
+                {/* Header Skeleton */}
+                <div style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    padding: '40px 32px 30px',
+                    textAlign: 'center',
+                    position: 'relative'
+                }}>
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '100px',
+                                height: '100px',
+                                borderRadius: '50%',
+                                margin: '0 auto 20px'
+                            }}
+                        />
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '60%',
+                                height: '28px',
+                                borderRadius: '4px',
+                                margin: '0 auto 8px'
+                            }}
+                        />
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '80%',
+                                height: '14px',
+                                borderRadius: '4px',
+                                margin: '0 auto'
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <IonCardContent style={{ padding: '40px 32px' }}>
+                    {/* Name Fields Skeleton */}
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+                        <div style={{ flex: 1 }}>
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '40%',
+                                    height: '14px',
+                                    borderRadius: '4px',
+                                    marginBottom: '8px'
+                                }}
+                            />
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '100%',
+                                    height: '48px',
+                                    borderRadius: '10px'
+                                }}
+                            />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '40%',
+                                    height: '14px',
+                                    borderRadius: '4px',
+                                    marginBottom: '8px'
+                                }}
+                            />
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '100%',
+                                    height: '48px',
+                                    borderRadius: '10px'
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Other Fields Skeleton */}
+                    {[1, 2, 3, 4].map((item) => (
+                        <div key={item} style={{ marginBottom: '20px' }}>
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '30%',
+                                    height: '14px',
+                                    borderRadius: '4px',
+                                    marginBottom: '8px'
+                                }}
+                            />
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '100%',
+                                    height: '48px',
+                                    borderRadius: '10px'
+                                }}
+                            />
+                        </div>
+                    ))}
+
+                    {/* Button Skeleton */}
+                    <IonSkeletonText
+                        animated
+                        style={{
+                            width: '100%',
+                            height: '52px',
+                            borderRadius: '12px',
+                            marginTop: '20px'
+                        }}
+                    />
+                </IonCardContent>
+            </IonCard>
+        </div>
+    );
+
+    if (isPageLoading) {
+        return (
+            <IonPage>
+                <IonHeader>
+                    <IonToolbar style={{
+                        '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        '--color': 'white'
+                    } as any}>
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '8px',
+                                marginLeft: '16px'
+                            }}
+                        />
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '150px',
+                                height: '20px',
+                                borderRadius: '4px',
+                                margin: '0 auto'
+                            }}
+                        />
+                    </IonToolbar>
+                </IonHeader>
+
+                <IonContent style={{
+                    '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
+                } as any}>
+                    <SkeletonLoader />
+                </IonContent>
+            </IonPage>
+        );
+    }
 
     return (
         <IonPage>
@@ -573,7 +730,6 @@ const Profile: React.FC = () => {
                         </div>
 
                         <IonCardContent style={{ padding: '40px 32px' }}>
-                            {/* ... (rest of the form inputs remain the same) ... */}
                             <IonGrid>
                                 <IonRow>
                                     <IonCol size="6">
@@ -803,201 +959,206 @@ const Profile: React.FC = () => {
                 </div>
 
                 {/* Verification Modal */}
-                <IonModal isOpen={showVerificationModal} onDidDismiss={() => setShowVerificationModal(false)}>
-                    <IonContent style={{
-                        '--background': 'linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)',
-                    } as any}>
-                        <div style={{
-                            minHeight: '100vh',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '20px'
+                <IonModal
+                    isOpen={showVerificationModal}
+                    onDidDismiss={() => setShowVerificationModal(false)}
+                    style={{
+                        '--height': 'auto',
+                        '--width': '90%',
+                        '--max-width': '450px',
+                        '--border-radius': '20px'
+                    }}
+                >
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        background: 'rgba(0,0,0,0.5)'
+                    }}>
+                        <IonCard style={{
+                            width: '100%',
+                            borderRadius: '20px',
+                            boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
+                            overflow: 'hidden',
+                            margin: '0'
                         }}>
-                            <IonCard style={{
-                                maxWidth: '450px',
-                                width: '100%',
-                                borderRadius: '20px',
-                                boxShadow: '0 20px 64px rgba(0,0,0,0.15)',
-                                overflow: 'hidden'
+                            <div style={{
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                padding: '24px 20px',
+                                textAlign: 'center'
                             }}>
                                 <div style={{
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                    padding: '30px 24px',
-                                    textAlign: 'center'
+                                    width: '50px',
+                                    height: '50px',
+                                    background: 'rgba(255,255,255,0.2)',
+                                    borderRadius: '50%',
+                                    margin: '0 auto 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
                                 }}>
+                                    <IonIcon icon={checkmarkCircleOutline} style={{
+                                        fontSize: '24px',
+                                        color: 'white'
+                                    }} />
+                                </div>
+                                <h2 style={{
+                                    fontSize: '20px',
+                                    fontWeight: 'bold',
+                                    color: 'white',
+                                    margin: '0 0 6px 0'
+                                }}>Confirm Changes</h2>
+                                <p style={{
+                                    fontSize: '13px',
+                                    color: 'rgba(255,255,255,0.9)',
+                                    margin: 0
+                                }}>Please verify your updated information</p>
+                            </div>
+
+                            <IonCardContent style={{ padding: '24px 20px' }}>
+                                {isAvatarChanged && (
                                     <div style={{
-                                        width: '60px',
-                                        height: '60px',
-                                        background: 'rgba(255,255,255,0.2)',
-                                        borderRadius: '50%',
-                                        margin: '0 auto 16px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
+                                        marginBottom: '16px',
+                                        textAlign: 'center'
                                     }}>
-                                        <IonIcon icon={checkmarkCircleOutline} style={{
-                                            fontSize: '28px',
-                                            color: 'white'
-                                        }} />
+                                        <p style={{
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            color: '#4a5568',
+                                            marginBottom: '8px'
+                                        }}>New Profile Picture</p>
+                                        <div style={{
+                                            width: '60px',
+                                            height: '60px',
+                                            borderRadius: '50%',
+                                            margin: '0 auto',
+                                            overflow: 'hidden',
+                                            border: '2px solid #e2e8f0'
+                                        }}>
+                                            <img
+                                                src={pendingAvatarUrl}
+                                                alt="New Profile"
+                                                style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover'
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                    <h2 style={{
-                                        fontSize: '22px',
-                                        fontWeight: 'bold',
-                                        color: 'white',
-                                        margin: '0 0 8px 0'
-                                    }}>Confirm Changes</h2>
+                                )}
+
+                                <div style={{ marginBottom: '16px' }}>
+                                    <p style={{
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        color: '#4a5568',
+                                        marginBottom: '4px'
+                                    }}>Full Name</p>
                                     <p style={{
                                         fontSize: '14px',
-                                        color: 'rgba(255,255,255,0.9)',
+                                        fontWeight: 'bold',
+                                        color: '#2d3748',
                                         margin: 0
-                                    }}>Please verify your updated information</p>
+                                    }}>{firstName} {lastName}</p>
                                 </div>
 
-                                <IonCardContent style={{ padding: '32px 24px' }}>
-                                    {/* Show avatar preview if changed */}
-                                    {isAvatarChanged && (
-                                        <div style={{
-                                            marginBottom: '20px',
-                                            textAlign: 'center'
-                                        }}>
-                                            <p style={{
-                                                fontSize: '13px',
-                                                fontWeight: '600',
-                                                color: '#4a5568',
-                                                marginBottom: '12px'
-                                            }}>New Profile Picture</p>
-                                            <div style={{
-                                                width: '80px',
-                                                height: '80px',
-                                                borderRadius: '50%',
-                                                margin: '0 auto',
-                                                overflow: 'hidden',
-                                                border: '2px solid #e2e8f0'
-                                            }}>
-                                                <img
-                                                    src={pendingAvatarUrl}
-                                                    alt="New Profile"
-                                                    style={{
-                                                        width: '100%',
-                                                        height: '100%',
-                                                        objectFit: 'cover'
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
+                                <div style={{ marginBottom: '16px' }}>
+                                    <p style={{
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        color: '#4a5568',
+                                        marginBottom: '4px'
+                                    }}>Username</p>
+                                    <p style={{
+                                        fontSize: '14px',
+                                        fontWeight: 'bold',
+                                        color: '#2d3748',
+                                        margin: 0
+                                    }}>{username}</p>
+                                </div>
 
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <p style={{
-                                            fontSize: '13px',
-                                            fontWeight: '600',
-                                            color: '#4a5568',
-                                            marginBottom: '4px'
-                                        }}>Full Name</p>
-                                        <p style={{
-                                            fontSize: '16px',
-                                            fontWeight: 'bold',
-                                            color: '#2d3748',
-                                            margin: 0
-                                        }}>{firstName} {lastName}</p>
-                                    </div>
+                                <div style={{ marginBottom: '16px' }}>
+                                    <p style={{
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        color: '#4a5568',
+                                        marginBottom: '4px'
+                                    }}>Email Address</p>
+                                    <p style={{
+                                        fontSize: '14px',
+                                        fontWeight: 'bold',
+                                        color: '#2d3748',
+                                        margin: 0
+                                    }}>{email}</p>
+                                </div>
 
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <p style={{
-                                            fontSize: '13px',
-                                            fontWeight: '600',
-                                            color: '#4a5568',
-                                            marginBottom: '4px'
-                                        }}>Username</p>
-                                        <p style={{
-                                            fontSize: '16px',
-                                            fontWeight: 'bold',
-                                            color: '#2d3748',
-                                            margin: 0
-                                        }}>{username}</p>
-                                    </div>
+                                <div style={{ marginBottom: '16px' }}>
+                                    <p style={{
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        color: '#4a5568',
+                                        marginBottom: '4px'
+                                    }}>Address</p>
+                                    <p style={{
+                                        fontSize: '14px',
+                                        fontWeight: 'bold',
+                                        color: '#2d3748',
+                                        margin: 0
+                                    }}>{address}</p>
+                                </div>
 
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <p style={{
-                                            fontSize: '13px',
-                                            fontWeight: '600',
-                                            color: '#4a5568',
-                                            marginBottom: '4px'
-                                        }}>Email Address</p>
-                                        <p style={{
-                                            fontSize: '16px',
-                                            fontWeight: 'bold',
-                                            color: '#2d3748',
-                                            margin: 0
-                                        }}>{email}</p>
-                                    </div>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <p style={{
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        color: '#4a5568',
+                                        marginBottom: '4px'
+                                    }}>Contact Number</p>
+                                    <p style={{
+                                        fontSize: '14px',
+                                        fontWeight: 'bold',
+                                        color: '#2d3748',
+                                        margin: 0
+                                    }}>{contactNumber}</p>
+                                </div>
 
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <p style={{
-                                            fontSize: '13px',
-                                            fontWeight: '600',
-                                            color: '#4a5568',
-                                            marginBottom: '4px'
-                                        }}>Address</p>
-                                        <p style={{
-                                            fontSize: '16px',
-                                            fontWeight: 'bold',
-                                            color: '#2d3748',
-                                            margin: 0
-                                        }}>{address}</p>
-                                    </div>
+                                <IonButton
+                                    onClick={handleSendOtp}
+                                    expand="block"
+                                    size="large"
+                                    disabled={isLoading}
+                                    style={{
+                                        '--border-radius': '10px',
+                                        '--padding-top': '14px',
+                                        '--padding-bottom': '14px',
+                                        fontWeight: '600',
+                                        fontSize: '15px',
+                                        height: '48px',
+                                        '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                        '--color': 'white',
+                                        marginBottom: '12px'
+                                    } as any}
+                                >
+                                    {isLoading ? 'Sending Code...' : 'SEND VERIFICATION CODE'}
+                                </IonButton>
 
-                                    <div style={{ marginBottom: '32px' }}>
-                                        <p style={{
-                                            fontSize: '13px',
-                                            fontWeight: '600',
-                                            color: '#4a5568',
-                                            marginBottom: '4px'
-                                        }}>Contact Number</p>
-                                        <p style={{
-                                            fontSize: '16px',
-                                            fontWeight: 'bold',
-                                            color: '#2d3748',
-                                            margin: 0
-                                        }}>{contactNumber}</p>
-                                    </div>
-
-                                    <IonButton
-                                        onClick={handleSendOtp}
-                                        expand="block"
-                                        size="large"
-                                        disabled={isLoading}
-                                        style={{
-                                            '--border-radius': '12px',
-                                            '--padding-top': '16px',
-                                            '--padding-bottom': '16px',
-                                            fontWeight: '600',
-                                            fontSize: '16px',
-                                            height: '52px',
-                                            '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                            '--color': 'white',
-                                            marginBottom: '12px'
-                                        } as any}
-                                    >
-                                        {isLoading ? 'Sending Code...' : 'SEND VERIFICATION CODE'}
-                                    </IonButton>
-
-                                    <IonButton
-                                        expand="block"
-                                        fill="clear"
-                                        onClick={() => setShowVerificationModal(false)}
-                                        style={{
-                                            color: '#718096',
-                                            fontWeight: '500'
-                                        }}
-                                    >
-                                        Back to Edit
-                                    </IonButton>
-                                </IonCardContent>
-                            </IonCard>
-                        </div>
-                    </IonContent>
+                                <IonButton
+                                    expand="block"
+                                    fill="clear"
+                                    onClick={() => setShowVerificationModal(false)}
+                                    style={{
+                                        color: '#718096',
+                                        fontWeight: '500',
+                                        fontSize: '14px'
+                                    }}
+                                >
+                                    Back to Edit
+                                </IonButton>
+                            </IonCardContent>
+                        </IonCard>
+                    </div>
                 </IonModal>
 
                 {/* OTP Verification Modal */}
@@ -1025,7 +1186,6 @@ const Profile: React.FC = () => {
                             overflow: 'hidden',
                             margin: '0'
                         }}>
-                            {/* Modal Header */}
                             <div style={{
                                 background: 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
                                 padding: '24px 20px',
@@ -1066,7 +1226,6 @@ const Profile: React.FC = () => {
                             </div>
 
                             <IonCardContent style={{ padding: '24px 20px' }}>
-                                {/* Wrap OTP form for Enter key handling */}
                                 <form
                                     onSubmit={(e) => {
                                         e.preventDefault();
@@ -1091,8 +1250,16 @@ const Profile: React.FC = () => {
                                             value={otp}
                                             onIonChange={e => setOtp(e.detail.value!)}
                                             onKeyPress={(e: React.KeyboardEvent) => {
-                                                // Only allow numbers
-                                                if (!/^\d$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                                                // Allow only numbers and control keys
+                                                if (!/^\d$/.test(e.key) &&
+                                                    e.key !== 'Backspace' &&
+                                                    e.key !== 'Delete' &&
+                                                    e.key !== 'Tab' &&
+                                                    e.key !== 'Enter' &&
+                                                    e.key !== 'ArrowLeft' &&
+                                                    e.key !== 'ArrowRight' &&
+                                                    e.key !== 'Home' &&
+                                                    e.key !== 'End') {
                                                     e.preventDefault();
                                                 }
                                             }}
@@ -1132,7 +1299,6 @@ const Profile: React.FC = () => {
                                     </IonButton>
                                 </form>
 
-                                {/* Resend Code Section */}
                                 <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                                     <p style={{
                                         fontSize: '12px',
@@ -1175,73 +1341,74 @@ const Profile: React.FC = () => {
 
                 {/* Success Modal */}
                 <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
-                    <IonContent style={{
-                        '--background': 'linear-gradient(180deg, #f0fff4 0%, #dcfce7 100%)',
-                    } as any}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        background: 'rgba(0,0,0,0.5)'
+                    }}>
                         <div style={{
-                            minHeight: '100vh',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '20px'
+                            textAlign: 'center',
+                            maxWidth: '400px',
+                            width: '90%',
+                            background: 'white',
+                            borderRadius: '20px',
+                            padding: '40px 32px',
+                            boxShadow: '0 20px 64px rgba(0,0,0,0.3)'
                         }}>
                             <div style={{
-                                textAlign: 'center',
-                                maxWidth: '400px'
+                                width: '100px',
+                                height: '100px',
+                                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                borderRadius: '50%',
+                                margin: '0 auto 30px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
                             }}>
-                                <div style={{
-                                    width: '100px',
-                                    height: '100px',
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                    borderRadius: '50%',
-                                    margin: '0 auto 30px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <IonIcon icon={checkmarkCircleOutline} style={{
-                                        fontSize: '50px',
-                                        color: 'white'
-                                    }} />
-                                </div>
-
-                                <h1 style={{
-                                    fontSize: '32px',
-                                    fontWeight: 'bold',
-                                    color: '#065f46',
-                                    margin: '0 0 16px 0'
-                                }}>Profile Updated!</h1>
-
-                                <p style={{
-                                    fontSize: '16px',
-                                    color: '#047857',
-                                    lineHeight: '1.6',
-                                    margin: '0 0 30px 0'
-                                }}>Your account information has been successfully updated.</p>
-
-                                <IonButton
-                                    expand="block"
-                                    size="large"
-                                    onClick={() => {
-                                        setShowSuccessModal(false);
-                                        handleBack();
-                                    }}
-                                    style={{
-                                        '--border-radius': '12px',
-                                        '--padding-top': '16px',
-                                        '--padding-bottom': '16px',
-                                        fontWeight: '600',
-                                        fontSize: '16px',
-                                        height: '52px',
-                                        '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                        '--color': 'white'
-                                    } as any}
-                                >
-                                    BACK TO PROFILE
-                                </IonButton>
+                                <IonIcon icon={checkmarkCircleOutline} style={{
+                                    fontSize: '50px',
+                                    color: 'white'
+                                }} />
                             </div>
+
+                            <h1 style={{
+                                fontSize: '32px',
+                                fontWeight: 'bold',
+                                color: '#065f46',
+                                margin: '0 0 16px 0'
+                            }}>Profile Updated!</h1>
+
+                            <p style={{
+                                fontSize: '16px',
+                                color: '#047857',
+                                lineHeight: '1.6',
+                                margin: '0 0 30px 0'
+                            }}>Your account information has been successfully updated.</p>
+
+                            <IonButton
+                                expand="block"
+                                size="large"
+                                onClick={() => {
+                                    setShowSuccessModal(false);
+                                    handleBack();
+                                }}
+                                style={{
+                                    '--border-radius': '12px',
+                                    '--padding-top': '16px',
+                                    '--padding-bottom': '16px',
+                                    fontWeight: '600',
+                                    fontSize: '16px',
+                                    height: '52px',
+                                    '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    '--color': 'white'
+                                } as any}
+                            >
+                                BACK TO PROFILE
+                            </IonButton>
                         </div>
-                    </IonContent>
+                    </div>
                 </IonModal>
 
                 <IonToast
@@ -1252,8 +1419,8 @@ const Profile: React.FC = () => {
                 />
 
                 <IonLoading isOpen={isLoading} message="Please wait..." />
-            </IonContent>
-        </IonPage>
+            </IonContent >
+        </IonPage >
     );
 };
 

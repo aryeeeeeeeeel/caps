@@ -1,4 +1,4 @@
-// src/pages/user-tabs/IncidentMap.tsx - Fixed version
+// src/pages/user-tabs/IncidentMap.tsx - Updated with Skeleton Screen
 import React, { useState, useEffect, useRef } from 'react';
 import {
   IonContent,
@@ -27,7 +27,8 @@ import {
   IonProgressBar,
   IonToast,
   IonSpinner,
-  IonBadge
+  IonBadge,
+  IonSkeletonText
 } from '@ionic/react';
 import {
   mapOutline,
@@ -72,6 +73,107 @@ interface IncidentReport {
   admin_response?: string;
 }
 
+// Skeleton Components
+const SkeletonMapCard: React.FC = () => (
+  <div style={{ height: '450px', margin: '0 20px 20px' }}>
+    <IonCard style={{
+      borderRadius: '16px',
+      height: '100%',
+      overflow: 'hidden',
+      position: 'relative'
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        flexDirection: 'column',
+        padding: '20px'
+      }}>
+        <IonSkeletonText animated style={{
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
+          marginBottom: '16px'
+        }} />
+        <IonSkeletonText animated style={{ width: '200px', height: '16px', marginBottom: '8px' }} />
+        <IonSkeletonText animated style={{ width: '150px', height: '12px' }} />
+      </div>
+    </IonCard>
+  </div>
+);
+
+const SkeletonReportItem: React.FC = () => (
+  <IonItem
+    style={{
+      '--padding-start': '16px',
+      '--inner-padding-end': '16px',
+      '--border-color': '#f1f5f9',
+      '--background': 'transparent'
+    } as any}
+  >
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      width: '100%',
+      padding: '12px 0'
+    }}>
+      <IonSkeletonText animated style={{
+        width: '12px',
+        height: '12px',
+        borderRadius: '50%',
+        marginRight: '12px'
+      }} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
+        <IonSkeletonText animated style={{ width: '50%', height: '14px', marginBottom: '8px' }} />
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <IonSkeletonText animated style={{ width: '60px', height: '24px', borderRadius: '12px' }} />
+          <IonSkeletonText animated style={{ width: '50px', height: '24px', borderRadius: '12px' }} />
+          <IonSkeletonText animated style={{ width: '40px', height: '12px' }} />
+        </div>
+      </div>
+
+      <div style={{ flexShrink: 0, marginLeft: '12px' }}>
+        <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+      </div>
+    </div>
+  </IonItem>
+);
+
+const SkeletonFilterCard: React.FC = () => (
+  <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+    <IonCardContent>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+        <IonSkeletonText animated style={{ width: '18px', height: '18px', marginRight: '8px' }} />
+        <IonSkeletonText animated style={{ width: '100px', height: '14px' }} />
+      </div>
+
+      <IonSkeletonText animated style={{
+        width: '100%',
+        height: '48px',
+        borderRadius: '8px',
+        marginBottom: '16px'
+      }} />
+
+      <IonGrid>
+        <IonRow>
+          <IonCol size="12" sizeMd="4">
+            <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px' }} />
+          </IonCol>
+          <IonCol size="12" sizeMd="4">
+            <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px' }} />
+          </IonCol>
+          <IonCol size="12" sizeMd="4">
+            <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px' }} />
+          </IonCol>
+        </IonRow>
+      </IonGrid>
+    </IonCardContent>
+  </IonCard>
+);
+
 const IncidentMap: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -104,194 +206,98 @@ const IncidentMap: React.FC = () => {
     'Tankulan', 'Ticala'
   ];
 
-  // Initialize map immediately when component mounts
-  useEffect(() => {
-    const initializeMap = () => {
-      if (mapInitializedRef.current || !mapRef.current) return;
+  // Define functions BEFORE useEffect hooks
+  const fetchReports = async () => {
+    setIsLoading(true);
+    try {
+      console.log('Fetching user reports from database...');
 
-      try {
-        console.log('Initializing Leaflet Map...');
-
-        // Clear any existing map instance
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.remove();
-          mapInstanceRef.current = null;
-        }
-
-        // Initialize the map immediately
-        const map = L.map(mapRef.current, {
-          center: [8.3693, 124.8564], // Manolo Fortich center
-          zoom: 13,
-          zoomControl: true,
-          scrollWheelZoom: true,
-          doubleClickZoom: true,
-          dragging: true
-        });
-
-        // Add the initial tile layer immediately
-        const initialTileLayer = L.tileLayer(
-          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19
-          }
-        );
-
-        initialTileLayer.addTo(map);
-        setTileLayer(initialTileLayer);
-        mapInstanceRef.current = map;
-        mapInitializedRef.current = true;
-
-        // Set map as loaded immediately
-        setMapLoaded(true);
-        setMapError(false);
-
-        console.log('Map initialized successfully');
-
-      } catch (error) {
-        console.error('Error initializing map:', error);
-        setMapError(true);
-        setToastMessage('Failed to initialize map. Please refresh the page.');
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setReports([]);
+        setToastMessage('Please log in to view your reports');
         setShowToast(true);
+        setIsLoading(false);
+        return;
       }
-    };
 
-    // Initialize map with a small delay to ensure DOM is ready
-    const timer = setTimeout(initializeMap, 100);
+      const { data, error } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .eq('reporter_email', user.email) // Only user's reports
+        .in('status', ['pending', 'investigating']) // Only active reports
+        .not('coordinates', 'is', null)
+        .order('created_at', { ascending: false });
 
-    fetchReports();
+      if (error) {
+        console.log('Database error:', error.message);
+        setReports([]);
+        setToastMessage('Error loading your reports');
+        setShowToast(true);
+      } else {
+        const processedReports = data?.map(report => {
+          let coordinates = null;
 
-    return () => {
-      clearTimeout(timer);
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-        mapInitializedRef.current = false;
+          if (report.coordinates) {
+            try {
+              if (typeof report.coordinates === 'string') {
+                coordinates = JSON.parse(report.coordinates);
+              } else if (typeof report.coordinates === 'object' &&
+                report.coordinates.lat && report.coordinates.lng) {
+                coordinates = report.coordinates;
+              }
+            } catch (e) {
+              console.warn(`Failed to parse coordinates for report ${report.id}:`, e);
+              coordinates = null;
+            }
+          }
+
+          return {
+            ...report,
+            coordinates
+          };
+        }).filter(report => report.coordinates !== null) || [];
+
+        setReports(processedReports);
+        console.log(`Successfully loaded ${processedReports.length} reports`);
       }
-    };
-  }, []);
-
-  // Update markers when filtered reports change
-  useEffect(() => {
-    if (mapLoaded && filteredReports.length > 0) {
-      const timer = setTimeout(updateMapMarkers, 200);
-      return () => clearTimeout(timer);
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      setReports([]);
+      setToastMessage('Error connecting to database');
+      setShowToast(true);
+    } finally {
+      setIsLoading(false);
     }
-  }, [filteredReports, mapLoaded]);
-
-  useEffect(() => {
-    applyFilters();
-  }, [reports, filterStatus, filterPriority, filterBarangay, searchText]);
-
-  useEffect(() => {
-    if (mapInstanceRef.current && tileLayer && mapLoaded) {
-      changeMapType(mapView);
-    }
-  }, [mapView, mapLoaded]);
-
-  const changeMapType = (type: string) => {
-    if (!mapInstanceRef.current || !tileLayer) return;
-
-    mapInstanceRef.current.removeLayer(tileLayer);
-
-    let newTileLayer: L.TileLayer;
-
-    switch (type) {
-      case 'satellite':
-        newTileLayer = L.tileLayer(
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          {
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-            maxZoom: 19
-          }
-        );
-        break;
-      case 'terrain':
-        newTileLayer = L.tileLayer(
-          'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-          {
-            attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
-            maxZoom: 17
-          }
-        );
-        break;
-      default:
-        newTileLayer = L.tileLayer(
-          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19
-          }
-        );
-    }
-
-    newTileLayer.addTo(mapInstanceRef.current);
-    setTileLayer(newTileLayer);
   };
 
-  const fetchReports = async () => {
-  setIsLoading(true);
-  try {
-    console.log('Fetching user reports from database...');
+  const applyFilters = () => {
+    let filtered = reports;
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setReports([]);
-      setToastMessage('Please log in to view your reports');
-      setShowToast(true);
-      setIsLoading(false);
-      return;
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(report => report.status === filterStatus);
     }
 
-    const { data, error } = await supabase
-      .from('incident_reports')
-      .select('*')
-      .eq('reporter_email', user.email) // Only user's reports
-      .in('status', ['pending', 'investigating']) // Only active reports
-      .not('coordinates', 'is', null)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.log('Database error:', error.message);
-      setReports([]);
-      setToastMessage('Error loading your reports');
-      setShowToast(true);
-    } else {
-      const processedReports = data?.map(report => {
-        let coordinates = null;
-
-        if (report.coordinates) {
-          try {
-            if (typeof report.coordinates === 'string') {
-              coordinates = JSON.parse(report.coordinates);
-            } else if (typeof report.coordinates === 'object' &&
-              report.coordinates.lat && report.coordinates.lng) {
-              coordinates = report.coordinates;
-            }
-          } catch (e) {
-            console.warn(`Failed to parse coordinates for report ${report.id}:`, e);
-            coordinates = null;
-          }
-        }
-
-        return {
-          ...report,
-          coordinates
-        };
-      }).filter(report => report.coordinates !== null) || [];
-
-      setReports(processedReports);
+    if (filterPriority !== 'all') {
+      filtered = filtered.filter(report => report.priority === filterPriority);
     }
-  } catch (error) {
-    console.error('Error fetching reports:', error);
-    setReports([]);
-    setToastMessage('Error connecting to database');
-    setShowToast(true);
-  } finally {
-    setIsLoading(false);
-  }
-};
+
+    if (filterBarangay !== 'all') {
+      filtered = filtered.filter(report => report.barangay === filterBarangay);
+    }
+
+    if (searchText) {
+      filtered = filtered.filter(report =>
+        report.title.toLowerCase().includes(searchText.toLowerCase()) ||
+        report.location.toLowerCase().includes(searchText.toLowerCase()) ||
+        report.description.toLowerCase().includes(searchText.toLowerCase()) ||
+        report.category.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+
+    setFilteredReports(filtered);
+  };
 
   const updateMapMarkers = () => {
     console.log('Updating map markers with', filteredReports.length, 'reports');
@@ -442,33 +448,6 @@ const IncidentMap: React.FC = () => {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = reports;
-
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(report => report.status === filterStatus);
-    }
-
-    if (filterPriority !== 'all') {
-      filtered = filtered.filter(report => report.priority === filterPriority);
-    }
-
-    if (filterBarangay !== 'all') {
-      filtered = filtered.filter(report => report.barangay === filterBarangay);
-    }
-
-    if (searchText) {
-      filtered = filtered.filter(report =>
-        report.title.toLowerCase().includes(searchText.toLowerCase()) ||
-        report.location.toLowerCase().includes(searchText.toLowerCase()) ||
-        report.description.toLowerCase().includes(searchText.toLowerCase()) ||
-        report.category.toLowerCase().includes(searchText.toLowerCase())
-      );
-    }
-
-    setFilteredReports(filtered);
-  };
-
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'critical': return '#dc2626';
@@ -522,7 +501,220 @@ const IncidentMap: React.FC = () => {
     };
   };
 
+  const changeMapType = (type: string) => {
+    if (!mapInstanceRef.current || !tileLayer) return;
+
+    mapInstanceRef.current.removeLayer(tileLayer);
+
+    let newTileLayer: L.TileLayer;
+
+    switch (type) {
+      case 'satellite':
+        newTileLayer = L.tileLayer(
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            maxZoom: 19
+          }
+        );
+        break;
+      case 'terrain':
+        newTileLayer = L.tileLayer(
+          'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+          {
+            attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+            maxZoom: 17
+          }
+        );
+        break;
+      default:
+        newTileLayer = L.tileLayer(
+          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+          }
+        );
+    }
+
+    newTileLayer.addTo(mapInstanceRef.current);
+    setTileLayer(newTileLayer);
+  };
+
+  // Initialize data first
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        await fetchReports();
+      } catch (error) {
+        console.error('Error initializing data:', error);
+        setIsLoading(false);
+      }
+    };
+    initializeData();
+  }, []);
+
+  // Map initialization useEffect - SIMPLIFIED VERSION
+  useEffect(() => {
+    // Only initialize map when data is loaded and component is ready
+    if (isLoading || !mapRef.current) return;
+
+    const initializeMap = () => {
+      try {
+        console.log('Initializing Leaflet Map for IncidentMap...');
+
+        // Clear any existing map instance
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+
+        // Initialize the map
+        const map = L.map(mapRef.current!, {
+          center: [8.3693, 124.8564], // Manolo Fortich center
+          zoom: 13,
+          zoomControl: true,
+          scrollWheelZoom: true,
+          doubleClickZoom: true,
+          dragging: true
+        });
+
+        // Add tile layer
+        const initialTileLayer = L.tileLayer(
+          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+          }
+        );
+
+        initialTileLayer.addTo(map);
+        mapInstanceRef.current = map;
+        setTileLayer(initialTileLayer);
+        mapInitializedRef.current = true;
+
+        // Small delay to ensure map renders properly
+        setTimeout(() => {
+          map.invalidateSize();
+          setMapLoaded(true);
+          setMapError(false);
+        }, 100);
+
+        console.log('IncidentMap initialized successfully');
+
+      } catch (error) {
+        console.error('Error initializing incident map:', error);
+        setMapError(true);
+      }
+    };
+
+    const timer = setTimeout(initializeMap, 200);
+
+    return () => {
+      clearTimeout(timer);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        mapInitializedRef.current = false;
+      }
+    };
+  }, [isLoading]); // Only depend on isLoading
+
+  // Update markers when filtered reports change
+  useEffect(() => {
+    if (mapLoaded && filteredReports.length > 0) {
+      const timer = setTimeout(updateMapMarkers, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [filteredReports, mapLoaded]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [reports, filterStatus, filterPriority, filterBarangay, searchText]);
+
+  useEffect(() => {
+    if (mapInstanceRef.current && tileLayer && mapLoaded) {
+      changeMapType(mapView);
+    }
+  }, [mapView, mapLoaded]);
+
   const counts = getFilterCounts();
+
+  if (isLoading) {
+    return (
+      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+        <div style={{ padding: '20px 20px 0' }}>
+          {/* Header Skeleton */}
+          <IonCard style={{
+            borderRadius: '16px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+            marginBottom: '20px'
+          }}>
+            <IonCardHeader>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <IonSkeletonText animated style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    marginRight: '16px'
+                  }} />
+                  <div>
+                    <IonSkeletonText animated style={{ width: '120px', height: '20px', marginBottom: '4px' }} />
+                    <IonSkeletonText animated style={{ width: '150px', height: '14px' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                  <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                </div>
+              </div>
+            </IonCardHeader>
+          </IonCard>
+
+          {/* Map View Selector Skeleton */}
+          <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+            <IonCardContent style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                <IonSkeletonText animated style={{ width: '18px', height: '18px', marginRight: '8px' }} />
+                <IonSkeletonText animated style={{ width: '80px', height: '14px' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <IonSkeletonText animated style={{ flex: 1, height: '40px', borderRadius: '8px' }} />
+                <IonSkeletonText animated style={{ flex: 1, height: '40px', borderRadius: '8px' }} />
+                <IonSkeletonText animated style={{ flex: 1, height: '40px', borderRadius: '8px' }} />
+              </div>
+            </IonCardContent>
+          </IonCard>
+
+          {/* Filters Skeleton */}
+          <SkeletonFilterCard />
+        </div>
+
+        {/* Map Skeleton */}
+        <SkeletonMapCard />
+
+        {/* Reports List Skeleton */}
+        <div style={{ padding: '0 20px 20px' }}>
+          <IonCard style={{ borderRadius: '16px' }}>
+            <IonCardHeader>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+                <IonSkeletonText animated style={{ width: '60px', height: '32px', borderRadius: '8px' }} />
+              </div>
+            </IonCardHeader>
+            <IonCardContent style={{ padding: 0 }}>
+              <IonList style={{ background: 'transparent' }}>
+                {[1, 2, 3, 4, 5].map((item) => (
+                  <SkeletonReportItem key={item} />
+                ))}
+              </IonList>
+            </IonCardContent>
+          </IonCard>
+        </div>
+      </IonContent>
+    );
+  }
 
   return (
     <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
@@ -751,50 +943,41 @@ const IncidentMap: React.FC = () => {
             style={{
               width: '100%',
               height: '100%',
-              background: '#f8fafc'
+              background: '#f8fafc',
+              position: 'relative',
+              zIndex: 1
             }}
-          >
-            {/* Loading state */}
-            {!mapLoaded && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                flexDirection: 'column',
-                padding: '20px'
-              }}>
-                <IonSpinner name="circular" style={{ '--color': '#3b82f6' }} />
-                <h3 style={{ color: '#6b7280', marginTop: '16px', marginBottom: '8px' }}>
-                  Loading interactive map...
-                </h3>
-              </div>
-            )}
+          />
 
-            {/* Error state */}
-            {mapError && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                flexDirection: 'column',
-                padding: '20px'
-              }}>
-                <IonIcon icon={mapOutline} style={{ fontSize: '64px', color: '#d1d5db' }} />
-                <h3 style={{ color: '#9ca3af', marginTop: '16px', marginBottom: '8px' }}>
-                  Map unavailable
-                </h3>
-                <p style={{ color: '#d1d5db', fontSize: '14px', textAlign: 'center', marginBottom: '16px' }}>
-                  Map could not be loaded. Please check your internet connection.
-                </p>
-                <IonButton fill="outline" onClick={() => window.location.reload()}>
-                  <IonIcon icon={refreshOutline} slot="start" />
-                  Reload Page
-                </IonButton>
-              </div>
-            )}
-          </div>
+          {/* Error state only - NO loading spinner */}
+          {mapError && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              padding: '20px',
+              background: '#f8fafc',
+              zIndex: 10
+            }}>
+              <IonIcon icon={mapOutline} style={{ fontSize: '64px', color: '#d1d5db' }} />
+              <h3 style={{ color: '#9ca3af', marginTop: '16px', marginBottom: '8px' }}>
+                Map unavailable
+              </h3>
+              <p style={{ color: '#d1d5db', fontSize: '14px', textAlign: 'center', marginBottom: '16px' }}>
+                Map could not be loaded. Please check your internet connection.
+              </p>
+              <IonButton fill="outline" onClick={() => window.location.reload()}>
+                <IonIcon icon={refreshOutline} slot="start" />
+                Reload Page
+              </IonButton>
+            </div>
+          )}
 
           {/* Interactive Priority Legend with Hover Filtering */}
           {mapLoaded && !mapError && (
@@ -959,7 +1142,7 @@ const IncidentMap: React.FC = () => {
               <IonButton
                 fill="clear"
                 size="small"
-                routerLink="/it35-lab2/app/home/reports"
+                routerLink="/it35-lab2/app/home/history"
               >
                 View All
               </IonButton>
@@ -1128,62 +1311,90 @@ const IncidentMap: React.FC = () => {
       </div>
 
       {/* Report Detail Modal */}
-      <IonModal isOpen={showReportModal} onDidDismiss={() => setShowReportModal(false)}>
-        <IonContent>
+      <IonModal
+        isOpen={showReportModal}
+        onDidDismiss={() => setShowReportModal(false)}
+        style={{ '--border-radius': '20px' } as any}
+      >
+        <div style={{
+          padding: '0',
+          height: '100%',
+          background: 'white',
+          borderRadius: '20px',
+          overflow: 'hidden'
+        }}>
           {selectedReport && (
-            <div style={{ padding: '20px' }}>
+            <div style={{
+              height: '100%',
+              overflowY: 'auto',
+              padding: '16px'
+            }}>
               {/* Report Header */}
-              <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-                <IonCardContent>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', gap: '8px' }}>
-                    <div style={{
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '50%',
-                      background: getPriorityColor(selectedReport.priority),
-                      marginRight: '4px'
-                    }}></div>
-                    <IonChip
-                      style={{
-                        '--background': getStatusColor(selectedReport.status) + '20',
-                        '--color': getStatusColor(selectedReport.status),
-                        fontWeight: '600'
-                      } as any}
+              <IonCard style={{ borderRadius: '16px', marginBottom: '16px' }}>
+                <IonCardContent style={{ padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px', gap: '8px' }}>
+                        <div style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          background: getPriorityColor(selectedReport.priority),
+                          marginRight: '4px'
+                        }}></div>
+                        <IonChip
+                          style={{
+                            '--background': getStatusColor(selectedReport.status) + '20',
+                            '--color': getStatusColor(selectedReport.status),
+                            fontWeight: '600',
+                            height: '28px'
+                          } as any}
+                        >
+                          <IonIcon icon={getStatusIcon(selectedReport.status)} style={{ fontSize: '12px', marginRight: '4px' }} />
+                          {selectedReport.status.toUpperCase()}
+                        </IonChip>
+                        <IonChip
+                          style={{
+                            '--background': getPriorityColor(selectedReport.priority) + '20',
+                            '--color': getPriorityColor(selectedReport.priority),
+                            fontWeight: '600',
+                            height: '28px'
+                          } as any}
+                        >
+                          {selectedReport.priority.toUpperCase()} PRIORITY
+                        </IonChip>
+                      </div>
+
+                      <h1 style={{
+                        fontSize: '20px',
+                        fontWeight: 'bold',
+                        color: '#1f2937',
+                        margin: '0 0 12px 0',
+                        lineHeight: '1.3'
+                      }}>
+                        {selectedReport.title}
+                      </h1>
+                    </div>
+
+                    <IonButton
+                      fill="clear"
+                      onClick={() => setShowReportModal(false)}
+                      style={{ '--padding-start': '4px', '--padding-end': '4px', marginTop: '-8px' } as any}
                     >
-                      <IonIcon icon={getStatusIcon(selectedReport.status)} style={{ fontSize: '12px', marginRight: '4px' }} />
-                      {selectedReport.status.toUpperCase()}
-                    </IonChip>
-                    <IonChip
-                      style={{
-                        '--background': getPriorityColor(selectedReport.priority) + '20',
-                        '--color': getPriorityColor(selectedReport.priority),
-                        fontWeight: '600'
-                      } as any}
-                    >
-                      {selectedReport.priority.toUpperCase()} PRIORITY
-                    </IonChip>
+                      <IonIcon icon={closeCircle} />
+                    </IonButton>
                   </div>
 
-                  <h1 style={{
-                    fontSize: '24px',
-                    fontWeight: 'bold',
-                    color: '#1f2937',
-                    margin: '0 0 16px 0',
-                    lineHeight: '1.3'
-                  }}>
-                    {selectedReport.title}
-                  </h1>
-
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                     <IonIcon icon={locationOutline} style={{ color: '#6b7280', marginRight: '8px' }} />
-                    <span style={{ color: '#6b7280' }}>
+                    <span style={{ color: '#6b7280', fontSize: '14px' }}>
                       {selectedReport.location}, {selectedReport.barangay}
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                     <IonIcon icon={timeOutline} style={{ color: '#6b7280', marginRight: '8px' }} />
-                    <span style={{ color: '#6b7280' }}>
+                    <span style={{ color: '#6b7280', fontSize: '14px' }}>
                       Reported on {new Date(selectedReport.created_at).toLocaleDateString()}
                       {selectedReport.updated_at !== selectedReport.created_at && (
                         <span> • Updated {new Date(selectedReport.updated_at).toLocaleDateString()}</span>
@@ -1196,13 +1407,13 @@ const IncidentMap: React.FC = () => {
                     border: '1px solid',
                     borderColor: '#e5e7eb',
                     borderRadius: '8px',
-                    padding: '16px'
+                    padding: '12px'
                   }}>
                     <p style={{
                       color: '#374151',
                       lineHeight: '1.6',
                       margin: 0,
-                      fontSize: '15px'
+                      fontSize: '14px'
                     }}>
                       {selectedReport.description}
                     </p>
@@ -1232,7 +1443,6 @@ const IncidentMap: React.FC = () => {
                               cursor: 'pointer'
                             }}
                               onClick={() => {
-                                // Open image in new tab for full view
                                 window.open(imageUrl, '_blank');
                               }}
                             >
@@ -1409,7 +1619,7 @@ const IncidentMap: React.FC = () => {
               </IonCard>
             </div>
           )}
-        </IonContent>
+        </div>
       </IonModal>
 
       {/* Toast */}

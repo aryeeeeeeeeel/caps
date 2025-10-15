@@ -1,4 +1,4 @@
-// src/pages/AdminLogin.tsx - UPDATED WITH TOAST MESSAGES
+// src/pages/AdminLogin.tsx - FIXED OTP VERIFICATION & REMOVED REDUNDANT ALERTS
 import {
   IonButton,
   IonContent,
@@ -6,144 +6,267 @@ import {
   IonInput,
   useIonRouter,
   IonInputPasswordToggle,
-  IonAlert,
   IonToast,
   IonModal,
-  IonLabel,
-  IonGrid,
-  IonRow,
-  IonCol,
-  IonIcon,
   IonCard,
   IonCardContent,
   IonHeader,
   IonToolbar,
   IonTitle,
-  IonText
+  IonText,
+  IonSkeletonText,
+  IonIcon
 } from '@ionic/react';
 import { shield, lockClosedOutline, mailOutline, keyOutline, checkmarkCircleOutline, arrowBackOutline, desktopOutline } from 'ionicons/icons';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
-const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
-  return (
-    <IonAlert
-      isOpen={isOpen}
-      onDidDismiss={onClose}
-      header="Admin Notification"
-      message={message}
-      buttons={['OK']}
-    />
-  );
-};
-
 const AdminLogin: React.FC = () => {
-  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState<boolean | null>(null);
   const navigation = useIonRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [alertMessage, setAlertMessage] = useState('');
-  const [showAlert, setShowAlert] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastColor, setToastColor] = useState<'primary' | 'success' | 'warning' | 'danger'>('primary');
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
   const passwordInputRef = useRef<HTMLIonInputElement>(null);
   const otpInputRef = useRef<HTMLIonInputElement>(null);
 
   useEffect(() => {
-    // Device detection logic
     const checkDevice = () => {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
       const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
       setIsMobileDevice(isMobile);
     };
-
-    checkDevice();
+    setTimeout(checkDevice, 800);
   }, []);
 
-  // Show mobile restriction message if accessed from mobile
-  if (isMobileDevice) {
+  // Skeleton Loading Component
+  const SkeletonLoader = () => (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <IonCard style={{
+        maxWidth: '480px',
+        width: '100%',
+        borderRadius: '20px',
+        boxShadow: '0 20px 64px rgba(0,0,0,0.15)',
+        border: '1px solid rgba(226,232,240,0.8)',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)',
+          padding: '40px 32px 30px',
+          textAlign: 'center',
+          position: 'relative'
+        }}>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                margin: '0 auto 20px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '60%',
+                height: '28px',
+                borderRadius: '4px',
+                margin: '0 auto 8px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '80%',
+                height: '14px',
+                borderRadius: '4px',
+                margin: '0 auto'
+              }}
+            />
+          </div>
+        </div>
+
+        <IonCardContent style={{ padding: '40px 32px' }}>
+          <div style={{ marginBottom: '24px' }}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '40%',
+                height: '14px',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '100%',
+                height: '48px',
+                borderRadius: '12px'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '32px' }}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '30%',
+                height: '14px',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '100%',
+                height: '48px',
+                borderRadius: '12px'
+              }}
+            />
+          </div>
+
+          <IonSkeletonText
+            animated
+            style={{
+              width: '100%',
+              height: '52px',
+              borderRadius: '12px',
+              marginBottom: '24px'
+            }}
+          />
+
+          <IonSkeletonText
+            animated
+            style={{
+              width: '100%',
+              height: '80px',
+              borderRadius: '12px'
+            }}
+          />
+        </IonCardContent>
+      </IonCard>
+    </div>
+  );
+
+  // Mobile Restriction Component
+  const MobileRestrictionPage = () => (
+    <IonPage>
+      <IonContent className="ion-padding" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      }}>
+        <div style={{
+          maxWidth: '400px',
+          padding: '40px 20px',
+          background: 'white',
+          borderRadius: '20px',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
+          margin: '20px'
+        }}>
+          <IonIcon
+            icon={desktopOutline}
+            style={{
+              fontSize: '64px',
+              color: '#667eea',
+              marginBottom: '20px'
+            }}
+          />
+          <IonText>
+            <h2 style={{
+              color: '#2d3748',
+              marginBottom: '16px',
+              fontSize: '24px',
+              fontWeight: 'bold'
+            }}>
+              Admin Portal Restricted
+            </h2>
+            <p style={{
+              color: '#718096',
+              lineHeight: '1.6',
+              marginBottom: '30px',
+              fontSize: '16px'
+            }}>
+              For security reasons, the admin portal is only accessible by an admin.
+            </p>
+          </IonText>
+          <IonButton
+            expand="block"
+            onClick={() => navigation.push('/it35-lab2')}
+            style={{
+              '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              '--border-radius': '12px',
+              marginTop: '20px'
+            }}
+          >
+            <IonIcon icon={arrowBackOutline} slot="start" />
+            Return to Home
+          </IonButton>
+        </div>
+      </IonContent>
+    </IonPage>
+  );
+
+  if (isMobileDevice === null) {
     return (
       <IonPage>
-        <IonContent className="ion-padding" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          textAlign: 'center',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-        }}>
-          <div style={{ 
-            maxWidth: '400px', 
-            padding: '40px 20px',
-            background: 'white',
-            borderRadius: '20px',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
-            margin: '20px'
-          }}>
-            <IonIcon 
-              icon={desktopOutline} 
-              style={{ 
-                fontSize: '64px', 
-                color: '#667eea', 
-                marginBottom: '20px' 
-              }} 
-            />
-            <IonText>
-              <h2 style={{ 
-                color: '#2d3748', 
-                marginBottom: '16px',
-                fontSize: '24px',
-                fontWeight: 'bold'
-              }}>
-                Admin Portal Restricted
-              </h2>
-              <p style={{ 
-                color: '#718096', 
-                lineHeight: '1.6',
-                marginBottom: '30px',
-                fontSize: '16px'
-              }}>
-                For security reasons, the admin portal is only accessible by an admin. 
-              </p>
-            </IonText>
-            <IonButton 
-              expand="block" 
-              onClick={() => navigation.push('/it35-lab2')}
+        <IonHeader>
+          <IonToolbar style={{
+            '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)',
+            '--color': 'white'
+          } as any}>
+            <IonSkeletonText
+              animated
               style={{
-                '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                '--border-radius': '12px',
-                marginTop: '20px'
+                width: '120px',
+                height: '20px',
+                borderRadius: '4px',
+                margin: '0 auto'
               }}
-            >
-              <IonIcon icon={arrowBackOutline} slot="start" />
-              Return to Home
-            </IonButton>
-          </div>
+            />
+          </IonToolbar>
+        </IonHeader>
+        <IonContent>
+          <SkeletonLoader />
         </IonContent>
       </IonPage>
     );
   }
 
-  // Show toast with custom message and color
+  if (isMobileDevice) {
+    return <MobileRestrictionPage />;
+  }
+
   const showCustomToast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') => {
     setToastMessage(message);
     setToastColor(color);
     setShowToast(true);
   };
 
-  // Password validation - similar to your user login
   const validateCredentials = async (email: string, password: string): Promise<boolean> => {
     if (!email || !password) {
-      setAlertMessage('Please enter both email and password');
-      setShowAlert(true);
+      showCustomToast('Please enter both email and password', 'warning');
       return false;
     }
 
-    // First attempt to login with password to validate credentials
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -152,40 +275,37 @@ const AdminLogin: React.FC = () => {
 
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          setAlertMessage('Invalid email or password. Please check your credentials.');
-          setShowAlert(true);
+          showCustomToast('Invalid email or password. Please check your credentials.', 'danger');
           return false;
         } else if (error.message.includes('Email not confirmed')) {
-          setAlertMessage('Please verify your email address before logging in.');
-          setShowAlert(true);
+          showCustomToast('Please verify your email address before logging in.', 'warning');
           return false;
         } else {
-          setAlertMessage(error.message || 'Login failed. Please try again.');
-          setShowAlert(true);
+          showCustomToast(error.message || 'Login failed. Please try again.', 'danger');
           return false;
         }
       }
 
-      // If login successful, sign out immediately since we only needed to validate
-      // We'll use OTP for the actual login
       await supabase.auth.signOut();
       return true;
 
     } catch (error: any) {
-      setAlertMessage(error.message || 'Login failed. Please check your credentials and try again.');
-      setShowAlert(true);
+      showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
       return false;
     }
   };
 
   const sendOtp = async () => {
     if (!email) {
-      setAlertMessage('Please enter your administrative email');
-      setShowAlert(true);
+      showCustomToast('Please enter your administrative email', 'warning');
       return false;
     }
 
-    // Validate password before sending OTP
+    if (!password) {
+      showCustomToast('Please enter your password', 'warning');
+      return false;
+    }
+
     const isValid = await validateCredentials(email, password);
     if (!isValid) {
       return false;
@@ -193,24 +313,23 @@ const AdminLogin: React.FC = () => {
 
     setIsSendingOtp(true);
     try {
-      // FIX: Use signInWithOtp with proper options
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/it35-lab2/admin-dashboard`,
           shouldCreateUser: false
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setShowOtpModal(true);
-      showCustomToast('Verification code sent to your email!', 'success');
+      showCustomToast('Verification code sent to your email! Valid for 60 seconds.', 'success');
       return true;
     } catch (error: any) {
       console.error('OTP Send Error:', error);
-      setAlertMessage(error.message || 'Failed to send verification code. Please try again.');
-      setShowAlert(true);
+      showCustomToast(error.message || 'Failed to send verification code. Please try again.', 'danger');
       return false;
     } finally {
       setIsSendingOtp(false);
@@ -218,17 +337,14 @@ const AdminLogin: React.FC = () => {
   };
 
   const verifyAndLogin = async () => {
-    // FIX: Better OTP validation
-    if (!otp || otp.trim().length < 6) {
-      setAlertMessage('Please enter a valid 6-digit verification code');
-      setShowAlert(true);
+    if (!otp || otp.trim().length !== 6) {
+      showCustomToast('Please enter a valid 6-digit verification code', 'warning');
       return;
     }
 
     setIsVerifying(true);
     try {
-      // FIX: Use the correct verification method
-      // First try with email type
+      // Verify OTP token
       const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
         email,
         token: otp.trim(),
@@ -236,25 +352,32 @@ const AdminLogin: React.FC = () => {
       });
 
       if (verifyError) {
-        // If email type fails, try magiclink type
-        const { data: magicLinkData, error: magicLinkError } = await supabase.auth.verifyOtp({
-          email,
-          token: otp.trim(),
-          type: 'magiclink'
-        });
-
-        if (magicLinkError) {
-          // If both fail, throw the original error
+        // Handle specific error cases
+        if (verifyError.message.includes('expired') || verifyError.message.includes('Token has expired')) {
+          showCustomToast('Verification code expired. Please request a new one.', 'warning');
+          setShowOtpModal(false);
+          setOtp('');
+          return;
+        } else if (verifyError.message.includes('invalid') || verifyError.message.includes('Invalid')) {
+          showCustomToast('Invalid verification code. Please try again.', 'danger');
+          setOtp('');
+          return;
+        } else {
           throw verifyError;
         }
       }
 
-      // User is now authenticated, check their role
+      // Wait for auth state to update
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
       if (userError || !user) {
         throw new Error('Authentication failed. Please try again.');
       }
 
+      // Check admin role
       const { data: userData, error: dbError } = await supabase
         .from('users')
         .select('role')
@@ -269,36 +392,47 @@ const AdminLogin: React.FC = () => {
 
       if (!userData || !userData.role || userData.role !== 'admin') {
         await supabase.auth.signOut();
-        throw new Error('Access denied: Administrative privileges required.');
+        showCustomToast('Access denied: Administrative privileges required.', 'danger');
+        setShowOtpModal(false);
+        return;
       }
 
-      // SUCCESSFUL LOGIN TOAST
       showCustomToast('Login successful! Redirecting to dashboard...', 'success');
       
-      // FIX: Use proper navigation
+      // Set success flag BEFORE closing modal to prevent cancelled toast
+      setVerificationSuccess(true);
+      
+      // Small delay to ensure state is set before modal closes
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      setShowOtpModal(false);
+
       setTimeout(() => {
         navigation.push('/it35-lab2/admin-dashboard', 'forward', 'replace');
       }, 1500);
 
-      setShowOtpModal(false);
     } catch (error: any) {
       console.error('Verification Error:', error);
       
-      // FIX: Better error messages
       let errorMessage = 'Verification failed. Please try again.';
-      if (error.message.includes('token has expired')) {
-        errorMessage = 'Verification code has expired. Please request a new one.';
-        showCustomToast('Verification code expired. Please request a new one.', 'warning');
-      } else if (error.message.includes('invalid')) {
+      let toastColor: 'danger' | 'warning' = 'danger';
+
+      if (error.message?.includes('token has expired') || error.message?.includes('expired')) {
+        errorMessage = 'Code expired after 60 seconds. Please request a new one.';
+        toastColor = 'warning';
+        setShowOtpModal(false);
+        setOtp('');
+      } else if (error.message?.includes('invalid') || error.message?.includes('Invalid')) {
         errorMessage = 'Invalid verification code. Please check and try again.';
-        showCustomToast('Invalid verification code. Please try again.', 'danger');
+        setOtp('');
+      } else if (error.message?.includes('403') || error.message?.includes('Access denied')) {
+        errorMessage = 'Access denied. Please contact administrator.';
+        setShowOtpModal(false);
       } else {
         errorMessage = error.message || 'Verification failed. Please try again.';
-        showCustomToast('Verification failed. Please try again.', 'danger');
       }
-      
-      setAlertMessage(errorMessage);
-      setShowAlert(true);
+
+      showCustomToast(errorMessage, toastColor);
     } finally {
       setIsVerifying(false);
     }
@@ -308,31 +442,15 @@ const AdminLogin: React.FC = () => {
     await sendOtp();
   };
 
-  // FIX: Improved OTP input handling
-  const handleOtpChange = (value: string) => {
-    // Only allow numbers and limit to 6 characters
-    const numericValue = value.replace(/\D/g, '').slice(0, 6);
-    setOtp(numericValue);
-  };
-
-  // Handle Enter key in email field
   const handleEmailKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       passwordInputRef.current?.setFocus();
     }
   };
 
-  // Handle Enter key in password field
   const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleLogin();
-    }
-  };
-
-  // Handle Enter key in OTP field
-  const handleOtpKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      verifyAndLogin();
     }
   };
 
@@ -381,7 +499,6 @@ const AdminLogin: React.FC = () => {
               textAlign: 'center',
               position: 'relative'
             }}>
-              {/* Background Pattern */}
               <div style={{
                 position: 'absolute',
                 top: 0,
@@ -428,7 +545,6 @@ const AdminLogin: React.FC = () => {
             </div>
 
             <IonCardContent style={{ padding: '40px 32px' }}>
-              {/* Wrap form elements in a form tag for better Enter key handling */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -455,7 +571,7 @@ const AdminLogin: React.FC = () => {
                   <IonInput
                     fill="outline"
                     type="email"
-                    placeholder="admin@ldrrmo.manolo-fortich.gov.ph"
+                    placeholder="ldrrmo@manolofortich.gov.ph"
                     value={email}
                     onIonChange={e => setEmail(e.detail.value!)}
                     onKeyPress={handleEmailKeyPress}
@@ -552,7 +668,7 @@ const AdminLogin: React.FC = () => {
                   color: '#975a16',
                   margin: 0,
                   lineHeight: '1.4'
-                }}>For security, a verification code will be sent to your registered email</p>
+                }}>A verification code will be sent to your email (valid for 60 seconds)</p>
               </div>
             </IonCardContent>
           </IonCard>
@@ -562,10 +678,15 @@ const AdminLogin: React.FC = () => {
         <IonModal
           isOpen={showOtpModal}
           onDidDismiss={() => {
-            setShowOtpModal(false);
-            setOtp(''); // Reset OTP when modal closes
-            showCustomToast('Verification cancelled', 'warning');
+            // Only show cancelled message if not successful
+            if (!verificationSuccess) {
+              showCustomToast('Verification cancelled', 'warning');
+            }
+            // Reset states
+            setOtp('');
+            setVerificationSuccess(false);
           }}
+          backdropDismiss={true}
           style={{
             '--height': 'auto',
             '--width': '90%',
@@ -587,7 +708,6 @@ const AdminLogin: React.FC = () => {
               overflow: 'hidden',
               margin: '0'
             }}>
-              {/* Modal Header */}
               <div style={{
                 background: 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
                 padding: '24px 20px',
@@ -623,12 +743,17 @@ const AdminLogin: React.FC = () => {
                   fontSize: '13px',
                   color: 'white',
                   fontWeight: '600',
-                  margin: '2px 0 0 0'
+                  margin: '2px 0 6px 0'
                 }}>{email}</p>
+                <p style={{
+                  fontSize: '11px',
+                  color: 'rgba(255,255,255,0.8)',
+                  margin: 0,
+                  fontStyle: 'italic'
+                }}>Code expires in 60 seconds</p>
               </div>
 
               <IonCardContent style={{ padding: '24px 20px' }}>
-                {/* Wrap OTP form for Enter key handling */}
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -652,9 +777,27 @@ const AdminLogin: React.FC = () => {
                       maxlength={6}
                       placeholder="000000"
                       value={otp}
-                      // FIX: Use the improved OTP change handler
-                      onIonInput={e => handleOtpChange(e.detail.value!)}
-                      onKeyPress={handleOtpKeyPress}
+                      onIonChange={e => {
+                        const value = e.detail.value!;
+                        const numericValue = value.replace(/\D/g, '').slice(0, 6);
+                        setOtp(numericValue);
+                      }}
+                      onKeyPress={(e: React.KeyboardEvent) => {
+                        if (!/^\d$/.test(e.key) &&
+                          e.key !== 'Backspace' &&
+                          e.key !== 'Delete' &&
+                          e.key !== 'Tab' &&
+                          e.key !== 'Enter' &&
+                          e.key !== 'ArrowLeft' &&
+                          e.key !== 'ArrowRight' &&
+                          e.key !== 'Home' &&
+                          e.key !== 'End') {
+                          e.preventDefault();
+                        }
+                        if (e.key === 'Enter' && otp.length === 6) {
+                          verifyAndLogin();
+                        }
+                      }}
                       style={{
                         '--border-radius': '10px',
                         '--border-color': '#e2e8f0',
@@ -672,7 +815,7 @@ const AdminLogin: React.FC = () => {
                     type="submit"
                     expand="block"
                     size="large"
-                    disabled={isVerifying || otp.length < 6}
+                    disabled={isVerifying || otp.length !== 6}
                     style={{
                       '--border-radius': '10px',
                       '--padding-top': '14px',
@@ -690,13 +833,35 @@ const AdminLogin: React.FC = () => {
                   </IonButton>
                 </form>
 
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  <p style={{
+                    fontSize: '12px',
+                    color: '#718096',
+                    margin: 0
+                  }}>
+                    Didn't receive the code?{' '}
+                    <span
+                      style={{
+                        color: '#667eea',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                      onClick={() => {
+                        setOtp('');
+                        sendOtp();
+                      }}
+                    >
+                      Resend
+                    </span>
+                  </p>
+                </div>
+
                 <IonButton
                   expand="block"
                   fill="clear"
                   onClick={() => {
                     setShowOtpModal(false);
-                    setOtp(''); // Reset OTP
-                    showCustomToast('Verification cancelled', 'warning');
+                    setOtp('');
                   }}
                   style={{
                     color: '#718096',
@@ -710,12 +875,6 @@ const AdminLogin: React.FC = () => {
             </IonCard>
           </div>
         </IonModal>
-
-        <AlertBox
-          message={alertMessage}
-          isOpen={showAlert}
-          onClose={() => setShowAlert(false)}
-        />
 
         <IonToast
           isOpen={showToast}

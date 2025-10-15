@@ -1,4 +1,4 @@
-// src/pages/user-tabs/Dashboard.tsx
+// src/pages/user-tabs/Dashboard.tsx - Updated with Skeleton Screen
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -39,10 +39,94 @@ import { supabase } from '../../utils/supabaseClient';
 interface DashboardStats {
   totalReports: number;
   pendingReports: number;
-  investigatingReports: number;
+  activeReports: number;
   resolvedReports: number;
   myReports: number;
 }
+
+// Skeleton Components
+const SkeletonStatsCard: React.FC = () => (
+  <IonCol size="6">
+    <IonCard style={{
+      borderRadius: '16px',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+      height: '100px'
+    }}>
+      <IonCardContent style={{
+        padding: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        height: '100%'
+      }}>
+        <IonSkeletonText animated style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '12px',
+          marginRight: '16px'
+        }} />
+        <div style={{ flex: 1 }}>
+          <IonSkeletonText animated style={{ width: '60%', height: '24px', marginBottom: '8px' }} />
+          <IonSkeletonText animated style={{ width: '40%', height: '12px' }} />
+        </div>
+      </IonCardContent>
+    </IonCard>
+  </IonCol>
+);
+
+const SkeletonMiniStatsCard: React.FC = () => (
+  <IonCol size="4">
+    <IonCard style={{
+      borderRadius: '12px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      height: '80px'
+    }}>
+      <IonCardContent style={{
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%'
+      }}>
+        <IonSkeletonText animated style={{
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          marginBottom: '8px'
+        }} />
+        <IonSkeletonText animated style={{ width: '20px', height: '16px', marginBottom: '4px' }} />
+        <IonSkeletonText animated style={{ width: '30px', height: '10px' }} />
+      </IonCardContent>
+    </IonCard>
+  </IonCol>
+);
+
+const SkeletonRecentReportItem: React.FC = () => (
+  <IonItem style={{ '--background': 'transparent' } as any}>
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      width: '100%',
+      padding: '12px 0'
+    }}>
+      <IonSkeletonText animated style={{
+        width: '10px',
+        height: '10px',
+        borderRadius: '50%',
+        marginRight: '12px'
+      }} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
+        <IonSkeletonText animated style={{ width: '50%', height: '12px', marginBottom: '8px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <IonSkeletonText animated style={{ width: '40px', height: '20px', borderRadius: '10px' }} />
+          <IonSkeletonText animated style={{ width: '30px', height: '12px' }} />
+        </div>
+      </div>
+    </div>
+  </IonItem>
+);
 
 const Dashboard: React.FC = () => {
   const history = useHistory();
@@ -51,7 +135,7 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats>({
     totalReports: 0,
     pendingReports: 0,
-    investigatingReports: 0,
+    activeReports: 0,
     resolvedReports: 0,
     myReports: 0
   });
@@ -60,21 +144,7 @@ const Dashboard: React.FC = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [userReports, setUserReports] = useState<any[]>([]);
 
-  const navigation = useHistory();
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigation.replace('/it35-lab2');
-        return;
-      }
-      fetchUserData();
-      fetchDashboardData();
-    };
-    checkAuth();
-  }, [navigation]);
-
+  // Define functions BEFORE useEffect to avoid hoisting issues
   const fetchUserData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -137,7 +207,6 @@ const Dashboard: React.FC = () => {
   };
 
   const fetchDashboardData = async () => {
-    setIsLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -145,7 +214,7 @@ const Dashboard: React.FC = () => {
         setStats({
           totalReports: 0,
           pendingReports: 0,
-          investigatingReports: 0,
+          activeReports: 0,
           resolvedReports: 0,
           myReports: 0
         });
@@ -165,7 +234,7 @@ const Dashboard: React.FC = () => {
         setStats({
           totalReports: 0,
           pendingReports: 0,
-          investigatingReports: 0,
+          activeReports: 0,
           resolvedReports: 0,
           myReports: 0
         });
@@ -176,14 +245,14 @@ const Dashboard: React.FC = () => {
 
       // Process real data from database
       const pending = allReports?.filter(r => r.status === 'pending').length || 0;
-      const investigating = allReports?.filter(r => r.status === 'investigating').length || 0;
+      const active = allReports?.filter(r => r.status === 'active').length || 0;
       const resolved = allReports?.filter(r => r.status === 'resolved').length || 0;
       const myReports = allReports?.filter(r => r.reporter_email === user.email).length || 0;
 
       setStats({
         totalReports: allReports?.length || 0,
         pendingReports: pending,
-        investigatingReports: investigating,
+        activeReports: active,
         resolvedReports: resolved,
         myReports: myReports
       });
@@ -197,7 +266,7 @@ const Dashboard: React.FC = () => {
       setStats({
         totalReports: 0,
         pendingReports: 0,
-        investigatingReports: 0,
+        activeReports: 0,
         resolvedReports: 0,
         myReports: 0
       });
@@ -207,10 +276,173 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          history.replace('/it35-lab2');
+          return;
+        }
+        await fetchUserData();
+        await fetchDashboardData();
+      } catch (error) {
+        console.error('Error in checkAuth:', error);
+        setIsLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <IonPage>
+        <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+          <div style={{ padding: '20px' }}>
+            {/* Welcome Header Skeleton */}
+            <IonCard style={{
+              borderRadius: '20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              marginBottom: '20px',
+              overflow: 'hidden'
+            }}>
+              <IonCardContent style={{ padding: '24px', position: 'relative' }}>
+                <div style={{
+                  position: 'absolute',
+                  right: '-20px',
+                  top: '-20px',
+                  width: '120px',
+                  height: '120px',
+                  background: 'rgba(255,255,255,0.1)',
+                  borderRadius: '50%'
+                }}></div>
+                <div style={{
+                  position: 'absolute',
+                  right: '20px',
+                  bottom: '-30px',
+                  width: '80px',
+                  height: '80px',
+                  background: 'rgba(255,255,255,0.05)',
+                  borderRadius: '50%'
+                }}></div>
+
+                <IonSkeletonText animated style={{
+                  width: '60%',
+                  height: '28px',
+                  marginBottom: '12px',
+                  background: 'rgba(255,255,255,0.8)'
+                }} />
+                <IonSkeletonText animated style={{
+                  width: '80%',
+                  height: '16px',
+                  marginBottom: '20px',
+                  background: 'rgba(255,255,255,0.6)'
+                }} />
+
+                <div style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <IonSkeletonText animated style={{
+                      width: '40%',
+                      height: '14px',
+                      marginBottom: '8px',
+                      background: 'rgba(255,255,255,0.8)'
+                    }} />
+                    <IonSkeletonText animated style={{
+                      width: '60%',
+                      height: '16px',
+                      background: 'rgba(255,255,255,0.8)'
+                    }} />
+                  </div>
+                  <IonSkeletonText animated style={{
+                    width: '24px',
+                    height: '24px',
+                    background: 'rgba(255,255,255,0.8)'
+                  }} />
+                </div>
+              </IonCardContent>
+            </IonCard>
+
+            {/* Statistics Cards Skeleton */}
+            <IonGrid style={{ padding: 0, marginBottom: '20px' }}>
+              <IonRow>
+                <SkeletonStatsCard />
+                <SkeletonStatsCard />
+              </IonRow>
+
+              <IonRow>
+                <SkeletonMiniStatsCard />
+                <SkeletonMiniStatsCard />
+                <SkeletonMiniStatsCard />
+              </IonRow>
+            </IonGrid>
+
+            {/* Recent Reports Skeleton */}
+            <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+              <IonCardHeader>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <IonSkeletonText animated style={{ width: '120px', height: '18px' }} />
+                  <IonSkeletonText animated style={{ width: '60px', height: '32px', borderRadius: '8px' }} />
+                </div>
+              </IonCardHeader>
+              <IonCardContent style={{ padding: 0 }}>
+                <div style={{ padding: '20px' }}>
+                  <IonProgressBar type="indeterminate" />
+                </div>
+                <IonList style={{ background: 'transparent' }}>
+                  {[1, 2, 3].map((item) => (
+                    <SkeletonRecentReportItem key={item} />
+                  ))}
+                </IonList>
+              </IonCardContent>
+            </IonCard>
+
+            {/* Safety Tips Skeleton */}
+            <IonCard style={{ borderRadius: '16px' }}>
+              <IonCardHeader>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <IonSkeletonText animated style={{ width: '100px', height: '18px' }} />
+                  <IonSkeletonText animated style={{ width: '100px', height: '32px', borderRadius: '20px' }} />
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <div style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: '12px',
+                  padding: '16px'
+                }}>
+                  {[1, 2, 3, 4].map((item) => (
+                    <IonSkeletonText
+                      key={item}
+                      animated
+                      style={{
+                        width: item % 2 === 0 ? '90%' : '80%',
+                        height: '12px',
+                        marginBottom: '8px'
+                      }}
+                    />
+                  ))}
+                </div>
+              </IonCardContent>
+            </IonCard>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'resolved': return '#10b981';
-      case 'investigating': return '#3b82f6';
+      case 'active': return '#3b82f6';
       case 'pending': return '#f59e0b';
       default: return '#6b7280';
     }
@@ -228,7 +460,7 @@ const Dashboard: React.FC = () => {
 
   const handleDialLDRRMO = () => {
     // LDRRMO Emergency number - you can update this with the actual number
-    const ldrrmoNumber = '09158139494'; // Replace with actual LDRRMO number
+    const ldrrmoNumber = '09564022605'; // Replace with actual LDRRMO number
     window.open(`tel:${ldrrmoNumber}`, '_self');
   };
 
@@ -425,7 +657,7 @@ const Dashboard: React.FC = () => {
                 </IonCard>
               </IonCol>
 
-              {/* Investigating Reports Box */}
+              {/* Active Reports Box */}
               <IonCol size="4">
                 <IonCard style={{
                   borderRadius: '12px',
@@ -451,10 +683,10 @@ const Dashboard: React.FC = () => {
                       <IonSkeletonText animated style={{ width: '20px', height: '16px' }} />
                     ) : (
                       <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
-                        {stats.investigatingReports}
+                        {stats.activeReports}
                       </h3>
                     )}
-                    <p style={{ fontSize: '10px', color: '#6b7280', margin: 0, textAlign: 'center' }}>Investigating</p>
+                    <p style={{ fontSize: '10px', color: '#6b7280', margin: 0, textAlign: 'center' }}>Active</p>
                   </IonCardContent>
                 </IonCard>
               </IonCol>
@@ -505,7 +737,7 @@ const Dashboard: React.FC = () => {
                 <IonButton
                   fill="clear"
                   size="small"
-                  routerLink="/it35-lab2/app/reports"
+                  routerLink="/it35-lab2/app/history"
                 >
                   View All
                 </IonButton>
@@ -534,7 +766,7 @@ const Dashboard: React.FC = () => {
                     <IonItem
                       key={report.id || index}
                       button
-                      routerLink="/it35-lab2/app/reports"
+                      routerLink="/it35-lab2/app/history"
                       style={{
                         '--padding-start': '20px',
                         '--inner-padding-end': '20px',

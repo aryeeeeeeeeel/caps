@@ -77,6 +77,246 @@ const Notifications: React.FC = () => {
   const [autoMarkRead, setAutoMarkRead] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Skeleton Loading Component
+  const SkeletonLoader = () => (
+    <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as React.CSSProperties & Record<string, string>}>
+      <div style={{ padding: '20px' }}>
+        {/* Header Skeleton */}
+        <IonCard style={{
+          borderRadius: '16px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+          marginBottom: '20px'
+        }}>
+          <IonCardHeader>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    marginRight: '16px'
+                  }}
+                />
+                <div>
+                  <IonSkeletonText
+                    animated
+                    style={{
+                      width: '120px',
+                      height: '20px',
+                      borderRadius: '4px',
+                      marginBottom: '4px'
+                    }}
+                  />
+                  <IonSkeletonText
+                    animated
+                    style={{
+                      width: '150px',
+                      height: '14px',
+                      borderRadius: '4px'
+                    }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%'
+                  }}
+                />
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%'
+                  }}
+                />
+              </div>
+            </div>
+          </IonCardHeader>
+        </IonCard>
+
+        {/* Settings Card Skeleton */}
+        <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+          <IonCardContent style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ flex: 1 }}>
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: '120px',
+                    height: '14px',
+                    borderRadius: '4px',
+                    marginBottom: '4px'
+                  }}
+                />
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: '180px',
+                    height: '12px',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '44px',
+                  height: '24px',
+                  borderRadius: '12px'
+                }}
+              />
+            </div>
+          </IonCardContent>
+        </IonCard>
+
+        {/* Filter Tabs Skeleton */}
+        <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+          <IonCardContent style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '80px',
+                  height: '32px',
+                  borderRadius: '8px'
+                }}
+              />
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '100px',
+                  height: '32px',
+                  borderRadius: '8px'
+                }}
+              />
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '60px',
+                  height: '32px',
+                  borderRadius: '8px'
+                }}
+              />
+            </div>
+          </IonCardContent>
+        </IonCard>
+
+        {/* Notifications List Skeleton */}
+        <IonCard style={{ borderRadius: '16px' }}>
+          <IonCardContent style={{ padding: 0 }}>
+            <div style={{ padding: '20px' }}>
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} style={{
+                  marginBottom: '16px',
+                  padding: '16px 0',
+                  borderBottom: item < 4 ? '1px solid #f1f5f9' : 'none'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    <IonSkeletonText
+                      animated
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '12px'
+                      }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <IonSkeletonText
+                          animated
+                          style={{
+                            width: '60%',
+                            height: '16px',
+                            borderRadius: '4px'
+                          }}
+                        />
+                        <IonSkeletonText
+                          animated
+                          style={{
+                            width: '20px',
+                            height: '8px',
+                            borderRadius: '50%'
+                          }}
+                        />
+                      </div>
+                      <IonSkeletonText
+                        animated
+                        style={{
+                          width: '90%',
+                          height: '14px',
+                          borderRadius: '4px',
+                          marginBottom: '8px'
+                        }}
+                      />
+                      <IonSkeletonText
+                        animated
+                        style={{
+                          width: '70%',
+                          height: '14px',
+                          borderRadius: '4px',
+                          marginBottom: '12px'
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <IonSkeletonText
+                          animated
+                          style={{
+                            width: '60px',
+                            height: '24px',
+                            borderRadius: '12px'
+                          }}
+                        />
+                        <IonSkeletonText
+                          animated
+                          style={{
+                            width: '80px',
+                            height: '12px',
+                            borderRadius: '4px'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </IonCardContent>
+        </IonCard>
+
+        {/* Quick Actions Skeleton */}
+        <IonCard style={{ borderRadius: '16px', marginTop: '20px' }}>
+          <IonCardContent>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <IonSkeletonText
+                animated
+                style={{
+                  flex: 1,
+                  height: '44px',
+                  borderRadius: '8px'
+                }}
+              />
+              <IonSkeletonText
+                animated
+                style={{
+                  flex: 1,
+                  height: '44px',
+                  borderRadius: '8px'
+                }}
+              />
+            </div>
+          </IonCardContent>
+        </IonCard>
+      </div>
+    </IonContent>
+  );
+
   // Memoized filter counts for performance optimization
   const counts = useMemo<NotificationCounts>(() => ({
     all: notifications.length,
@@ -387,6 +627,9 @@ const Notifications: React.FC = () => {
     event.detail.complete();
   };
 
+  if (isLoading) {
+    return <SkeletonLoader />;
+  }
 
   return (
     <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as React.CSSProperties & Record<string, string>}>

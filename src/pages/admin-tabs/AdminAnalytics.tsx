@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminAnalytics.tsx - Enhanced with proper reporting
+// src/pages/admin-tabs/AdminAnalytics.tsx - Fixed skeleton screen
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -21,7 +21,8 @@ import {
   IonSpinner,
   IonBadge,
   useIonRouter,
-  IonText
+  IonText,
+  IonSkeletonText
 } from '@ionic/react';
 import {
   arrowBackOutline,
@@ -52,17 +53,65 @@ interface ReportData {
   byCategory: { [key: string]: number };
 }
 
+// Skeleton Components
+const SkeletonStatsCard: React.FC = () => (
+  <IonCol size="6" sizeMd="3">
+    <IonCard style={{ borderRadius: '12px', textAlign: 'center' }}>
+      <IonCardContent>
+        <IonSkeletonText animated style={{ width: '32px', height: '32px', margin: '0 auto 8px', borderRadius: '50%' }} />
+        <IonSkeletonText animated style={{ width: '60%', height: '16px', margin: '0 auto 4px' }} />
+        <IonSkeletonText animated style={{ width: '40%', height: '24px', margin: '0 auto' }} />
+      </IonCardContent>
+    </IonCard>
+  </IonCol>
+);
+
+const SkeletonPriorityItem: React.FC = () => (
+  <IonCol size="6" sizeMd="3">
+    <div style={{
+      padding: '12px',
+      background: '#f8fafc',
+      borderRadius: '8px',
+      textAlign: 'center'
+    }}>
+      <IonSkeletonText animated style={{ width: '50px', height: '20px', margin: '0 auto 8px', borderRadius: '10px' }} />
+      <IonSkeletonText animated style={{ width: '30px', height: '24px', margin: '0 auto' }} />
+    </div>
+  </IonCol>
+);
+
+const SkeletonListItems: React.FC<{ count?: number }> = ({ count = 5 }) => (
+  <>
+    {Array.from({ length: count }).map((_, index) => (
+      <div
+        key={index}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          padding: '12px',
+          background: '#f8fafc',
+          borderRadius: '6px',
+          marginBottom: '8px'
+        }}
+      >
+        <IonSkeletonText animated style={{ width: '60%', height: '16px' }} />
+        <IonSkeletonText animated style={{ width: '20px', height: '20px', borderRadius: '10px' }} />
+      </div>
+    ))}
+  </>
+);
+
 const AdminAnalytics: React.FC = () => {
   const navigation = useIonRouter();
   const [reportPeriod, setReportPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'>('monthly');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
 
   useEffect(() => {
-    // Device detection logic
     const checkDevice = () => {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
       const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
@@ -70,42 +119,8 @@ const AdminAnalytics: React.FC = () => {
     };
 
     checkDevice();
+    setIsInitialLoading(false);
   }, []);
-
-  // Show mobile restriction message if accessed from mobile
-  if (isMobileDevice) {
-    return (
-      <IonPage>
-        <IonContent className="ion-padding" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          textAlign: 'center'
-        }}>
-          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
-            <IonIcon 
-              icon={desktopOutline} 
-              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
-            />
-            <IonText>
-              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
-                Admin Access Restricted
-              </h2>
-              <p style={{ color: '#718096', lineHeight: '1.6' }}>
-                This analytics page is only accessible by an admin.
-              </p>
-            </IonText>
-            <IonButton 
-              onClick={() => navigation.push('/it35-lab2')}
-              style={{ marginTop: '20px' }}
-            >
-              Return to Home
-            </IonButton>
-          </div>
-        </IonContent>
-      </IonPage>
-    );
-  }
 
   useEffect(() => {
     setDefaultDates();
@@ -139,7 +154,7 @@ const AdminAnalytics: React.FC = () => {
   };
 
   const generateReport = async () => {
-    setIsLoading(true);
+    setIsGenerating(true);
     try {
       const { data, error } = await supabase
         .from('incident_reports')
@@ -165,13 +180,11 @@ const AdminAnalytics: React.FC = () => {
           byCategory: {}
         };
 
-        // Group by barangay
         data.forEach(report => {
           const barangay = report.barangay || 'Unknown';
           reportData.byBarangay[barangay] = (reportData.byBarangay[barangay] || 0) + 1;
         });
 
-        // Group by category
         data.forEach(report => {
           const category = report.category || 'Unknown';
           reportData.byCategory[category] = (reportData.byCategory[category] || 0) + 1;
@@ -182,7 +195,7 @@ const AdminAnalytics: React.FC = () => {
     } catch (error) {
       console.error('Error generating report:', error);
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -236,6 +249,109 @@ ${Object.entries(reportData.byCategory)
     URL.revokeObjectURL(url);
   };
 
+  // Show skeleton during initial load
+  if (isInitialLoading) {
+    return (
+      <IonPage>
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+            <IonButtons slot="start">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+            <IonTitle style={{ fontWeight: 'bold' }}>
+              <IonSkeletonText animated style={{ width: '250px', height: '20px' }} />
+            </IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+
+          <IonToolbar style={{ '--background': 'white' } as any}>
+            <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} style={{ flex: 1, padding: '12px', textAlign: 'center' }}>
+                  <IonSkeletonText animated style={{ width: '80%', height: '16px', margin: '0 auto' }} />
+                </div>
+              ))}
+            </div>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent style={{ '--background': '#f8fafc' } as any}>
+          <div style={{ padding: '20px' }}>
+            <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+              <IonCardContent>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                  <IonSkeletonText animated style={{ width: '24px', height: '24px' }} />
+                  <IonSkeletonText animated style={{ width: '150px', height: '20px' }} />
+                </div>
+
+                <IonGrid>
+                  <IonRow>
+                    <IonCol size="12" sizeMd="4">
+                      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px' }} />
+                    </IonCol>
+                    <IonCol size="12" sizeMd="4">
+                      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px' }} />
+                    </IonCol>
+                    <IonCol size="12" sizeMd="4">
+                      <IonSkeletonText animated style={{ width: '100%', height: '56px', borderRadius: '8px' }} />
+                    </IonCol>
+                  </IonRow>
+                </IonGrid>
+
+                <IonSkeletonText animated style={{ width: '100%', height: '48px', borderRadius: '12px', marginTop: '16px' }} />
+              </IonCardContent>
+            </IonCard>
+
+            <IonCard style={{ borderRadius: '16px', textAlign: 'center', padding: '40px' }}>
+              <IonCardContent>
+                <IonSkeletonText animated style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%' }} />
+                <IonSkeletonText animated style={{ width: '200px', height: '20px', margin: '0 auto 8px' }} />
+                <IonSkeletonText animated style={{ width: '300px', height: '14px', margin: '0 auto' }} />
+              </IonCardContent>
+            </IonCard>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
+  // Show mobile restriction
+  if (isMobileDevice) {
+    return (
+      <IonPage>
+        <IonContent className="ion-padding" style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center'
+        }}>
+          <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
+            <IonIcon
+              icon={desktopOutline}
+              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }}
+            />
+            <IonText>
+              <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
+                Admin Access Restricted
+              </h2>
+              <p style={{ color: '#718096', lineHeight: '1.6' }}>
+                This analytics page is only accessible by an admin.
+              </p>
+            </IonText>
+            <IonButton
+              onClick={() => navigation.push('/it35-lab2')}
+              style={{ marginTop: '20px' }}
+            >
+              Return to Home
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
   return (
     <IonPage>
       <IonHeader>
@@ -263,7 +379,6 @@ ${Object.entries(reportData.byCategory)
           </IonButtons>
         </IonToolbar>
 
-        {/* Menu Bar */}
         <IonToolbar style={{ '--background': 'white' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[
@@ -298,7 +413,6 @@ ${Object.entries(reportData.byCategory)
       </IonHeader>
       <IonContent style={{ '--background': '#f8fafc' } as any}>
         <div style={{ padding: '20px' }}>
-          {/* Report Generator Card */}
           <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
             <IonCardContent>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -363,10 +477,10 @@ ${Object.entries(reportData.byCategory)
               <IonButton
                 expand="block"
                 onClick={generateReport}
-                disabled={isLoading || !startDate || !endDate}
+                disabled={isGenerating || !startDate || !endDate}
                 style={{ marginTop: '16px' }}
               >
-                {isLoading ? (
+                {isGenerating ? (
                   <>
                     <IonSpinner name="circular" style={{ marginRight: '8px' }} />
                     Generating...
@@ -381,10 +495,53 @@ ${Object.entries(reportData.byCategory)
             </IonCardContent>
           </IonCard>
 
-          {/* Report Results */}
-          {reportData && (
+          {/* Show skeleton while generating report */}
+          {isGenerating && (
             <>
-              {/* Summary Cards */}
+              <IonGrid>
+                <IonRow>
+                  <SkeletonStatsCard />
+                  <SkeletonStatsCard />
+                  <SkeletonStatsCard />
+                  <SkeletonStatsCard />
+                </IonRow>
+              </IonGrid>
+
+              <IonCard style={{ borderRadius: '16px', marginBottom: '20px', marginTop: '20px' }}>
+                <IonCardContent>
+                  <IonSkeletonText animated style={{ width: '120px', height: '18px', marginBottom: '16px' }} />
+                  <IonGrid>
+                    <IonRow>
+                      <SkeletonPriorityItem />
+                      <SkeletonPriorityItem />
+                      <SkeletonPriorityItem />
+                      <SkeletonPriorityItem />
+                    </IonRow>
+                  </IonGrid>
+                </IonCardContent>
+              </IonCard>
+
+              <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+                <IonCardContent>
+                  <IonSkeletonText animated style={{ width: '140px', height: '18px', marginBottom: '16px' }} />
+                  <SkeletonListItems count={6} />
+                </IonCardContent>
+              </IonCard>
+
+              <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+                <IonCardContent>
+                  <IonSkeletonText animated style={{ width: '130px', height: '18px', marginBottom: '16px' }} />
+                  <SkeletonListItems count={4} />
+                </IonCardContent>
+              </IonCard>
+
+              <IonSkeletonText animated style={{ width: '100%', height: '48px', borderRadius: '12px' }} />
+            </>
+          )}
+
+          {/* Report Results - Only show when not generating */}
+          {reportData && !isGenerating && (
+            <>
               <IonGrid>
                 <IonRow>
                   {[
@@ -409,7 +566,6 @@ ${Object.entries(reportData.byCategory)
                 </IonRow>
               </IonGrid>
 
-              {/* Priority Breakdown */}
               <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
                 <IonCardContent>
                   <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
@@ -440,7 +596,6 @@ ${Object.entries(reportData.byCategory)
                 </IonCardContent>
               </IonCard>
 
-              {/* By Barangay */}
               <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
                 <IonCardContent>
                   <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
@@ -468,7 +623,6 @@ ${Object.entries(reportData.byCategory)
                 </IonCardContent>
               </IonCard>
 
-              {/* By Category */}
               <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
                 <IonCardContent>
                   <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
@@ -496,7 +650,6 @@ ${Object.entries(reportData.byCategory)
                 </IonCardContent>
               </IonCard>
 
-              {/* Download Button */}
               <IonButton
                 expand="block"
                 onClick={downloadReport}
@@ -508,8 +661,8 @@ ${Object.entries(reportData.byCategory)
             </>
           )}
 
-          {/* Empty State */}
-          {!reportData && !isLoading && (
+          {/* Empty State - Only show when not generating and no data */}
+          {!reportData && !isGenerating && (
             <IonCard style={{ borderRadius: '16px', textAlign: 'center', padding: '40px' }}>
               <IonCardContent>
                 <IonIcon icon={documentTextOutline} style={{ fontSize: '64px', color: '#d1d5db', marginBottom: '16px' }} />

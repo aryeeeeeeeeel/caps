@@ -1,4 +1,4 @@
-// src/pages/Login.tsx
+// src/pages/Login.tsx - FIXED SKELETON LOADING & OTP MODAL
 import {
   IonButton,
   IonContent,
@@ -17,12 +17,10 @@ import {
   IonCheckbox,
   IonLabel,
   IonText,
-  IonItem,
-  IonList,
-  IonAvatar,
   IonPopover,
   IonBadge,
-  IonSpinner
+  IonSpinner,
+  IonSkeletonText
 } from '@ionic/react';
 import {
   personCircleOutline,
@@ -31,27 +29,19 @@ import {
   logInOutline,
   arrowBackOutline,
   peopleOutline,
-  phonePortraitOutline,
   eyeOffOutline,
   eyeOutline,
   timeOutline,
-  closeOutline,
   trashOutline,
   addOutline,
-  keyOutline,
   shieldOutline,
   refreshOutline,
-  checkmarkCircleOutline,
-  helpCircleOutline,
-  informationCircleOutline
+  checkmarkCircleOutline
 } from 'ionicons/icons';
 import { useState, useRef, useEffect } from 'react';
 import {
   supabase,
-  saveUserCredentials,
-  getSavedCredentials,
-  isRememberMeEnabled,
-  clearUserCredentials
+  isRememberMeEnabled
 } from '../utils/supabaseClient';
 
 const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
@@ -171,6 +161,324 @@ const Login: React.FC = () => {
   const avatarButtonRef = useRef<HTMLIonButtonElement>(null);
   const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
   const [isSendingOTP, setIsSendingOTP] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load saved accounts on component mount
+  useEffect(() => {
+    const loadSavedAccounts = () => {
+      try {
+        const accounts = getSavedAccounts();
+        const rememberEnabled = isRememberMeEnabled();
+
+        setRememberMe(rememberEnabled);
+        setSavedAccounts(accounts);
+
+        setLoginIdentifier('');
+        setPassword('');
+
+        // Simulate loading delay
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1000);
+      } catch (error) {
+        console.warn('Error loading saved accounts:', error);
+        setIsLoading(false);
+      }
+    };
+
+    loadSavedAccounts();
+  }, []);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [resendCooldown]);
+
+  // Global Enter key handler
+  useEffect(() => {
+    const handleGlobalKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !showSavedAccounts && !showOTPModal) {
+        const activeElement = document.activeElement;
+        const isFocusedOnInput = activeElement?.tagName === 'INPUT' ||
+          activeElement?.tagName === 'ION-INPUT' ||
+          activeElement?.closest('ion-input');
+
+        if (!isFocusedOnInput) {
+          handleLogin();
+        }
+      }
+    };
+
+    window.addEventListener('keypress', handleGlobalKeyPress);
+
+    return () => {
+      window.removeEventListener('keypress', handleGlobalKeyPress);
+    };
+  }, [loginIdentifier, password, showSavedAccounts, showOTPModal]);
+
+  // Focus on login identifier input when component mounts
+  useEffect(() => {
+    if (!isLoading) {
+      const timer = setTimeout(() => {
+        if (loginIdentifierInputRef.current) {
+          loginIdentifierInputRef.current.setFocus();
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading]);
+
+  // Skeleton Loading Component
+  const SkeletonLoader = () => (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}>
+      <IonCard style={{
+        maxWidth: '440px',
+        width: '100%',
+        borderRadius: '20px',
+        boxShadow: '0 20px 64px rgba(0,0,0,0.12)',
+        border: '1px solid rgba(226,232,240,0.8)',
+        overflow: 'hidden',
+        position: 'relative'
+      }}>
+        {/* Header Skeleton */}
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '40px 32px 30px',
+          textAlign: 'center',
+          position: 'relative'
+        }}>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                margin: '0 auto 20px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '60%',
+                height: '28px',
+                borderRadius: '4px',
+                margin: '0 auto 8px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '80%',
+                height: '14px',
+                borderRadius: '4px',
+                margin: '0 auto'
+              }}
+            />
+          </div>
+        </div>
+
+        <IonCardContent style={{ padding: '40px 32px', position: 'relative' }}>
+          {/* Form Fields Skeleton */}
+          <div style={{ marginBottom: '24px' }}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '40%',
+                height: '14px',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '100%',
+                height: '48px',
+                borderRadius: '12px'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '24px' }}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '30%',
+                height: '14px',
+                borderRadius: '4px',
+                marginBottom: '12px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '100%',
+                height: '48px',
+                borderRadius: '12px'
+              }}
+            />
+          </div>
+
+          {/* Remember Me Skeleton */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '12px',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '4px',
+                  marginRight: '12px'
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: '40%',
+                    height: '14px',
+                    borderRadius: '4px',
+                    marginBottom: '4px'
+                  }}
+                />
+                <IonSkeletonText
+                  animated
+                  style={{
+                    width: '60%',
+                    height: '12px',
+                    borderRadius: '4px'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Login Button Skeleton */}
+          <IonSkeletonText
+            animated
+            style={{
+              width: '100%',
+              height: '52px',
+              borderRadius: '12px',
+              marginBottom: '24px'
+            }}
+          />
+
+          {/* Divider Skeleton */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            margin: '24px 0',
+          }}>
+            <IonSkeletonText
+              animated
+              style={{
+                flex: 1,
+                height: '1px',
+                borderRadius: '1px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '100px',
+                height: '14px',
+                borderRadius: '4px',
+                margin: '0 16px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                flex: 1,
+                height: '1px',
+                borderRadius: '1px'
+              }}
+            />
+          </div>
+
+          {/* Create Account Button Skeleton */}
+          <IonSkeletonText
+            animated
+            style={{
+              width: '100%',
+              height: '44px',
+              borderRadius: '12px',
+              marginBottom: '24px'
+            }}
+          />
+
+          {/* Info Box Skeleton */}
+          <IonSkeletonText
+            animated
+            style={{
+              width: '100%',
+              height: '60px',
+              borderRadius: '12px'
+            }}
+          />
+        </IonCardContent>
+      </IonCard>
+    </div>
+  );
+
+  // Show skeleton while loading
+  if (isLoading) {
+    return (
+      <IonPage>
+        <IonHeader>
+          <IonToolbar style={{
+            '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            '--color': 'white'
+          } as any}>
+            <IonSkeletonText
+              animated
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                marginLeft: '16px'
+              }}
+            />
+            <IonSkeletonText
+              animated
+              style={{
+                width: '120px',
+                height: '20px',
+                borderRadius: '4px',
+                margin: '0 auto'
+              }}
+            />
+          </IonToolbar>
+        </IonHeader>
+        <IonContent>
+          <SkeletonLoader />
+        </IonContent>
+      </IonPage>
+    );
+  }
 
   // Generate device fingerprint
   const generateDeviceFingerprint = async (): Promise<string> => {
@@ -246,7 +554,6 @@ const Login: React.FC = () => {
   const sendOTP = async (email: string, fingerprint: string): Promise<boolean> => {
     setIsSendingOTP(true);
     try {
-      // Use Supabase's signInWithOtp to send OTP email
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
@@ -266,9 +573,7 @@ const Login: React.FC = () => {
       }
 
       setIsOtpSent(true);
-      setResendCooldown(60); // 60 seconds cooldown
-      setAlertMessage(`Verification code sent to ${email}. Please check your email.`);
-      setShowAlert(true);
+      setResendCooldown(60);
       return true;
     } catch (error: any) {
       console.error('Error sending OTP:', error);
@@ -280,10 +585,8 @@ const Login: React.FC = () => {
     }
   };
 
-  // Update the verifyOTP function
   const verifyOTP = async (email: string, code: string, fingerprint: string): Promise<boolean> => {
     try {
-      // Verify the OTP using Supabase's built-in verification
       const { data, error } = await supabase.auth.verifyOtp({
         email: email,
         token: code,
@@ -301,7 +604,6 @@ const Login: React.FC = () => {
         throw new Error('No user data returned after OTP verification.');
       }
 
-      // Save device as trusted for future logins
       await saveTrustedDevice(data.user.id, fingerprint);
 
       return true;
@@ -312,6 +614,7 @@ const Login: React.FC = () => {
       return false;
     }
   };
+
   const resendOTP = async () => {
     if (resendCooldown > 0) return;
     await sendOTP(otpEmail, deviceFingerprint);
@@ -328,7 +631,6 @@ const Login: React.FC = () => {
     try {
       let userEmail = loginIdentifier;
 
-      // Check if the loginIdentifier is an email or a username
       if (!loginIdentifier.includes('@')) {
         const { data, error } = await supabase
           .from('users')
@@ -342,11 +644,9 @@ const Login: React.FC = () => {
         userEmail = data.user_email;
       }
 
-      // Generate device fingerprint
       const fingerprint = await generateDeviceFingerprint();
       setDeviceFingerprint(fingerprint);
 
-      // Attempt login first
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: userEmail,
         password,
@@ -368,21 +668,17 @@ const Login: React.FC = () => {
 
       setCurrentUserId(authData.user.id);
 
-      // Check if device is trusted
       const isTrusted = await isDeviceTrusted(authData.user.id, fingerprint);
 
       if (!isTrusted) {
-        // New device detected - require OTP verification
         setOtpEmail(userEmail);
         setShowOTPModal(true);
         setIsLoggingIn(false);
 
-        // Send OTP automatically when modal opens
         await sendOTP(userEmail, fingerprint);
         return;
       }
 
-      // Device is trusted - proceed with login
       await completeLogin(authData.user.id, userEmail, fingerprint);
 
     } catch (error: any) {
@@ -392,17 +688,14 @@ const Login: React.FC = () => {
     }
   };
 
-  // Complete login after OTP verification or trusted device
   const completeLogin = async (userId: string, userEmail: string, fingerprint: string) => {
     try {
-      // Update device last used timestamp
       await supabase
         .from('device_fingerprints')
         .update({ last_used_at: new Date().toISOString() })
         .eq('user_id', userId)
         .eq('device_fingerprint', fingerprint);
 
-      // Save credentials if remember me is checked
       if (rememberMe) {
         saveAccount(loginIdentifier, password);
         setSavedAccounts(getSavedAccounts());
@@ -413,7 +706,6 @@ const Login: React.FC = () => {
 
       setShowToast(true);
 
-      // Clear focus from inputs
       const clearInputFocus = async () => {
         if (loginIdentifierInputRef.current) {
           try {
@@ -436,7 +728,6 @@ const Login: React.FC = () => {
 
       await clearInputFocus();
 
-      // Redirect after a short delay
       setTimeout(() => {
         navigation.push('/it35-lab2/app', 'forward', 'replace');
       }, 800);
@@ -449,7 +740,6 @@ const Login: React.FC = () => {
     }
   };
 
-  // Update the handleOTPVerification function
   const handleOTPVerification = async () => {
     if (!otpCode || otpCode.length < 6) {
       setAlertMessage('Please enter a valid 6-digit verification code.');
@@ -466,7 +756,6 @@ const Login: React.FC = () => {
         setOtpCode('');
         setIsOtpSent(false);
 
-        // Complete the login process
         await completeLogin(currentUserId, otpEmail, deviceFingerprint);
       }
     } catch (error: any) {
@@ -477,80 +766,6 @@ const Login: React.FC = () => {
       setIsVerifyingOTP(false);
     }
   };
-
-  // Resend cooldown timer
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (resendCooldown > 0) {
-      timer = setInterval(() => {
-        setResendCooldown(prev => prev - 1);
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [resendCooldown]);
-
-  // Load saved accounts on component mount
-  useEffect(() => {
-    const loadSavedAccounts = () => {
-      try {
-        const accounts = getSavedAccounts();
-        const rememberEnabled = isRememberMeEnabled();
-
-        setRememberMe(rememberEnabled);
-        setSavedAccounts(accounts);
-
-        setLoginIdentifier('');
-        setPassword('');
-      } catch (error) {
-        console.warn('Error loading saved accounts:', error);
-      }
-    };
-
-    loadSavedAccounts();
-  }, []);
-
-  const handleAvatarClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (savedAccounts.length > 0) {
-      setShowSavedAccounts(true);
-    }
-  };
-
-  // Global Enter key handler
-  useEffect(() => {
-    const handleGlobalKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !showSavedAccounts && !showOTPModal) {
-        const activeElement = document.activeElement;
-        const isFocusedOnInput = activeElement?.tagName === 'INPUT' ||
-          activeElement?.tagName === 'ION-INPUT' ||
-          activeElement?.closest('ion-input');
-
-        if (!isFocusedOnInput) {
-          handleLogin();
-        }
-      }
-    };
-
-    window.addEventListener('keypress', handleGlobalKeyPress);
-
-    return () => {
-      window.removeEventListener('keypress', handleGlobalKeyPress);
-    };
-  }, [loginIdentifier, password, showSavedAccounts, showOTPModal]);
-
-  // Focus on login identifier input when component mounts
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (loginIdentifierInputRef.current) {
-        loginIdentifierInputRef.current.setFocus();
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -569,6 +784,14 @@ const Login: React.FC = () => {
   const handleForgotPassword = () => {
     setAlertMessage('Password reset feature is coming soon. Please contact support if you need assistance.');
     setShowAlert(true);
+  };
+
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (savedAccounts.length > 0) {
+      setShowSavedAccounts(true);
+    }
   };
 
   const handleUseSavedAccount = (account: SavedAccount) => {
@@ -631,7 +854,6 @@ const Login: React.FC = () => {
             fill="clear"
             routerLink="/it35-lab2"
             style={{ color: 'white' }}
-            aria-hidden="false"
           >
             <IonIcon icon={arrowBackOutline} />
           </IonButton>
@@ -648,7 +870,7 @@ const Login: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           padding: '20px'
-        }} aria-hidden="false">
+        }}>
           <IonCard style={{
             maxWidth: '440px',
             width: '100%',
@@ -657,7 +879,7 @@ const Login: React.FC = () => {
             border: '1px solid rgba(226,232,240,0.8)',
             overflow: 'hidden',
             position: 'relative'
-          }} aria-hidden="false">
+          }}>
             {/* Header Section */}
             <div style={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -715,7 +937,6 @@ const Login: React.FC = () => {
             </div>
 
             <IonCardContent style={{ padding: '40px 32px', position: 'relative' }}>
-              {/* Wrap form elements in a form tag */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -757,10 +978,8 @@ const Login: React.FC = () => {
                         '--padding-end': savedAccounts.length > 0 ? '50px' : '16px',
                         fontSize: '16px'
                       } as any}
-                      aria-hidden="false"
                     />
 
-                    {/* Show saved accounts avatar icon when accounts exist */}
                     {savedAccounts.length > 0 && (
                       <div style={{
                         position: 'absolute',
@@ -1082,7 +1301,6 @@ const Login: React.FC = () => {
                     </IonButton>
                   </div>
 
-                  {/* Password Input with Toggle */}
                   <IonInput
                     ref={passwordInputRef}
                     fill="outline"
@@ -1098,7 +1316,6 @@ const Login: React.FC = () => {
                       '--padding-end': '2px',
                       fontSize: '16px'
                     } as any}
-                    aria-hidden="false"
                   >
                     <IonButton
                       fill="clear"
@@ -1153,7 +1370,6 @@ const Login: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Login Button - changed to type="submit" */}
                 <IonButton
                   type="submit"
                   expand="block"
@@ -1263,8 +1479,10 @@ const Login: React.FC = () => {
           onDidDismiss={() => {
             if (!isVerifyingOTP) {
               setShowOTPModal(false);
+              setOtpCode('');
             }
           }}
+          backdropDismiss={!isVerifyingOTP}
           style={{
             '--height': 'auto',
             '--width': '90%',
@@ -1278,15 +1496,14 @@ const Login: React.FC = () => {
             justifyContent: 'center',
             height: '100%',
             background: 'rgba(0,0,0,0.5)'
-          }} aria-hidden={!showOTPModal}>
+          }}>
             <IonCard style={{
               width: '100%',
               borderRadius: '20px',
               boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
               overflow: 'hidden',
               margin: '0'
-            }} aria-hidden={!showOTPModal}>
-              {/* Modal Header */}
+            }}>
               <div style={{
                 background: 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
                 padding: '24px 20px',
@@ -1327,7 +1544,6 @@ const Login: React.FC = () => {
               </div>
 
               <IonCardContent style={{ padding: '24px 20px' }}>
-                {/* Wrap OTP form for Enter key handling */}
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1352,8 +1568,16 @@ const Login: React.FC = () => {
                       value={otpCode}
                       onIonChange={e => setOtpCode(e.detail.value || '')}
                       onKeyPress={(e: React.KeyboardEvent) => {
-                        // Only allow numbers
-                        if (!/^\d$/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                        // Allow only numbers and control keys
+                        if (!/^\d$/.test(e.key) &&
+                          e.key !== 'Backspace' &&
+                          e.key !== 'Delete' &&
+                          e.key !== 'Tab' &&
+                          e.key !== 'Enter' &&
+                          e.key !== 'ArrowLeft' &&
+                          e.key !== 'ArrowRight' &&
+                          e.key !== 'Home' &&
+                          e.key !== 'End') {
                           e.preventDefault();
                         }
                       }}
@@ -1370,7 +1594,6 @@ const Login: React.FC = () => {
                     />
                   </div>
 
-                  {/* Resend Code Section */}
                   <div style={{ marginBottom: '20px', textAlign: 'center' }}>
                     <IonButton
                       onClick={resendOTP}
@@ -1394,7 +1617,6 @@ const Login: React.FC = () => {
                     type="submit"
                     expand="block"
                     size="large"
-                    onClick={handleOTPVerification}
                     disabled={isVerifyingOTP || otpCode.length < 6}
                     style={{
                       '--border-radius': '10px',
