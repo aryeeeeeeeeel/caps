@@ -1,4 +1,4 @@
-// src/pages/user-tabs/Dashboard.tsx - Updated with Skeleton Screen
+// src/pages/user-tabs/Dashboard.tsx - FIXED: User-specific stats with clickable boxes
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -20,7 +20,8 @@ import {
   RefresherEventDetail,
   IonSkeletonText,
   IonProgressBar,
-  IonPage
+  IonPage,
+  IonToast
 } from '@ionic/react';
 import {
   homeOutline,
@@ -37,7 +38,6 @@ import { useHistory } from 'react-router-dom';
 import { supabase } from '../../utils/supabaseClient';
 
 interface DashboardStats {
-  totalReports: number;
   pendingReports: number;
   activeReports: number;
   resolvedReports: number;
@@ -133,7 +133,6 @@ const Dashboard: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [stats, setStats] = useState<DashboardStats>({
-    totalReports: 0,
     pendingReports: 0,
     activeReports: 0,
     resolvedReports: 0,
@@ -143,15 +142,15 @@ const Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [userReports, setUserReports] = useState<any[]>([]);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
-  // Define functions BEFORE useEffect to avoid hoisting issues
   const fetchUserData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUser(user);
 
-        // Fetch user profile from users table
         const { data: profile, error } = await supabase
           .from('users')
           .select('*')
@@ -162,7 +161,6 @@ const Dashboard: React.FC = () => {
           setUserProfile(profile);
         }
 
-        // Fetch user reports
         if (user.email) {
           fetchUserReports(user.email);
           fetchNotifications(user.email);
@@ -210,9 +208,7 @@ const Dashboard: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        // User not logged in - show empty state
         setStats({
-          totalReports: 0,
           pendingReports: 0,
           activeReports: 0,
           resolvedReports: 0,
@@ -223,16 +219,16 @@ const Dashboard: React.FC = () => {
         return;
       }
 
-      // Fetch all reports statistics
-      const { data: allReports, error: allReportsError } = await supabase
+      // Fetch ONLY user's reports
+      const { data: userReports, error: userReportsError } = await supabase
         .from('incident_reports')
-        .select('*');
+        .select('*')
+        .eq('reporter_email', user.email)
+        .order('created_at', { ascending: false });
 
-      if (allReportsError) {
-        console.error('Error fetching reports:', allReportsError);
-        // Set empty data on error
+      if (userReportsError) {
+        console.error('Error fetching reports:', userReportsError);
         setStats({
-          totalReports: 0,
           pendingReports: 0,
           activeReports: 0,
           resolvedReports: 0,
@@ -243,28 +239,24 @@ const Dashboard: React.FC = () => {
         return;
       }
 
-      // Process real data from database
-      const pending = allReports?.filter(r => r.status === 'pending').length || 0;
-      const active = allReports?.filter(r => r.status === 'active').length || 0;
-      const resolved = allReports?.filter(r => r.status === 'resolved').length || 0;
-      const myReports = allReports?.filter(r => r.reporter_email === user.email).length || 0;
+      // Process user's reports only
+      const pending = userReports?.filter(r => r.status === 'pending').length || 0;
+      const active = userReports?.filter(r => r.status === 'investigating').length || 0;
+      const resolved = userReports?.filter(r => r.status === 'resolved').length || 0;
 
       setStats({
-        totalReports: allReports?.length || 0,
         pendingReports: pending,
         activeReports: active,
         resolvedReports: resolved,
-        myReports: myReports
+        myReports: userReports?.length || 0
       });
 
       // Set recent reports (last 3)
-      setRecentReports(allReports?.slice(0, 3) || []);
+      setRecentReports(userReports?.slice(0, 3) || []);
 
     } catch (error) {
       console.error('Error in fetchDashboardData:', error);
-      // Set empty data on error
       setStats({
-        totalReports: 0,
         pendingReports: 0,
         activeReports: 0,
         resolvedReports: 0,
@@ -293,6 +285,22 @@ const Dashboard: React.FC = () => {
     };
     checkAuth();
   }, []);
+
+  const handleStatBoxClick = (type: 'pending' | 'active' | 'resolved') => {
+    const count = stats[`${type}Reports`];
+    
+    if (count === 0) {
+      setToastMessage(`No ${type} reports found`);
+      setShowToast(true);
+      return;
+    }
+
+    if (type === 'resolved') {
+      history.push('/it35-lab2/app/history');
+    } else {
+      history.push('/it35-lab2/app/map');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -374,7 +382,6 @@ const Dashboard: React.FC = () => {
             <IonGrid style={{ padding: 0, marginBottom: '20px' }}>
               <IonRow>
                 <SkeletonStatsCard />
-                <SkeletonStatsCard />
               </IonRow>
 
               <IonRow>
@@ -442,7 +449,7 @@ const Dashboard: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'resolved': return '#10b981';
-      case 'active': return '#3b82f6';
+      case 'investigating': return '#3b82f6';
       case 'pending': return '#f59e0b';
       default: return '#6b7280';
     }
@@ -459,8 +466,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleDialLDRRMO = () => {
-    // LDRRMO Emergency number - you can update this with the actual number
-    const ldrrmoNumber = '09564022605'; // Replace with actual LDRRMO number
+    const ldrrmoNumber = '09564022605';
     window.open(`tel:${ldrrmoNumber}`, '_self');
   };
 
@@ -545,45 +551,7 @@ const Dashboard: React.FC = () => {
           {/* Statistics Cards */}
           <IonGrid style={{ padding: 0, marginBottom: '20px' }}>
             <IonRow>
-              <IonCol size="6">
-                <IonCard style={{
-                  borderRadius: '16px',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-                  height: '100px'
-                }}>
-                  <IonCardContent style={{
-                    padding: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    height: '100%'
-                  }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
-                      borderRadius: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: '16px'
-                    }}>
-                      <IonIcon icon={statsChartOutline} style={{ fontSize: '20px', color: 'white' }} />
-                    </div>
-                    <div>
-                      {isLoading ? (
-                        <IonSkeletonText animated style={{ width: '40px', height: '24px' }} />
-                      ) : (
-                        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
-                          {stats.totalReports}
-                        </h2>
-                      )}
-                      <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Total Reports</p>
-                    </div>
-                  </IonCardContent>
-                </IonCard>
-              </IonCol>
-
-              <IonCol size="6">
+              <IonCol size="12">
                 <IonCard style={{
                   borderRadius: '16px',
                   boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
@@ -615,7 +583,7 @@ const Dashboard: React.FC = () => {
                           {stats.myReports}
                         </h2>
                       )}
-                      <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>My Reports</p>
+                      <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>My Total Reports</p>
                     </div>
                   </IonCardContent>
                 </IonCard>
@@ -623,13 +591,17 @@ const Dashboard: React.FC = () => {
             </IonRow>
 
             <IonRow>
-              {/* Pending Reports Box */}
+              {/* Pending Reports Box - Clickable */}
               <IonCol size="4">
-                <IonCard style={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  height: '80px'
-                }}>
+                <IonCard 
+                  button
+                  onClick={() => handleStatBoxClick('pending')}
+                  style={{
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    height: '80px',
+                    cursor: 'pointer'
+                  }}>
                   <IonCardContent style={{
                     padding: '16px',
                     display: 'flex',
@@ -657,13 +629,17 @@ const Dashboard: React.FC = () => {
                 </IonCard>
               </IonCol>
 
-              {/* Active Reports Box */}
+              {/* Active Reports Box - Clickable */}
               <IonCol size="4">
-                <IonCard style={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  height: '80px'
-                }}>
+                <IonCard
+                  button
+                  onClick={() => handleStatBoxClick('active')}
+                  style={{
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    height: '80px',
+                    cursor: 'pointer'
+                  }}>
                   <IonCardContent style={{
                     padding: '16px',
                     display: 'flex',
@@ -691,13 +667,17 @@ const Dashboard: React.FC = () => {
                 </IonCard>
               </IonCol>
 
-              {/* Resolved Reports Box */}
+              {/* Resolved Reports Box - Clickable */}
               <IonCol size="4">
-                <IonCard style={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  height: '80px'
-                }}>
+                <IonCard
+                  button
+                  onClick={() => handleStatBoxClick('resolved')}
+                  style={{
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    height: '80px',
+                    cursor: 'pointer'
+                  }}>
                   <IonCardContent style={{
                     padding: '16px',
                     display: 'flex',
@@ -732,12 +712,12 @@ const Dashboard: React.FC = () => {
             <IonCardHeader>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-                  Recent Reports
+                  My Recent Reports
                 </IonCardTitle>
                 <IonButton
                   fill="clear"
                   size="small"
-                  routerLink="/it35-lab2/app/history"
+                  routerLink="/it35-lab2/app/map"
                 >
                   View All
                 </IonButton>
@@ -751,7 +731,7 @@ const Dashboard: React.FC = () => {
               ) : recentReports.length === 0 ? (
                 <div style={{ padding: '40px 20px', textAlign: 'center' }}>
                   <IonIcon icon={homeOutline} style={{ fontSize: '48px', color: '#d1d5db' }} />
-                  <p style={{ color: '#9ca3af', marginTop: '16px' }}>No reports found in database</p>
+                  <p style={{ color: '#9ca3af', marginTop: '16px' }}>No reports found</p>
                   <IonButton
                     routerLink="/it35-lab2/app/submit"
                     fill="outline"
@@ -766,7 +746,7 @@ const Dashboard: React.FC = () => {
                     <IonItem
                       key={report.id || index}
                       button
-                      routerLink="/it35-lab2/app/history"
+                      routerLink="/it35-lab2/app/map"
                       style={{
                         '--padding-start': '20px',
                         '--inner-padding-end': '20px',
@@ -886,6 +866,16 @@ const Dashboard: React.FC = () => {
             </IonCardContent>
           </IonCard>
         </div>
+
+        {/* Toast for empty stat boxes */}
+        <IonToast
+          isOpen={showToast}
+          onDidDismiss={() => setShowToast(false)}
+          message={toastMessage}
+          duration={2000}
+          position="top"
+          color="warning"
+        />
       </IonContent>
     </IonPage>
   );

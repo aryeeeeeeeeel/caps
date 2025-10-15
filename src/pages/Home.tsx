@@ -1,4 +1,4 @@
-// src/pages/Home.tsx - FIXED SKELETON LOADING
+// src/pages/Home.tsx - FIXED: Profile popover with better alignment and removed items
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -140,8 +140,6 @@ const Home: React.FC = () => {
     }, 100);
   };
 
-  
-  
   return (
     <IonPage>
       <IonHeader>
@@ -186,9 +184,9 @@ const Home: React.FC = () => {
             {/* Profile Button */}
             {user ? (
               <IonButton fill="clear" onClick={openProfilePopover} style={{ color: 'white' }}>
-                {userProfile?.avatar_url ? (
+                {userProfile?.user_avatar_url ? (
                   <IonAvatar slot="icon-only" style={{ width: '32px', height: '32px' }}>
-                    <img src={userProfile.avatar_url} alt="Profile" />
+                    <img src={userProfile.user_avatar_url} alt="Profile" />
                   </IonAvatar>
                 ) : (
                   <IonIcon icon={personCircle} slot="icon-only" size="large" />
@@ -203,7 +201,7 @@ const Home: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      {/* Profile Popover */}
+      {/* Profile Popover - FIXED */}
       <IonPopover
         isOpen={showProfilePopover}
         event={popoverEvent}
@@ -213,16 +211,21 @@ const Home: React.FC = () => {
           <div style={{ padding: '0', minWidth: '280px' }}>
             {user && (
               <>
-                {/* Profile Header */}
+                {/* Profile Header - FIXED ALIGNMENT */}
                 <div style={{
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   padding: '24px 20px',
                   textAlign: 'center',
                   color: 'white'
                 }}>
-                  {userProfile?.avatar_url ? (
-                    <IonAvatar style={{ width: '60px', height: '60px', margin: '0 auto 12px' }}>
-                      <img src={userProfile.avatar_url} alt="Profile" />
+                  {userProfile?.user_avatar_url ? (
+                    <IonAvatar style={{ 
+                      width: '60px', 
+                      height: '60px', 
+                      margin: '0 auto 12px',
+                      border: '3px solid rgba(255,255,255,0.3)'
+                    }}>
+                      <img src={userProfile.user_avatar_url} alt="Profile" />
                     </IonAvatar>
                   ) : (
                     <div style={{
@@ -242,14 +245,16 @@ const Home: React.FC = () => {
                   <h3 style={{
                     margin: '0 0 4px 0',
                     fontSize: '18px',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    textAlign: 'center'
                   }}>
                     {userProfile ? `${userProfile.user_firstname} ${userProfile.user_lastname}` : 'Community Member'}
                   </h3>
                   <p style={{
                     margin: '0 0 8px 0',
                     fontSize: '14px',
-                    opacity: 0.9
+                    opacity: 0.9,
+                    textAlign: 'center'
                   }}>
                     {user.email}
                   </p>
@@ -265,7 +270,7 @@ const Home: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Profile Menu Items */}
+                {/* Profile Menu Items - REMOVED MY REPORTS AND NOTIFICATIONS */}
                 <div style={{ padding: '12px 0' }}>
                   <IonItem
                     button
@@ -274,37 +279,9 @@ const Home: React.FC = () => {
                   >
                     <IonIcon icon={personCircle} slot="start" color="primary" />
                     <IonLabel>
-                      <h3>View Profile</h3>
-                      <p>Manage account settings</p>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>View Profile</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Manage account settings</p>
                     </IonLabel>
-                  </IonItem>
-
-                  <IonItem
-                    button
-                    onClick={() => handlePopoverNavigation('/it35-lab2/app/history')}
-                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
-                  >
-                    <IonIcon icon={listOutline} slot="start" color="secondary" />
-                    <IonLabel>
-                      <h3>My Reports</h3>
-                      <p>View & edit submitted reports</p>
-                    </IonLabel>
-                    <IonBadge color="primary" slot="end">{userReports.length}</IonBadge>
-                  </IonItem>
-
-                  <IonItem
-                    button
-                    onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
-                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
-                  >
-                    <IonIcon icon={notificationsOutline} slot="start" color="warning" />
-                    <IonLabel>
-                      <h3>Notifications</h3>
-                      <p>Alerts and updates</p>
-                    </IonLabel>
-                    {unreadNotifications > 0 && (
-                      <IonBadge color="danger" slot="end">{unreadNotifications}</IonBadge>
-                    )}
                   </IonItem>
 
                   <IonItem
@@ -314,8 +291,8 @@ const Home: React.FC = () => {
                   >
                     <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
                     <IonLabel>
-                      <h3>Give Feedback</h3>
-                      <p>Rate our response service</p>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Give Feedback</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Rate our response service</p>
                     </IonLabel>
                   </IonItem>
 
@@ -326,8 +303,8 @@ const Home: React.FC = () => {
                   >
                     <IonIcon icon={logOutOutline} slot="start" color="danger" />
                     <IonLabel>
-                      <h3>Sign Out</h3>
-                      <p>Logout from account</p>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Sign Out</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Logout from account</p>
                     </IonLabel>
                   </IonItem>
                 </div>
@@ -352,7 +329,7 @@ const Home: React.FC = () => {
             </Route>
           </IonRouterOutlet>
 
-          {/* Bottom Tab Bar - FIXED NAVIGATION */}
+          {/* Bottom Tab Bar */}
           <IonTabBar
             slot="bottom"
             style={{

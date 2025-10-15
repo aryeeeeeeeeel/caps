@@ -1,4 +1,4 @@
-// src/pages/user-tabs/IncidentReport.tsx - Updated with Skeleton Screen
+// src/pages/user-tabs/IncidentReport.tsx - Updated with Toast Messages
 import React, { useState, useRef, useEffect } from 'react';
 import {
   IonContent,
@@ -14,14 +14,12 @@ import {
   IonItem,
   IonLabel,
   IonIcon,
-  IonAlert,
   IonToast,
   IonProgressBar,
   IonGrid,
   IonRow,
   IonCol,
   IonModal,
-  IonCheckbox,
   IonSpinner,
   IonSkeletonText
 } from '@ionic/react';
@@ -31,7 +29,6 @@ import {
   warningOutline,
   checkmarkCircleOutline,
   closeCircle,
-  informationCircleOutline,
   addOutline,
   timeOutline,
   imageOutline
@@ -39,7 +36,6 @@ import {
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '../../utils/supabaseClient';
-import { isPlatform } from '@ionic/react';
 import { Capacitor } from '@capacitor/core';
 import ExifReader from 'exifreader';
 
@@ -53,8 +49,8 @@ interface IncidentReport {
   images: File[];
   reporter_email: string;
   reporter_name: string;
-  reporter_address: string; // NEW
-  reporter_contact: string; // NEW
+  reporter_address: string;
+  reporter_contact: string;
   exif_data?: any;
   photo_datetime?: string;
   current_datetime?: string;
@@ -80,317 +76,362 @@ const isNativePlatform = () => {
   return Capacitor.isNativePlatform();
 };
 
-// Fixed and more accurate barangay polygons for Manolo Fortich
-const barangayPolygons: { [key: string]: BarangayPolygon } = {
+// FIXED BARANGAY LIST - Original 22 Barangays of Manolo Fortich
+const MANOLO_FORTICH_BARANGAYS = [
+  'Agusan Canyon',
+  'Alae',
+  'Dahilayan',
+  'Dalirig',
+  'Damilag',
+  'Dicklum',
+  'Guilang-guilang',
+  'Kalugmanan',
+  'Lindaban',
+  'Lingion',
+  'Lunocan',
+  'Maluko',
+  'Mambatangan',
+  'Mampayag',
+  'Mantibugao',
+  'Minsuro',
+  'San Miguel',
+  'Sankanan',
+  'Santiago',
+  'Santo Niño',
+  'Tankulan',
+  'Ticala'
+];
+
+// Barangay polygon data with accurate coordinates for automated detection
+const barangayPolygons: {
+  [key: string]: {
+    polygons: { points: { lat: number; lng: number }[] }[];
+    centroid: { lat: number; lng: number };
+  }
+} = {
   'Agusan Canyon': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3721, lng: 124.8134 },
-          { lat: 8.3821, lng: 124.8334 },
-          { lat: 8.3621, lng: 124.8434 },
-          { lat: 8.3521, lng: 124.8234 },
-          { lat: 8.3621, lng: 124.8034 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3721, lng: 124.8134 },
+        { lat: 8.3821, lng: 124.8334 },
+        { lat: 8.3621, lng: 124.8434 },
+        { lat: 8.3521, lng: 124.8234 },
+        { lat: 8.3621, lng: 124.8034 }
+      ]
+    }],
     centroid: { lat: 8.3721, lng: 124.8234 }
   },
   'Alae': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.4302, lng: 124.8856 },
-          { lat: 8.4502, lng: 124.9056 },
-          { lat: 8.4502, lng: 124.9256 },
-          { lat: 8.4302, lng: 124.9256 },
-          { lat: 8.4202, lng: 124.9056 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.4302, lng: 124.8856 },
+        { lat: 8.4502, lng: 124.9056 },
+        { lat: 8.4502, lng: 124.9256 },
+        { lat: 8.4302, lng: 124.9256 },
+        { lat: 8.4202, lng: 124.9056 }
+      ]
+    }],
     centroid: { lat: 8.4402, lng: 124.9056 }
   },
   'Dahilayan': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.4489, lng: 124.8634 },
-          { lat: 8.4689, lng: 124.8834 },
-          { lat: 8.4689, lng: 124.9034 },
-          { lat: 8.4489, lng: 124.9034 },
-          { lat: 8.4389, lng: 124.8834 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.4489, lng: 124.8634 },
+        { lat: 8.4689, lng: 124.8834 },
+        { lat: 8.4689, lng: 124.9034 },
+        { lat: 8.4489, lng: 124.9034 },
+        { lat: 8.4389, lng: 124.8834 }
+      ]
+    }],
     centroid: { lat: 8.4589, lng: 124.8834 }
   },
   'Dalirig': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3923, lng: 124.9012 },
-          { lat: 8.4123, lng: 124.9212 },
-          { lat: 8.4123, lng: 124.9412 },
-          { lat: 8.3923, lng: 124.9412 },
-          { lat: 8.3823, lng: 124.9212 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3923, lng: 124.9012 },
+        { lat: 8.4123, lng: 124.9212 },
+        { lat: 8.4123, lng: 124.9412 },
+        { lat: 8.3923, lng: 124.9412 },
+        { lat: 8.3823, lng: 124.9212 }
+      ]
+    }],
     centroid: { lat: 8.4023, lng: 124.9212 }
   },
   'Damilag': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3693, lng: 124.8564 },
-          { lat: 8.3893, lng: 124.8764 },
-          { lat: 8.3893, lng: 124.8964 },
-          { lat: 8.3693, lng: 124.8964 },
-          { lat: 8.3593, lng: 124.8764 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3693, lng: 124.8564 },
+        { lat: 8.3893, lng: 124.8764 },
+        { lat: 8.3893, lng: 124.8964 },
+        { lat: 8.3693, lng: 124.8964 },
+        { lat: 8.3593, lng: 124.8764 }
+      ]
+    }],
     centroid: { lat: 8.3793, lng: 124.8764 }
   },
   'Dicklum': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3734, lng: 124.8123 },
-          { lat: 8.3934, lng: 124.8323 },
-          { lat: 8.3934, lng: 124.8523 },
-          { lat: 8.3734, lng: 124.8523 },
-          { lat: 8.3634, lng: 124.8323 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3734, lng: 124.8123 },
+        { lat: 8.3934, lng: 124.8323 },
+        { lat: 8.3934, lng: 124.8523 },
+        { lat: 8.3734, lng: 124.8523 },
+        { lat: 8.3634, lng: 124.8323 }
+      ]
+    }],
     centroid: { lat: 8.3834, lng: 124.8323 }
   },
   'Guilang-guilang': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3812, lng: 124.8423 },
-          { lat: 8.4012, lng: 124.8623 },
-          { lat: 8.4012, lng: 124.8823 },
-          { lat: 8.3812, lng: 124.8823 },
-          { lat: 8.3712, lng: 124.8623 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3812, lng: 124.8423 },
+        { lat: 8.4012, lng: 124.8623 },
+        { lat: 8.4012, lng: 124.8823 },
+        { lat: 8.3812, lng: 124.8823 },
+        { lat: 8.3712, lng: 124.8623 }
+      ]
+    }],
     centroid: { lat: 8.3912, lng: 124.8623 }
   },
   'Kalugmanan': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.4156, lng: 124.8967 },
-          { lat: 8.4356, lng: 124.9167 },
-          { lat: 8.4356, lng: 124.9367 },
-          { lat: 8.4156, lng: 124.9367 },
-          { lat: 8.4056, lng: 124.9167 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.4156, lng: 124.8967 },
+        { lat: 8.4356, lng: 124.9167 },
+        { lat: 8.4356, lng: 124.9367 },
+        { lat: 8.4156, lng: 124.9367 },
+        { lat: 8.4056, lng: 124.9167 }
+      ]
+    }],
     centroid: { lat: 8.4256, lng: 124.9167 }
   },
   'Lindaban': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3567, lng: 124.8145 },
-          { lat: 8.3767, lng: 124.8345 },
-          { lat: 8.3767, lng: 124.8545 },
-          { lat: 8.3567, lng: 124.8545 },
-          { lat: 8.3467, lng: 124.8345 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3567, lng: 124.8145 },
+        { lat: 8.3767, lng: 124.8345 },
+        { lat: 8.3767, lng: 124.8545 },
+        { lat: 8.3567, lng: 124.8545 },
+        { lat: 8.3467, lng: 124.8345 }
+      ]
+    }],
     centroid: { lat: 8.3667, lng: 124.8345 }
   },
   'Lingion': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3234, lng: 124.7923 },
-          { lat: 8.3434, lng: 124.8123 },
-          { lat: 8.3434, lng: 124.8323 },
-          { lat: 8.3234, lng: 124.8323 },
-          { lat: 8.3134, lng: 124.8123 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3234, lng: 124.7923 },
+        { lat: 8.3434, lng: 124.8123 },
+        { lat: 8.3434, lng: 124.8323 },
+        { lat: 8.3234, lng: 124.8323 },
+        { lat: 8.3134, lng: 124.8123 }
+      ]
+    }],
     centroid: { lat: 8.3334, lng: 124.8123 }
   },
   'Lunocan': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3145, lng: 124.7834 },
-          { lat: 8.3345, lng: 124.8034 },
-          { lat: 8.3345, lng: 124.8234 },
-          { lat: 8.3145, lng: 124.8234 },
-          { lat: 8.3045, lng: 124.8034 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3145, lng: 124.7834 },
+        { lat: 8.3345, lng: 124.8034 },
+        { lat: 8.3345, lng: 124.8234 },
+        { lat: 8.3145, lng: 124.8234 },
+        { lat: 8.3045, lng: 124.8034 }
+      ]
+    }],
     centroid: { lat: 8.3245, lng: 124.8034 }
   },
   'Maluko': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.2923, lng: 124.7656 },
-          { lat: 8.3123, lng: 124.7856 },
-          { lat: 8.3123, lng: 124.8056 },
-          { lat: 8.2923, lng: 124.8056 },
-          { lat: 8.2823, lng: 124.7856 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.2923, lng: 124.7656 },
+        { lat: 8.3123, lng: 124.7856 },
+        { lat: 8.3123, lng: 124.8056 },
+        { lat: 8.2923, lng: 124.8056 },
+        { lat: 8.2823, lng: 124.7856 }
+      ]
+    }],
     centroid: { lat: 8.3023, lng: 124.7856 }
   },
   'Mambatangan': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.2812, lng: 124.7534 },
-          { lat: 8.3012, lng: 124.7734 },
-          { lat: 8.3012, lng: 124.7934 },
-          { lat: 8.2812, lng: 124.7934 },
-          { lat: 8.2712, lng: 124.7734 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.2812, lng: 124.7534 },
+        { lat: 8.3012, lng: 124.7734 },
+        { lat: 8.3012, lng: 124.7934 },
+        { lat: 8.2812, lng: 124.7934 },
+        { lat: 8.2712, lng: 124.7734 }
+      ]
+    }],
     centroid: { lat: 8.2912, lng: 124.7734 }
   },
   'Mampayag': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3345, lng: 124.8089 },
-          { lat: 8.3545, lng: 124.8289 },
-          { lat: 8.3545, lng: 124.8489 },
-          { lat: 8.3345, lng: 124.8489 },
-          { lat: 8.3245, lng: 124.8289 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3345, lng: 124.8089 },
+        { lat: 8.3545, lng: 124.8289 },
+        { lat: 8.3545, lng: 124.8489 },
+        { lat: 8.3345, lng: 124.8489 },
+        { lat: 8.3245, lng: 124.8289 }
+      ]
+    }],
     centroid: { lat: 8.3445, lng: 124.8289 }
   },
   'Mantibugao': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3456, lng: 124.8234 },
-          { lat: 8.3656, lng: 124.8434 },
-          { lat: 8.3656, lng: 124.8634 },
-          { lat: 8.3456, lng: 124.8634 },
-          { lat: 8.3356, lng: 124.8434 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3456, lng: 124.8234 },
+        { lat: 8.3656, lng: 124.8434 },
+        { lat: 8.3656, lng: 124.8634 },
+        { lat: 8.3456, lng: 124.8634 },
+        { lat: 8.3356, lng: 124.8434 }
+      ]
+    }],
     centroid: { lat: 8.3556, lng: 124.8434 }
   },
   'Minsuro': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3678, lng: 124.8456 },
-          { lat: 8.3878, lng: 124.8656 },
-          { lat: 8.3878, lng: 124.8856 },
-          { lat: 8.3678, lng: 124.8856 },
-          { lat: 8.3578, lng: 124.8656 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3678, lng: 124.8456 },
+        { lat: 8.3878, lng: 124.8656 },
+        { lat: 8.3878, lng: 124.8856 },
+        { lat: 8.3678, lng: 124.8856 },
+        { lat: 8.3578, lng: 124.8656 }
+      ]
+    }],
     centroid: { lat: 8.3778, lng: 124.8656 }
   },
   'San Miguel': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3823, lng: 124.8678 },
-          { lat: 8.4023, lng: 124.8878 },
-          { lat: 8.4023, lng: 124.9078 },
-          { lat: 8.3823, lng: 124.9078 },
-          { lat: 8.3723, lng: 124.8878 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3823, lng: 124.8678 },
+        { lat: 8.4023, lng: 124.8878 },
+        { lat: 8.4023, lng: 124.9078 },
+        { lat: 8.3823, lng: 124.9078 },
+        { lat: 8.3723, lng: 124.8878 }
+      ]
+    }],
     centroid: { lat: 8.3923, lng: 124.8878 }
   },
   'Sankanan': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.3945, lng: 124.8789 },
-          { lat: 8.4145, lng: 124.8989 },
-          { lat: 8.4145, lng: 124.9189 },
-          { lat: 8.3945, lng: 124.9189 },
-          { lat: 8.3845, lng: 124.8989 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.3945, lng: 124.8789 },
+        { lat: 8.4145, lng: 124.8989 },
+        { lat: 8.4145, lng: 124.9189 },
+        { lat: 8.3945, lng: 124.9189 },
+        { lat: 8.3845, lng: 124.8989 }
+      ]
+    }],
     centroid: { lat: 8.4045, lng: 124.8989 }
   },
   'Santiago': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.4067, lng: 124.8923 },
-          { lat: 8.4267, lng: 124.9123 },
-          { lat: 8.4267, lng: 124.9323 },
-          { lat: 8.4067, lng: 124.9323 },
-          { lat: 8.3967, lng: 124.9123 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.4067, lng: 124.8923 },
+        { lat: 8.4267, lng: 124.9123 },
+        { lat: 8.4267, lng: 124.9323 },
+        { lat: 8.4067, lng: 124.9323 },
+        { lat: 8.3967, lng: 124.9123 }
+      ]
+    }],
     centroid: { lat: 8.4167, lng: 124.9123 }
   },
   'Santo Niño': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.4189, lng: 124.9056 },
-          { lat: 8.4389, lng: 124.9256 },
-          { lat: 8.4389, lng: 124.9456 },
-          { lat: 8.4189, lng: 124.9456 },
-          { lat: 8.4089, lng: 124.9256 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.4189, lng: 124.9056 },
+        { lat: 8.4389, lng: 124.9256 },
+        { lat: 8.4389, lng: 124.9456 },
+        { lat: 8.4189, lng: 124.9456 },
+        { lat: 8.4089, lng: 124.9256 }
+      ]
+    }],
     centroid: { lat: 8.4289, lng: 124.9256 }
   },
   'Tankulan': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.4312, lng: 124.9189 },
-          { lat: 8.4512, lng: 124.9389 },
-          { lat: 8.4512, lng: 124.9589 },
-          { lat: 8.4312, lng: 124.9589 },
-          { lat: 8.4212, lng: 124.9389 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.4312, lng: 124.9189 },
+        { lat: 8.4512, lng: 124.9389 },
+        { lat: 8.4512, lng: 124.9589 },
+        { lat: 8.4312, lng: 124.9589 },
+        { lat: 8.4212, lng: 124.9389 }
+      ]
+    }],
     centroid: { lat: 8.4412, lng: 124.9389 }
   },
   'Ticala': {
-    polygons: [
-      {
-        points: [
-          { lat: 8.4445, lng: 124.9323 },
-          { lat: 8.4645, lng: 124.9523 },
-          { lat: 8.4645, lng: 124.9723 },
-          { lat: 8.4445, lng: 124.9723 },
-          { lat: 8.4345, lng: 124.9523 }
-        ]
-      }
-    ],
+    polygons: [{
+      points: [
+        { lat: 8.4445, lng: 124.9323 },
+        { lat: 8.4645, lng: 124.9523 },
+        { lat: 8.4645, lng: 124.9723 },
+        { lat: 8.4445, lng: 124.9723 },
+        { lat: 8.4345, lng: 124.9523 }
+      ]
+    }],
     centroid: { lat: 8.4545, lng: 124.9523 }
   }
 };
+
+// Point in polygon detection function
+const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng: number }[]): boolean => {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lat;
+    const yi = polygon[i].lng;
+    const xj = polygon[j].lat;
+    const yj = polygon[j].lng;
+
+    const intersect = ((yi > lng) !== (yj > lng)) &&
+      (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+// Enhanced barangay detection from GPS coordinates
+const detectBarangayFromCoordinates = (lat: number, lng: number): string | null => {
+  console.log('Detecting barangay for coordinates:', lat, lng);
+
+  // First, try exact polygon matching
+  for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
+    for (const polygon of barangayData.polygons) {
+      if (isPointInPolygon(lat, lng, polygon.points)) {
+        console.log('Exact match found:', barangay);
+        return barangay;
+      }
+    }
+  }
+
+  // If no exact match, find nearest barangay within reasonable distance
+  let nearestBarangay = null;
+  let minDistance = Infinity;
+  const MAX_DISTANCE = 0.05; // approximately 5.5km
+
+  for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
+    const distance = Math.sqrt(
+      Math.pow(lat - barangayData.centroid.lat, 2) +
+      Math.pow(lng - barangayData.centroid.lng, 2)
+    );
+
+    if (distance < minDistance && distance < MAX_DISTANCE) {
+      minDistance = distance;
+      nearestBarangay = barangay;
+    }
+  }
+
+  if (nearestBarangay) {
+    console.log('Nearest barangay found:', nearestBarangay, 'Distance:', minDistance);
+  } else {
+    console.log('No nearby barangay found');
+  }
+
+  return nearestBarangay;
+};
+
+export { MANOLO_FORTICH_BARANGAYS, barangayPolygons, detectBarangayFromCoordinates };
 
 const optimizeImage = (blob: Blob, maxSize: number = 1024, quality: number = 0.8): Promise<Blob> => {
   return new Promise((resolve) => {
@@ -494,50 +535,6 @@ const isValidGPSCoordinate = (lat: number, lng: number): boolean => {
   }
 
   return true;
-};
-
-// Point in polygon detection
-const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng: number }[]): boolean => {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].lat;
-    const yi = polygon[i].lng;
-    const xj = polygon[j].lat;
-    const yj = polygon[j].lng;
-
-    const intersect = ((yi > lng) !== (yj > lng)) &&
-      (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-};
-
-// Enhanced barangay detection
-const detectBarangayFromCoordinates = (lat: number, lng: number): string | null => {
-  for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
-    for (const polygon of barangayData.polygons) {
-      if (isPointInPolygon(lat, lng, polygon.points)) {
-        return barangay;
-      }
-    }
-  }
-
-  let nearestBarangay = null;
-  let minDistance = Infinity;
-
-  for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
-    const distance = Math.sqrt(
-      Math.pow(lat - barangayData.centroid.lat, 2) +
-      Math.pow(lng - barangayData.centroid.lng, 2)
-    );
-
-    if (distance < minDistance && distance < 0.05) {
-      minDistance = distance;
-      nearestBarangay = barangay;
-    }
-  }
-
-  return nearestBarangay;
 };
 
 // Enhanced EXIF extraction
@@ -712,18 +709,17 @@ const IncidentReport: React.FC = () => {
     images: [],
     reporter_email: '',
     reporter_name: '',
-    reporter_address: '', // NEW
-    reporter_contact: '', // NEW
+    reporter_address: '',
+    reporter_contact: '',
     photo_datetime: '',
     current_datetime: getCurrentDateTime()
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastColor, setToastColor] = useState<'success' | 'danger' | 'warning'>('success');
   const [imagePreview, setImagePreview] = useState<string[]>([]);
   const [extractedExifData, setExtractedExifData] = useState<ExifData | null>(null);
   const [extractionLoading, setExtractionLoading] = useState(false);
@@ -731,7 +727,14 @@ const IncidentReport: React.FC = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isFormLoading, setIsFormLoading] = useState(true);
 
-  // Fetch user profile when component mounts - MUST BE BEFORE ANY CONDITIONAL RETURNS
+  // Show toast message with color
+  const showToastMessage = (message: string, color: 'success' | 'danger' | 'warning' = 'success') => {
+    setToastMessage(message);
+    setToastColor(color);
+    setShowToast(true);
+  };
+
+  // Fetch user profile when component mounts
   useEffect(() => {
     fetchUserProfile();
   }, []);
@@ -919,8 +922,7 @@ const IncidentReport: React.FC = () => {
     try {
       const hasCameraPermission = await checkPermissions('camera');
       if (!hasCameraPermission) {
-        setAlertMessage('Camera permission is required to take photos.');
-        setShowAlert(true);
+        showToastMessage('Camera permission is required to take photos.', 'warning');
         return;
       }
 
@@ -982,18 +984,16 @@ const IncidentReport: React.FC = () => {
           setExtractedExifData(enhancedExif);
         }
 
-        setToastMessage('Photo added successfully!' + (currentLocation ? ' Location captured.' : ''));
-        setShowToast(true);
+        showToastMessage('Photo added successfully!' + (currentLocation ? ' Location captured.' : ''));
       }
     } catch (error: any) {
       console.error('Camera error:', error);
       if (!error.message?.includes('User cancelled')) {
         if (error.message?.includes('Permission')) {
-          setAlertMessage('Camera permission denied. Please enable camera access in settings.');
+          showToastMessage('Camera permission denied. Please enable camera access in settings.', 'danger');
         } else {
-          setAlertMessage('Failed to capture photo. Please try again.');
+          showToastMessage('Failed to capture photo. Please try again.', 'danger');
         }
-        setShowAlert(true);
       }
     }
   };
@@ -1028,13 +1028,11 @@ const IncidentReport: React.FC = () => {
           setExtractedExifData(exif);
         }
 
-        setToastMessage('Photo added successfully!');
-        setShowToast(true);
+        showToastMessage('Photo added successfully!');
       }
     } catch (error: any) {
       if (!error.message?.includes('User cancelled')) {
-        setAlertMessage('Failed to select image. Please try again.');
-        setShowAlert(true);
+        showToastMessage('Failed to select image. Please try again.', 'danger');
       }
     }
   };
@@ -1051,14 +1049,12 @@ const IncidentReport: React.FC = () => {
       const file = files[0];
 
       if (!file.type.startsWith('image/')) {
-        setAlertMessage('Please select an image file.');
-        setShowAlert(true);
+        showToastMessage('Please select an image file.', 'warning');
         return;
       }
 
       if (file.size > 10 * 1024 * 1024) {
-        setAlertMessage('Image size must be less than 10MB.');
-        setShowAlert(true);
+        showToastMessage('Image size must be less than 10MB.', 'warning');
         return;
       }
 
@@ -1079,11 +1075,9 @@ const IncidentReport: React.FC = () => {
           setExtractedExifData(exif);
         }
 
-        setToastMessage('Photo added successfully!');
-        setShowToast(true);
+        showToastMessage('Photo added successfully!');
       } catch (error) {
-        setAlertMessage('Failed to process image. Please try another file.');
-        setShowAlert(true);
+        showToastMessage('Failed to process image. Please try another file.', 'danger');
       }
     }
     event.target.value = '';
@@ -1091,8 +1085,7 @@ const IncidentReport: React.FC = () => {
 
   const extractPhotoInformation = async () => {
     if (!extractedExifData) {
-      setToastMessage('No extractable information found in the photos.');
-      setShowToast(true);
+      showToastMessage('No extractable information found in the photos.', 'warning');
       return;
     }
 
@@ -1133,17 +1126,14 @@ const IncidentReport: React.FC = () => {
 
       if (extractedItems.length > 0) {
         message = `Extracted: ${extractedItems.join(', ')}`;
+        showToastMessage(message);
       } else {
-        message = 'No location data found in photos. Please enter manually.';
+        showToastMessage('No location data found in photos. Please enter manually.', 'warning');
       }
-
-      setToastMessage(message);
-      setShowToast(true);
 
     } catch (error) {
       console.error('Extraction error:', error);
-      setAlertMessage('Failed to extract photo information. Please try again.');
-      setShowAlert(true);
+      showToastMessage('Failed to extract photo information. Please try again.', 'danger');
     } finally {
       setExtractionLoading(false);
     }
@@ -1166,31 +1156,40 @@ const IncidentReport: React.FC = () => {
         photo_datetime: ''
       }));
     }
+
+    showToastMessage('Photo removed successfully!');
   };
 
   const submitReport = async () => {
+    // Basic validation
+    if (!formData.category) {
+      showToastMessage('Please select an incident category.', 'warning');
+      return;
+    }
+
+    if (!formData.description.trim()) {
+      showToastMessage('Please provide a description of the incident.', 'warning');
+      return;
+    }
+
     // Add validation for new fields
     if (!formData.reporter_address?.trim()) {
-      setAlertMessage('Please provide your complete address for emergency response.');
-      setShowAlert(true);
+      showToastMessage('Please provide your complete address for emergency response.', 'warning');
       return;
     }
 
     if (!formData.reporter_contact?.trim()) {
-      setAlertMessage('Please provide your contact number for emergency response.');
-      setShowAlert(true);
+      showToastMessage('Please provide your contact number for emergency response.', 'warning');
       return;
     }
 
     if (!formData.barangay) {
-      setAlertMessage('Please select a barangay.');
-      setShowAlert(true);
+      showToastMessage('Please select a barangay.', 'warning');
       return;
     }
 
     if (formData.images.length === 0) {
-      setAlertMessage('Please add at least one photo of the incident.');
-      setShowAlert(true);
+      showToastMessage('Please add at least one photo of the incident.', 'warning');
       return;
     }
 
@@ -1217,6 +1216,7 @@ const IncidentReport: React.FC = () => {
           });
 
         if (uploadError) {
+          console.error('Upload error details:', uploadError);
           throw new Error(`Failed to upload image ${i + 1}: ${uploadError.message}`);
         }
 
@@ -1241,31 +1241,21 @@ const IncidentReport: React.FC = () => {
       }
 
       // Prepare report data with metadata
-      let description = formData.description.trim();
-
-      if (formData.photo_datetime) {
-        description += `\n\n[Photo Date: ${formatDateTimeForDisplay(formData.photo_datetime)}]`;
-      }
-
-      description += `\n\n[Report Submitted: ${formatDateTimeForDisplay(formData.current_datetime || getCurrentDateTime())}]`;
-
-      if (formData.coordinates) {
-        description += `\n\n[GPS Location: ${formData.coordinates.lat.toFixed(6)}, ${formData.coordinates.lng.toFixed(6)}]`;
-      }
-
       const reportData = {
         title: formData.category,
-        description: description,
+        description: formData.description.trim(),
         category: formData.category,
         priority: formData.priority,
         location: formData.location.trim(),
         barangay: formData.barangay,
-        coordinates: formData.coordinates ? JSON.stringify(formData.coordinates) : null,
+        coordinates: formData.coordinates ? formData.coordinates : null,
         image_urls: imageUrls,
         reporter_email: user.email,
         reporter_name: `${profile?.user_firstname || ''} ${profile?.user_lastname || ''}`.trim() || user.email,
-        reporter_address: formData.reporter_address.trim(), // NEW
-        reporter_contact: formData.reporter_contact.trim(), // NEW
+        reporter_address: formData.reporter_address.trim(),
+        reporter_contact: formData.reporter_contact.trim(),
+        report_submitted: formData.current_datetime || getCurrentDateTime(),
+        photo_datetime: formData.photo_datetime,
         status: 'pending',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -1292,8 +1282,8 @@ const IncidentReport: React.FC = () => {
         images: [],
         reporter_email: '',
         reporter_name: '',
-        reporter_address: '', // NEW
-        reporter_contact: '', // NEW
+        reporter_address: '',
+        reporter_contact: '',
         photo_datetime: '',
         current_datetime: getCurrentDateTime()
       });
@@ -1305,8 +1295,7 @@ const IncidentReport: React.FC = () => {
 
     } catch (error: any) {
       console.error('Submit error:', error);
-      setAlertMessage(error.message || 'Failed to submit report. Please try again.');
-      setShowAlert(true);
+      showToastMessage(error.message || 'Failed to submit report. Please try again.', 'danger');
     } finally {
       setIsSubmitting(false);
     }
@@ -1717,15 +1706,6 @@ const IncidentReport: React.FC = () => {
         </IonContent>
       </IonModal>
 
-      {/* Alert */}
-      <IonAlert
-        isOpen={showAlert}
-        onDidDismiss={() => setShowAlert(false)}
-        header="Notice"
-        message={alertMessage}
-        buttons={['OK']}
-      />
-
       {/* Toast */}
       <IonToast
         isOpen={showToast}
@@ -1733,7 +1713,7 @@ const IncidentReport: React.FC = () => {
         message={toastMessage}
         duration={4000}
         position="top"
-        color="success"
+        color={toastColor}
       />
     </IonContent>
   );

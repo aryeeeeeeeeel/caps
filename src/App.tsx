@@ -34,7 +34,7 @@ import Profile from './pages/Profile';
 
 /* Admin Pages */
 import AdminDashboard from './pages/admin-tabs/AdminDashboard';
-import AdminMap from './pages/admin-tabs/AdminMap';
+import AdminNotifications from './pages/admin-tabs/AdminNotifications';
 import AdminAnalytics from './pages/admin-tabs/AdminAnalytics';
 import AdminIncidents from './pages/admin-tabs/AdminIncidents';
 import AdminUsers from './pages/admin-tabs/AdminUsers';
@@ -68,7 +68,7 @@ const App: React.FC = () => (
 
         {/* Admin Dashboard Routes */}
         <Route exact path="/it35-lab2/admin-dashboard" component={AdminDashboard} />
-        <Route exact path="/it35-lab2/admin/map" component={AdminMap} />
+        <Route exact path="/it35-lab2/admin/map" component={AdminNotifications} />
         <Route exact path="/it35-lab2/admin/analytics" component={AdminAnalytics} />
         <Route exact path="/it35-lab2/admin/incidents" component={AdminIncidents} />
         <Route exact path="/it35-lab2/admin/users" component={AdminUsers} />

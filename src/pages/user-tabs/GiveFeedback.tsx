@@ -1,4 +1,4 @@
-// src/pages/user-tabs/GiveFeedback.tsx
+// src/pages/user-tabs/GiveFeedback.tsx - FIXED: Connected feedback and rating
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -28,7 +28,6 @@ import {
   star,
   sendOutline,
   checkmarkCircleOutline,
-  closeCircle,
   thumbsUpOutline,
   thumbsDownOutline,
   refreshOutline
@@ -116,7 +115,7 @@ const GiveFeedback: React.FC = () => {
         .from('incident_reports')
         .select('id, title, status, created_at')
         .eq('reporter_email', user.email)
-        .in('status', ['resolved', 'investigating'])
+        .eq('status', 'resolved')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -245,7 +244,20 @@ const GiveFeedback: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { error } = await supabase
+      // Update incident_reports table with feedback
+      const { error: reportError } = await supabase
+        .from('incident_reports')
+        .update({
+          feedback_rating: feedbackData.overall_rating,
+          feedback_comment: feedbackData.comments,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedReport);
+
+      if (reportError) throw reportError;
+
+      // Also insert into feedback table
+      const { error: feedbackError } = await supabase
         .from('feedback')
         .insert({
           report_id: selectedReport,
@@ -261,7 +273,7 @@ const GiveFeedback: React.FC = () => {
           created_at: new Date().toISOString()
         });
 
-      if (error) throw error;
+      if (feedbackError) throw feedbackError;
 
       // Reset form
       setFeedbackData({
@@ -280,6 +292,7 @@ const GiveFeedback: React.FC = () => {
       setShowSuccessModal(true);
 
     } catch (error: any) {
+      console.error('Error submitting feedback:', error);
       setAlertMessage(error.message || 'Failed to submit feedback. Please try again.');
       setShowAlert(true);
     } finally {
@@ -460,7 +473,7 @@ const GiveFeedback: React.FC = () => {
               </div>
               <div>
                 <IonCardTitle style={{ color: '#1f2937', fontSize: '20px', margin: '0 0 4px 0' }}>
-                  Give Feedback
+                  Rate & Give Feedback
                 </IonCardTitle>
                 <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
                   Help us improve our response services
@@ -474,7 +487,7 @@ const GiveFeedback: React.FC = () => {
         <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
           <IonCardHeader>
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-              Select Report
+              Select Resolved Report
             </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
@@ -490,7 +503,7 @@ const GiveFeedback: React.FC = () => {
             ) : userReports.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px' }}>
                 <p style={{ color: '#9ca3af', marginBottom: '16px' }}>
-                  No reports available for feedback
+                  No resolved reports available for feedback
                 </p>
                 <IonButton
                   fill="outline"
@@ -505,12 +518,11 @@ const GiveFeedback: React.FC = () => {
                 value={selectedReport}
                 onIonChange={e => setSelectedReport(e.detail.value)}
                 interface="popover"
-                placeholder="Choose a report to provide feedback for"
+                placeholder="Choose a resolved report to rate"
               >
                 {userReports.map(report => (
                   <IonSelectOption key={report.id} value={report.id}>
-                    {report.title} - {report.status}
-                    ({new Date(report.created_at).toLocaleDateString()})
+                    {report.title} ({new Date(report.created_at).toLocaleDateString()})
                   </IonSelectOption>
                 ))}
               </IonSelect>
@@ -744,7 +756,7 @@ const GiveFeedback: React.FC = () => {
           </p>
 
           <IonButton
-            routerLink="/it35-lab2/app/home/dashboard"
+            routerLink="/it35-lab2/app/dashboard"
             expand="block"
             size="large"
             onClick={() => setShowSuccessModal(false)}
@@ -768,7 +780,7 @@ const GiveFeedback: React.FC = () => {
             }}
             style={{ '--color': '#6b7280', width: '100%' }}
           >
-            Give More Feedback
+            Rate Another Report
           </IonButton>
         </div>
       </IonModal>
