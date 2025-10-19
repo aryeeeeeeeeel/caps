@@ -9,7 +9,8 @@ export interface Notification {
   read: boolean;
   created_at: string;
   related_report_id?: string;
-  action_url?: string;
+  user_email: string; 
+  is_automated?: boolean;
 }
 
 // Generate mock notifications for fallback
@@ -17,45 +18,48 @@ export const generateMockNotifications = (): Notification[] => {
   return [
     {
       id: '1',
-      title: 'Welcome to the Hazard Reporting System',
-      message: 'Thank you for joining our community safety initiative. Start by exploring the map to see reported hazards in your area.',
-      type: 'info',
+      title: 'System Initialization Complete',
+      message: 'Your system has been successfully initialized and is ready for use.',
+      type: 'success',
       read: false,
-      created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
+      created_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+      user_email: 'ldrrmo@manolofortich.gov.ph'
     },
     {
       id: '2',
-      title: 'New Hazard Reported Nearby',
-      message: 'A pothole has been reported on Main Street, 0.5 miles from your location. Please exercise caution when traveling in that area.',
-      type: 'warning',
+      title: 'New Data Available',
+      message: 'Recent updates have been processed and new data is available for analysis.',
+      type: 'info',
       read: false,
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-      action_url: '/hazard-map',
+      created_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+      user_email: 'ldrrmo@manolofortich.gov.ph'
     },
     {
       id: '3',
-      title: 'Your Report Has Been Verified',
-      message: 'Your hazard report #HR-2024-001 has been verified by our team and is now visible to other users.',
-      type: 'success',
+      title: 'Scheduled Maintenance',
+      message: 'System maintenance is scheduled for tonight between 2:00 AM - 3:00 AM.',
+      type: 'update',
       read: true,
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-      related_report_id: 'HR-2024-001',
+      created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+      user_email: 'ldrrmo@manolofortich.gov.ph'
     },
     {
       id: '4',
-      title: 'System Maintenance Scheduled',
-      message: 'The system will undergo maintenance on Sunday, 2:00 AM - 4:00 AM. Some features may be temporarily unavailable.',
-      type: 'update',
-      read: true,
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2 days ago
+      title: 'Security Alert',
+      message: 'Unusual login attempt detected. Please review your account security.',
+      type: 'warning',
+      read: false,
+      created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+      user_email: 'ldrrmo@manolofortich.gov.ph'
     },
     {
       id: '5',
-      title: 'Report Submission Failed',
-      message: 'Your recent hazard report could not be submitted due to a network error. Please try again.',
+      title: 'Data Sync Error',
+      message: 'There was an error syncing your recent data changes. Please try again.',
       type: 'error',
       read: false,
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days ago
+      created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+      user_email: 'ldrrmo@manolofortich.gov.ph'
     },
   ];
 };
