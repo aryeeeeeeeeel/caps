@@ -1,4 +1,4 @@
-// src/pages/user-tabs/GiveFeedback.tsx - FIXED: Connected feedback and rating
+// src/pages/user-tabs/GiveFeedback.tsx - UPDATED: Consistent with History.tsx
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -20,7 +20,12 @@ import {
   IonAlert,
   IonToast,
   IonModal,
-  IonSkeletonText
+  IonSkeletonText,
+  IonChip,
+  IonProgressBar,
+  IonGrid,
+  IonRow,
+  IonCol
 } from '@ionic/react';
 import {
   chatbubbleOutline,
@@ -30,7 +35,8 @@ import {
   checkmarkCircleOutline,
   thumbsUpOutline,
   thumbsDownOutline,
-  refreshOutline
+  refreshOutline,
+  timeOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -42,7 +48,7 @@ interface FeedbackData {
   resolution_satisfaction: number;
   categories: string[];
   comments: string;
-  would_recommend: boolean;
+  would_recommend: boolean | null;
   contact_method: string;
 }
 
@@ -51,6 +57,8 @@ interface UserReport {
   title: string;
   status: string;
   created_at: string;
+  category: string;
+  description: string;
 }
 
 const GiveFeedback: React.FC = () => {
@@ -64,7 +72,7 @@ const GiveFeedback: React.FC = () => {
     resolution_satisfaction: 0,
     categories: [],
     comments: '',
-    would_recommend: false,
+    would_recommend: null,
     contact_method: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,6 +83,7 @@ const GiveFeedback: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isReportsLoading, setIsReportsLoading] = useState(true);
+  const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
 
   const feedbackCategories = [
     'Response Speed',
@@ -113,7 +122,7 @@ const GiveFeedback: React.FC = () => {
 
       const { data, error } = await supabase
         .from('incident_reports')
-        .select('id, title, status, created_at')
+        .select('id, title, status, created_at, category, description')
         .eq('reporter_email', user.email)
         .eq('status', 'resolved')
         .order('created_at', { ascending: false });
@@ -143,89 +152,7 @@ const GiveFeedback: React.FC = () => {
     }));
   };
 
-  const renderStarRating = (
-    rating: number,
-    onChange: (rating: number) => void,
-    label: string
-  ) => {
-    return (
-      <div style={{ marginBottom: '20px' }}>
-        <p style={{
-          fontSize: '14px',
-          fontWeight: '600',
-          color: '#374151',
-          marginBottom: '8px'
-        }}>
-          {label}
-        </p>
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          {[1, 2, 3, 4, 5].map((starNumber) => (
-            <IonButton
-              key={starNumber}
-              fill="clear"
-              size="small"
-              onClick={() => onChange(starNumber)}
-              style={{
-                '--color': starNumber <= rating ? '#fbbf24' : '#d1d5db',
-                margin: 0,
-                minHeight: '36px',
-                minWidth: '36px'
-              }}
-            >
-              <IonIcon icon={starNumber <= rating ? star : starOutline} />
-            </IonButton>
-          ))}
-          <span style={{
-            fontSize: '14px',
-            color: '#6b7280',
-            marginLeft: '8px'
-          }}>
-            {rating > 0 ? `${rating}/5` : 'No rating'}
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-  const renderSkeletonStarRating = (label: string) => {
-    return (
-      <div style={{ marginBottom: '20px' }}>
-        <IonSkeletonText
-          animated
-          style={{
-            width: '120px',
-            height: '14px',
-            marginBottom: '8px',
-            borderRadius: '4px'
-          }}
-        />
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          {[1, 2, 3, 4, 5].map((starNumber) => (
-            <IonSkeletonText
-              key={starNumber}
-              animated
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%'
-              }}
-            />
-          ))}
-          <IonSkeletonText
-            animated
-            style={{
-              width: '60px',
-              height: '14px',
-              marginLeft: '8px',
-              borderRadius: '4px'
-            }}
-          />
-        </div>
-      </div>
-    );
-  };
-
-  const submitFeedback = async () => {
+  const handleSubmit = async () => {
     if (!selectedReport) {
       setAlertMessage('Please select a report to provide feedback for.');
       setShowAlert(true);
@@ -239,12 +166,13 @@ const GiveFeedback: React.FC = () => {
     }
 
     setIsSubmitting(true);
+    setIsFeedbackLoading(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Update incident_reports table with feedback
+      // Update incident_reports table (same as History.tsx)
       const { error: reportError } = await supabase
         .from('incident_reports')
         .update({
@@ -256,531 +184,621 @@ const GiveFeedback: React.FC = () => {
 
       if (reportError) throw reportError;
 
-      // Also insert into feedback table
-      const { error: feedbackError } = await supabase
-        .from('feedback')
-        .insert({
-          report_id: selectedReport,
-          user_email: user.email,
-          overall_rating: feedbackData.overall_rating,
-          response_time_rating: feedbackData.response_time_rating,
-          communication_rating: feedbackData.communication_rating,
-          resolution_satisfaction: feedbackData.resolution_satisfaction,
-          categories: feedbackData.categories,
-          comments: feedbackData.comments,
-          would_recommend: feedbackData.would_recommend,
-          contact_method: feedbackData.contact_method,
-          created_at: new Date().toISOString()
-        });
-
-      if (feedbackError) throw feedbackError;
-
-      // Reset form
-      setFeedbackData({
-        report_id: '',
-        overall_rating: 0,
-        response_time_rating: 0,
-        communication_rating: 0,
-        resolution_satisfaction: 0,
-        categories: [],
-        comments: '',
-        would_recommend: false,
-        contact_method: ''
-      });
-      setSelectedReport('');
-
       setShowSuccessModal(true);
-
+      resetForm();
+      fetchUserReports(); // Refresh the list
     } catch (error: any) {
       console.error('Error submitting feedback:', error);
-      setAlertMessage(error.message || 'Failed to submit feedback. Please try again.');
+      setAlertMessage('Failed to submit feedback. Please try again.');
       setShowAlert(true);
     } finally {
       setIsSubmitting(false);
+      setIsFeedbackLoading(false);
     }
   };
 
-  // Skeleton Loading Component
-  const SkeletonLoader = () => (
-    <div style={{ padding: '20px' }}>
-      {/* Header Skeleton */}
-      <IonCard style={{
-        borderRadius: '16px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-        marginBottom: '20px'
+  const resetForm = () => {
+    setSelectedReport('');
+    setFeedbackData({
+      report_id: '',
+      overall_rating: 0,
+      response_time_rating: 0,
+      communication_rating: 0,
+      resolution_satisfaction: 0,
+      categories: [],
+      comments: '',
+      would_recommend: null,
+      contact_method: ''
+    });
+  };
+
+  const StarRating: React.FC<{
+    rating: number;
+    onRatingChange: (rating: number) => void;
+    label: string;
+  }> = ({ rating, onRatingChange, label }) => (
+    <div style={{ marginBottom: '20px' }}>
+      <p style={{
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: '8px'
       }}>
-        <IonCardHeader>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <IonSkeletonText
-              animated
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                marginRight: '16px'
-              }}
-            />
-            <div style={{ flex: 1 }}>
-              <IonSkeletonText
-                animated
-                style={{
-                  width: '60%',
-                  height: '20px',
-                  borderRadius: '4px',
-                  marginBottom: '8px'
-                }}
-              />
-              <IonSkeletonText
-                animated
-                style={{
-                  width: '80%',
-                  height: '14px',
-                  borderRadius: '4px'
-                }}
-              />
-            </div>
-          </div>
-        </IonCardHeader>
-      </IonCard>
-
-      {/* Report Selection Skeleton */}
-      <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-        <IonCardHeader>
-          <IonSkeletonText
-            animated
+        {label}
+      </p>
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        {[1, 2, 3, 4, 5].map((starNumber) => (
+          <button
+            key={starNumber}
+            type="button"
+            onClick={() => onRatingChange(starNumber)}
             style={{
-              width: '40%',
-              height: '18px',
-              borderRadius: '4px'
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              fontSize: '24px',
+              color: starNumber <= rating ? '#fbbf24' : '#d1d5db',
+              transition: 'color 0.2s'
             }}
-          />
-        </IonCardHeader>
-        <IonCardContent>
-          <IonSkeletonText
-            animated
-            style={{
-              width: '100%',
-              height: '48px',
-              borderRadius: '12px'
-            }}
-          />
-        </IonCardContent>
-      </IonCard>
-
-      {/* Form Sections Skeleton */}
-      {[1, 2, 3, 4].map((section) => (
-        <IonCard key={section} style={{ borderRadius: '16px', marginBottom: '20px' }}>
-          <IonCardHeader>
-            <IonSkeletonText
-              animated
-              style={{
-                width: '50%',
-                height: '18px',
-                borderRadius: '4px'
-              }}
-            />
-          </IonCardHeader>
-          <IonCardContent>
-            {section === 1 && (
-              <>
-                {renderSkeletonStarRating('Overall Experience')}
-                {renderSkeletonStarRating('Response Time')}
-                {renderSkeletonStarRating('Communication Quality')}
-                {renderSkeletonStarRating('Problem Resolution')}
-              </>
-            )}
-            {section === 2 && (
-              <div>
-                {[1, 2, 3, 4, 5, 6].map((item) => (
-                  <div key={item} style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
-                    <IonSkeletonText
-                      animated
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '4px',
-                        marginRight: '12px'
-                      }}
-                    />
-                    <IonSkeletonText
-                      animated
-                      style={{
-                        width: '60%',
-                        height: '16px',
-                        borderRadius: '4px'
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-            {section === 3 && (
-              <IonSkeletonText
-                animated
-                style={{
-                  width: '100%',
-                  height: '120px',
-                  borderRadius: '12px'
-                }}
-              />
-            )}
-            {section === 4 && (
-              <IonSkeletonText
-                animated
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px'
-                }}
-              />
-            )}
-          </IonCardContent>
-        </IonCard>
-      ))}
+          >
+            {starNumber <= rating ? '★' : '☆'}
+          </button>
+        ))}
+        <span style={{
+          fontSize: '14px',
+          color: '#6b7280',
+          marginLeft: '8px'
+        }}>
+          {rating > 0 ? `${rating}/5` : 'No rating'}
+        </span>
+      </div>
     </div>
   );
 
-  if (isLoading) {
-    return (
-      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
-        <SkeletonLoader />
-      </IonContent>
-    );
-  }
+  const SatisfactionRating: React.FC<{
+    rating: number;
+    onRatingChange: (rating: number) => void;
+    label: string;
+  }> = ({ rating, onRatingChange, label }) => (
+    <div style={{ marginBottom: '20px' }}>
+      <p style={{
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: '8px'
+      }}>
+        {label}
+      </p>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => onRatingChange(1)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            color: rating === 1 ? '#ef4444' : '#6b7280',
+            backgroundColor: rating === 1 ? '#fef2f2' : 'transparent'
+          }}
+        >
+          <IonIcon icon={thumbsDownOutline} style={{ fontSize: '20px' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500' }}>Poor</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onRatingChange(2)}
+          style={{
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            color: rating === 2 ? '#f59e0b' : '#6b7280',
+            backgroundColor: rating === 2 ? '#fffbeb' : 'transparent'
+          }}
+        >
+          <IonIcon icon={timeOutline} style={{ fontSize: '20px' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500' }}>Fair</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onRatingChange(3)}
+          style={{
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            color: rating === 3 ? '#10b981' : '#6b7280',
+            background: rating === 3 ? '#f0fdf4' : 'transparent'
+          }}
+        >
+          <IonIcon icon={thumbsUpOutline} style={{ fontSize: '20px' }} />
+          <span style={{ fontSize: '12px', fontWeight: '500' }}>Good</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  // Skeleton Components
+  const ReportSkeletonItem: React.FC = () => (
+    <IonItem style={{ '--background': 'transparent' } as any}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        padding: '12px 0'
+      }}>
+        <IonSkeletonText animated style={{
+          width: '10px',
+          height: '10px',
+          borderRadius: '50%',
+          marginRight: '12px'
+        }} />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
+          <IonSkeletonText animated style={{ width: '50%', height: '12px', marginBottom: '8px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <IonSkeletonText animated style={{ width: '40px', height: '20px', borderRadius: '10px' }} />
+            <IonSkeletonText animated style={{ width: '30px', height: '12px' }} />
+          </div>
+        </div>
+      </div>
+    </IonItem>
+  );
+
+  const RatingSkeleton: React.FC = () => (
+    <div style={{ marginBottom: '20px' }}>
+      <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '8px' }} />
+      <div style={{ display: 'flex', gap: '4px' }}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <IonSkeletonText
+            key={star}
+            animated
+            style={{ width: '24px', height: '24px', borderRadius: '4px' }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
+  const CategorySkeleton: React.FC = () => (
+    <div style={{ marginBottom: '20px' }}>
+      <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '8px' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        {[1, 2, 3, 4].map((item) => (
+          <IonSkeletonText
+            key={item}
+            animated
+            style={{ width: '100%', height: '36px', borderRadius: '8px' }}
+          />
+        ))}
+      </div>
+    </div>
+  );
 
   return (
-    <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+    <IonContent style={{ '--background': '#f8fafc' } as any}>
       <div style={{ padding: '20px' }}>
         {/* Header */}
-        <IonCard style={{
-          borderRadius: '16px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-          marginBottom: '20px'
-        }}>
-          <IonCardHeader>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: '16px'
-              }}>
-                <IonIcon icon={chatbubbleOutline} style={{ fontSize: '24px', color: 'white' }} />
-              </div>
-              <div>
-                <IonCardTitle style={{ color: '#1f2937', fontSize: '20px', margin: '0 0 4px 0' }}>
-                  Rate & Give Feedback
-                </IonCardTitle>
-                <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
-                  Help us improve our response services
-                </p>
-              </div>
-            </div>
-          </IonCardHeader>
-        </IonCard>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px'
+          }}>
+            <IonIcon icon={chatbubbleOutline} style={{ fontSize: '28px', color: 'white' }} />
+          </div>
+          <h1 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: '#1f2937',
+            margin: '0 0 8px 0'
+          }}>
+            Give Feedback
+          </h1>
+          <p style={{
+            fontSize: '16px',
+            color: '#6b7280',
+            margin: 0,
+            lineHeight: '1.5'
+          }}>
+            Share your experience with our response services
+          </p>
+        </div>
 
-        {/* Report Selection */}
+        {/* Main Content Card */}
         <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
           <IonCardHeader>
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-              Select Resolved Report
+              Select Report to Review
             </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
             {isReportsLoading ? (
-              <IonSkeletonText
-                animated
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px'
-                }}
-              />
+              <div>
+                <div style={{ padding: '20px', textAlign: 'center' }}>
+                  <IonProgressBar type="indeterminate" />
+                </div>
+                <IonList style={{ background: 'transparent' }}>
+                  {[1, 2, 3].map((item) => (
+                    <ReportSkeletonItem key={item} />
+                  ))}
+                </IonList>
+              </div>
             ) : userReports.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px' }}>
-                <p style={{ color: '#9ca3af', marginBottom: '16px' }}>
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <IonIcon icon={checkmarkCircleOutline} style={{ fontSize: '48px', color: '#d1d5db' }} />
+                <p style={{ color: '#9ca3af', marginTop: '16px' }}>
                   No resolved reports available for feedback
                 </p>
                 <IonButton
                   fill="outline"
-                  onClick={fetchUserReports}
+                  size="small"
+                  routerLink="/it35-lab2/app/history"
                 >
-                  <IonIcon icon={refreshOutline} slot="start" />
-                  Refresh
+                  View Report History
                 </IonButton>
               </div>
             ) : (
-              <IonSelect
-                value={selectedReport}
-                onIonChange={e => setSelectedReport(e.detail.value)}
-                interface="popover"
-                placeholder="Choose a resolved report to rate"
-              >
-                {userReports.map(report => (
-                  <IonSelectOption key={report.id} value={report.id}>
-                    {report.title} ({new Date(report.created_at).toLocaleDateString()})
-                  </IonSelectOption>
-                ))}
-              </IonSelect>
+              <div>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#6b7280',
+                  marginBottom: '16px'
+                }}>
+                  Select a resolved report to provide feedback:
+                </p>
+                <IonList style={{ background: 'transparent' }}>
+                  {userReports.map((report) => (
+                    <IonItem
+                      key={report.id}
+                      button
+                      onClick={() => setSelectedReport(report.id)}
+                      style={{
+                        '--background': selectedReport === report.id ? '#f3f4f6' : 'transparent',
+                        '--border-color': '#f1f5f9',
+                        '--border-radius': '12px',
+                        marginBottom: '8px'
+                      } as any}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        width: '100%',
+                        padding: '12px 0'
+                      }}>
+                        <div style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: '#10b981',
+                          marginRight: '12px',
+                          flexShrink: 0
+                        }}></div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h3 style={{
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            color: '#1f2937',
+                            margin: '0 0 4px 0',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {report.title}
+                          </h3>
+                          <p style={{
+                            fontSize: '12px',
+                            color: '#6b7280',
+                            margin: '0 0 4px 0'
+                          }}>
+                            {report.category}
+                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <IonChip
+                              style={{
+                                '--background': '#10b98120',
+                                '--color': '#10b981',
+                                height: '20px',
+                                fontSize: '10px',
+                                fontWeight: '600'
+                              } as any}
+                            >
+                              RESOLVED
+                            </IonChip>
+                            <span style={{
+                              fontSize: '10px',
+                              color: '#9ca3af'
+                            }}>
+                              {new Date(report.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <IonRadio
+                          value={report.id}
+                          aria-checked={selectedReport === report.id}
+                          style={{ marginLeft: '8px' }}
+                        />
+                      </div>
+                    </IonItem>
+                  ))}
+                </IonList>
+              </div>
             )}
           </IonCardContent>
         </IonCard>
 
-        {/* Feedback Form */}
+        {/* Feedback Form - Only show if report is selected */}
         {selectedReport && (
-          <>
-            {/* Rating Section */}
-            <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-              <IonCardHeader>
-                <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-                  Service Ratings
-                </IonCardTitle>
-              </IonCardHeader>
-              <IonCardContent>
-                {renderStarRating(
-                  feedbackData.overall_rating,
-                  (rating) => handleRatingChange('overall_rating', rating),
-                  'Overall Experience'
-                )}
+          <IonCard style={{ borderRadius: '16px' }}>
+            <IonCardHeader>
+              <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
+                Your Feedback
+              </IonCardTitle>
+            </IonCardHeader>
+            <IonCardContent>
+              {isFeedbackLoading ? (
+                <div>
+                  {/* Overall Rating Skeleton */}
+                  <RatingSkeleton />
 
-                {renderStarRating(
-                  feedbackData.response_time_rating,
-                  (rating) => handleRatingChange('response_time_rating', rating),
-                  'Response Time'
-                )}
+                  {/* Additional Ratings Skeleton */}
+                  <RatingSkeleton />
+                  <RatingSkeleton />
+                  <RatingSkeleton />
 
-                {renderStarRating(
-                  feedbackData.communication_rating,
-                  (rating) => handleRatingChange('communication_rating', rating),
-                  'Communication Quality'
-                )}
+                  {/* Categories Skeleton */}
+                  <CategorySkeleton />
 
-                {renderStarRating(
-                  feedbackData.resolution_satisfaction,
-                  (rating) => handleRatingChange('resolution_satisfaction', rating),
-                  'Problem Resolution'
-                )}
-              </IonCardContent>
-            </IonCard>
+                  {/* Comments Skeleton */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '8px' }} />
+                    <IonSkeletonText animated style={{ width: '100%', height: '80px', borderRadius: '8px' }} />
+                  </div>
 
-            {/* Categories */}
-            <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-              <IonCardHeader>
-                <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-                  What went well?
-                </IonCardTitle>
-              </IonCardHeader>
-              <IonCardContent>
-                <IonList style={{ background: 'transparent' }}>
-                  {feedbackCategories.map(category => (
-                    <IonItem
-                      key={category}
-                      style={{ '--padding-start': '0', '--inner-padding-end': '0' } as any}
-                    >
-                      <IonCheckbox
-                        checked={feedbackData.categories.includes(category)}
-                        onIonChange={e => handleCategoryToggle(category, e.detail.checked)}
-                        style={{ marginRight: '12px' }}
-                      />
-                      <IonLabel>{category}</IonLabel>
-                    </IonItem>
-                  ))}
-                </IonList>
-              </IonCardContent>
-            </IonCard>
-
-            {/* Comments */}
-            <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-              <IonCardHeader>
-                <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-                  Additional Comments
-                </IonCardTitle>
-              </IonCardHeader>
-              <IonCardContent>
-                <IonItem style={{ '--border-radius': '12px' } as any}>
-                  <IonLabel position="stacked">Your feedback and suggestions</IonLabel>
-                  <IonTextarea
-                    value={feedbackData.comments}
-                    onIonChange={e => setFeedbackData(prev => ({ ...prev, comments: e.detail.value! }))}
-                    placeholder="Tell us about your experience, what could be improved, or any suggestions you have..."
-                    rows={5}
-                    maxlength={500}
-                  />
-                </IonItem>
-              </IonCardContent>
-            </IonCard>
-
-            {/* Recommendation */}
-            <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-              <IonCardHeader>
-                <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-                  Recommendation
-                </IonCardTitle>
-              </IonCardHeader>
-              <IonCardContent>
-                <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-                  Would you recommend our incident reporting service to others?
-                </p>
-                <IonRadioGroup
-                  value={feedbackData.would_recommend}
-                  onIonChange={e => setFeedbackData(prev => ({ ...prev, would_recommend: e.detail.value }))}
-                >
-                  <IonItem style={{ '--padding-start': '0' } as any}>
-                    <IonRadio slot="start" value={true} />
-                    <IonIcon icon={thumbsUpOutline} style={{ color: '#10b981', marginRight: '12px' }} />
-                    <IonLabel>Yes, I would recommend</IonLabel>
-                  </IonItem>
-                  <IonItem style={{ '--padding-start': '0' } as any}>
-                    <IonRadio slot="start" value={false} />
-                    <IonIcon icon={thumbsDownOutline} style={{ color: '#ef4444', marginRight: '12px' }} />
-                    <IonLabel>No, I would not recommend</IonLabel>
-                  </IonItem>
-                </IonRadioGroup>
-              </IonCardContent>
-            </IonCard>
-
-            {/* Preferred Contact Method */}
-            <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-              <IonCardHeader>
-                <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-                  Preferred Contact Method
-                </IonCardTitle>
-              </IonCardHeader>
-              <IonCardContent>
-                <IonSelect
-                  value={feedbackData.contact_method}
-                  onIonChange={e => setFeedbackData(prev => ({ ...prev, contact_method: e.detail.value }))}
-                  interface="popover"
-                  placeholder="How do you prefer to be contacted about your reports?"
-                >
-                  {contactMethods.map(method => (
-                    <IonSelectOption key={method} value={method}>{method}</IonSelectOption>
-                  ))}
-                </IonSelect>
-              </IonCardContent>
-            </IonCard>
-
-            {/* Submit Button */}
-            <IonCard style={{ borderRadius: '16px' }}>
-              <IonCardContent>
-                <IonButton
-                  expand="block"
-                  size="large"
-                  onClick={submitFeedback}
-                  disabled={isSubmitting}
-                  style={{
-                    '--border-radius': '12px',
-                    '--padding-top': '16px',
-                    '--padding-bottom': '16px',
-                    fontWeight: '600',
-                    fontSize: '16px',
-                    '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    '--color': 'white'
-                  } as any}
-                >
-                  <IonIcon icon={sendOutline} slot="start" />
-                  {isSubmitting ? 'Submitting Feedback...' : 'SUBMIT FEEDBACK'}
-                </IonButton>
-
-                <div style={{
-                  background: '#f0f9ff',
-                  border: '1px solid #bae6fd',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  marginTop: '16px'
-                }}>
-                  <p style={{
-                    fontSize: '12px',
-                    color: '#075985',
-                    margin: 0,
-                    lineHeight: '1.4'
-                  }}>
-                    Your feedback helps LDRRMO improve emergency response services for the community.
-                  </p>
+                  {/* Submit Button Skeleton */}
+                  <IonSkeletonText animated style={{ width: '100%', height: '44px', borderRadius: '12px' }} />
                 </div>
-              </IonCardContent>
-            </IonCard>
-          </>
+              ) : (
+                <div>
+                  {/* Overall Rating */}
+                  <StarRating
+                    rating={feedbackData.overall_rating}
+                    onRatingChange={(rating) => handleRatingChange('overall_rating', rating)}
+                    label="Overall Rating*"
+                  />
+
+                  {/* Additional Ratings */}
+                  <StarRating
+                    rating={feedbackData.response_time_rating}
+                    onRatingChange={(rating) => handleRatingChange('response_time_rating', rating)}
+                    label="Response Time"
+                  />
+                  <StarRating
+                    rating={feedbackData.communication_rating}
+                    onRatingChange={(rating) => handleRatingChange('communication_rating', rating)}
+                    label="Communication Quality"
+                  />
+                  <StarRating
+                    rating={feedbackData.resolution_satisfaction}
+                    onRatingChange={(rating) => handleRatingChange('resolution_satisfaction', rating)}
+                    label="Resolution Satisfaction"
+                  />
+
+                  {/* Feedback Categories */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <p style={{
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      What aspects would you like to comment on?
+                    </p>
+                    <IonGrid style={{ padding: 0 }}>
+                      <IonRow>
+                        {feedbackCategories.map((category) => (
+                          <IonCol size="6" key={category}>
+                            <IonItem style={{
+                              '--background': 'transparent',
+                              '--padding-start': '0',
+                              '--inner-padding-end': '0'
+                            } as any}>
+                              <IonCheckbox
+                                checked={feedbackData.categories.includes(category)}
+                                onIonChange={(e) => handleCategoryToggle(category, e.detail.checked)}
+                                style={{
+                                  '--size': '18px',
+                                  '--checkbox-background-checked': '#10b981',
+                                  '--border-color-checked': '#10b981'
+                                } as any}
+                              />
+                              <IonLabel style={{
+                                fontSize: '12px',
+                                marginLeft: '8px'
+                              }}>
+                                {category}
+                              </IonLabel>
+                            </IonItem>
+                          </IonCol>
+                        ))}
+                      </IonRow>
+                    </IonGrid>
+                  </div>
+
+                  {/* Would Recommend */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <p style={{
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Would you recommend our service?
+                    </p>
+                    <IonRadioGroup
+                      value={feedbackData.would_recommend}
+                      onIonChange={(e) => setFeedbackData(prev => ({ ...prev, would_recommend: e.detail.value }))}
+                    >
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <IonItem style={{ '--background': 'transparent' } as any}>
+                          <IonRadio value={true} style={{ marginRight: '8px' }} />
+                          <IonLabel style={{ fontSize: '14px' }}>Yes</IonLabel>
+                        </IonItem>
+                        <IonItem style={{ '--background': 'transparent' } as any}>
+                          <IonRadio value={false} style={{ marginRight: '8px' }} />
+                          <IonLabel style={{ fontSize: '14px' }}>No</IonLabel>
+                        </IonItem>
+                      </div>
+                    </IonRadioGroup>
+                  </div>
+
+                  {/* Preferred Contact Method */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <p style={{
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Preferred contact method for updates?
+                    </p>
+                    <IonSelect
+                      value={feedbackData.contact_method}
+                      placeholder="Select method"
+                      onIonChange={(e) => setFeedbackData(prev => ({ ...prev, contact_method: e.detail.value }))}
+                      style={{
+                        width: '100%',
+                        '--placeholder-color': '#9ca3af'
+                      } as any}
+                    >
+                      {contactMethods.map((method) => (
+                        <IonSelectOption key={method} value={method}>
+                          {method}
+                        </IonSelectOption>
+                      ))}
+                    </IonSelect>
+                  </div>
+
+                  {/* Additional Comments */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <p style={{
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Additional Comments
+                    </p>
+                    <IonTextarea
+                      placeholder="Share your experience or suggestions for improvement..."
+                      value={feedbackData.comments}
+                      onIonInput={(e) => setFeedbackData(prev => ({ ...prev, comments: e.detail.value || '' }))}
+                      rows={4}
+                      style={{
+                        '--background': '#f9fafb',
+                        '--border-radius': '8px',
+                        '--padding-start': '12px',
+                        '--padding-end': '12px',
+                        '--padding-top': '12px',
+                        '--padding-bottom': '12px',
+                        fontSize: '14px'
+                      } as any}
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <IonButton
+                    expand="block"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || feedbackData.overall_rating === 0}
+                    style={{
+                      '--border-radius': '12px',
+                      '--background': feedbackData.overall_rating === 0 ? '#9ca3af' : 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                      height: '44px',
+                      fontWeight: '600'
+                    } as any}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <IonIcon icon={refreshOutline} slot="start" style={{ animation: 'spin 1s linear infinite' }} />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <IonIcon icon={sendOutline} slot="start" />
+                        Submit Feedback
+                      </>
+                    )}
+                  </IonButton>
+                </div>
+              )}
+            </IonCardContent>
+          </IonCard>
         )}
       </div>
 
       {/* Success Modal */}
-      <IonModal
-        isOpen={showSuccessModal}
-        onDidDismiss={() => setShowSuccessModal(false)}
-        style={{ '--border-radius': '20px' } as any}
-      >
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          padding: '32px',
-          textAlign: 'center',
-          background: 'white',
-          borderRadius: '20px'
-        }}>
+      <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
+        <div style={{ padding: '40px 20px', textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{
-            width: '100px',
-            height: '100px',
+            width: '80px',
+            height: '80px',
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: '24px'
+            margin: '0 auto 24px'
           }}>
-            <IonIcon icon={checkmarkCircleOutline} style={{ fontSize: '50px', color: 'white' }} />
+            <IonIcon icon={checkmarkCircleOutline} style={{ fontSize: '36px', color: 'white' }} />
           </div>
-
           <h2 style={{
             fontSize: '24px',
             fontWeight: 'bold',
-            color: '#065f46',
-            margin: '0 0 12px 0'
-          }}>Thank You!</h2>
-
+            color: '#1f2937',
+            margin: '0 0 16px 0'
+          }}>
+            Thank You!
+          </h2>
           <p style={{
             fontSize: '16px',
-            color: '#047857',
-            lineHeight: '1.6',
-            marginBottom: '32px'
+            color: '#6b7280',
+            margin: '0 0 32px 0',
+            lineHeight: '1.5'
           }}>
-            Your feedback has been submitted successfully. LDRRMO values your input
-            and will use it to improve emergency response services.
+            Your feedback has been submitted successfully. We appreciate your input and will use it to improve our services.
           </p>
-
           <IonButton
-            routerLink="/it35-lab2/app/dashboard"
             expand="block"
-            size="large"
             onClick={() => setShowSuccessModal(false)}
             style={{
               '--border-radius': '12px',
-              '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              '--color': 'white',
-              marginBottom: '12px',
-              width: '100%'
+              '--background': 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+              maxWidth: '200px',
+              margin: '0 auto'
             } as any}
           >
-            Back to Dashboard
-          </IonButton>
-
-          <IonButton
-            fill="clear"
-            expand="block"
-            onClick={() => {
-              setShowSuccessModal(false);
-              fetchUserReports();
-            }}
-            style={{ '--color': '#6b7280', width: '100%' }}
-          >
-            Rate Another Report
+            Close
           </IonButton>
         </div>
       </IonModal>
@@ -789,7 +807,7 @@ const GiveFeedback: React.FC = () => {
       <IonAlert
         isOpen={showAlert}
         onDidDismiss={() => setShowAlert(false)}
-        header="Notice"
+        header="Missing Information"
         message={alertMessage}
         buttons={['OK']}
       />
@@ -801,7 +819,6 @@ const GiveFeedback: React.FC = () => {
         message={toastMessage}
         duration={3000}
         position="top"
-        color="danger"
       />
     </IonContent>
   );
