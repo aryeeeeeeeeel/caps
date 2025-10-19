@@ -1,4 +1,4 @@
-// src/pages/user-tabs/Dashboard.tsx - FIXED: User-specific stats with clickable boxes
+// src/pages/user-tabs/Dashboard.tsx - UPDATED: Fixed skeleton loading and removed View All
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -381,13 +381,37 @@ const Dashboard: React.FC = () => {
             {/* Statistics Cards Skeleton */}
             <IonGrid style={{ padding: 0, marginBottom: '20px' }}>
               <IonRow>
-                <SkeletonStatsCard />
+                <IonCol size="12">
+                  <IonCard style={{
+                    borderRadius: '16px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+                    height: '100px'
+                  }}>
+                    <IonCardContent style={{
+                      padding: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      height: '100%'
+                    }}>
+                      <IonSkeletonText animated style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '12px',
+                        marginRight: '16px'
+                      }} />
+                      <div style={{ flex: 1 }}>
+                        <IonSkeletonText animated style={{ width: '60%', height: '24px', marginBottom: '8px' }} />
+                        <IonSkeletonText animated style={{ width: '40%', height: '12px' }} />
+                      </div>
+                    </IonCardContent>
+                  </IonCard>
+                </IonCol>
               </IonRow>
 
               <IonRow>
-                <SkeletonMiniStatsCard />
-                <SkeletonMiniStatsCard />
-                <SkeletonMiniStatsCard />
+                {[1, 2, 3].map((item) => (
+                  <SkeletonMiniStatsCard key={item} />
+                ))}
               </IonRow>
             </IonGrid>
 
@@ -396,7 +420,6 @@ const Dashboard: React.FC = () => {
               <IonCardHeader>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <IonSkeletonText animated style={{ width: '120px', height: '18px' }} />
-                  <IonSkeletonText animated style={{ width: '60px', height: '32px', borderRadius: '8px' }} />
                 </div>
               </IonCardHeader>
               <IonCardContent style={{ padding: 0 }}>
@@ -714,13 +737,6 @@ const Dashboard: React.FC = () => {
                 <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
                   My Recent Reports
                 </IonCardTitle>
-                <IonButton
-                  fill="clear"
-                  size="small"
-                  routerLink="/it35-lab2/app/map"
-                >
-                  View All
-                </IonButton>
               </div>
             </IonCardHeader>
             <IonCardContent style={{ padding: 0 }}>
