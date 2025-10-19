@@ -1,6 +1,5 @@
-// src/pages/AdminNotifications.tsx - With MDRRMO Command Center and Incident Tracking
-import React, { useState, useEffect, useRef } from 'react';
-import { desktopOutline } from 'ionicons/icons';
+// src/pages/AdminNotifications.tsx - Complete rewrite
+import React, { useState, useEffect } from 'react';
 import {
   IonPage,
   IonHeader,
@@ -11,28 +10,824 @@ import {
   IonItem,
   IonLabel,
   IonIcon,
+  IonBadge,
+  IonButton,
+  IonButtons,
+  IonCard,
+  IonCardContent,
+  IonText,
+  IonChip,
+  IonSearchbar,
+  IonSegment,
+  IonSegmentButton,
+  IonSkeletonText,
+  IonToast,
+  useIonRouter,
+  IonModal
 } from '@ionic/react';
+import {
+  alertCircleOutline,
+  documentTextOutline,
+  peopleOutline,
+  timeOutline,
+  checkmarkCircleOutline,
+  checkmarkDoneOutline,
+  warningOutline,
+  notificationsOutline,
+  logOutOutline,
+  statsChartOutline,
+  mailOutline,
+  trashOutline,
+  chatbubbleOutline
+} from 'ionicons/icons';
+import { supabase } from '../../utils/supabaseClient';
+
+interface AdminNotification {
+  id: string;
+  type: 'incident_report' | 'feedback' | 'system';
+  title: string;
+  message: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  created_at: string;
+  read: boolean;
+  related_id?: string;
+  user_email?: string;
+  user_name?: string;
+}
 
 const AdminNotifications: React.FC = () => {
+  const navigation = useIonRouter();
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [filter, setFilter] = useState<'all' | 'unread' | 'read' | 'reports' | 'feedback'>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<AdminNotification | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    fetchAdminNotifications();
+    setupRealtimeSubscription();
+  }, []);
+
+  // Fetch unread count for badge (same as other admin pages)
+  const fetchUnreadCount = async () => {
+    const { data: reports } = await supabase
+      .from('incident_reports')
+      .select('*')
+      .eq('read', false);
+
+    const { data: feedbackFromReports } = await supabase
+      .from('incident_reports')
+      .select('*')
+      .not('feedback_comment', 'is', null)
+      .eq('feedback_read', false);
+
+    const { data: feedback } = await supabase
+      .from('feedback')
+      .select('*')
+      .eq('read', false);
+
+    setUnreadCount(
+      (reports?.length || 0) +
+      (feedbackFromReports?.length || 0) +
+      (feedback?.length || 0)
+    );
+  };
+
+  const fetchAdminNotifications = async () => {
+    try {
+      setIsLoading(true);
+
+      // Fetch recent incident reports
+      const { data: recentReports } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      // Fetch user feedback
+      const { data: userFeedback } = await supabase
+        .from('feedback')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      // Convert to notification format
+      const reportNotifications: AdminNotification[] = (recentReports || []).map(report => ({
+        id: `report-${report.id}`,
+        type: 'incident_report',
+        title: `Incident Report: ${report.title}`,
+        message: report.description?.substring(0, 100) + (report.description && report.description.length > 100 ? '...' : '') || 'No description',
+        priority: report.priority as 'low' | 'medium' | 'high' | 'critical',
+        created_at: report.created_at,
+        read: report.read || false,
+        related_id: report.id,
+        user_email: report.reporter_email,
+        user_name: report.reporter_name
+      }));
+
+      // NEW: Fetch feedback from incident_reports table (feedback_comment field)
+      const feedbackFromReports: AdminNotification[] = (recentReports || [])
+        .filter(report => report.feedback_comment) // Only include reports with feedback
+        .map(report => ({
+          id: `report-feedback-${report.id}`,
+          type: 'feedback',
+          title: `Feedback on: ${report.title}`,
+          message: `Rating: ${report.feedback_rating || 'N/A'}/5 - ${report.feedback_comment?.substring(0, 100) || ''}${report.feedback_comment && report.feedback_comment.length > 100 ? '...' : ''}`,
+          priority: 'medium',
+          created_at: report.updated_at || report.created_at, // Use updated_at when feedback was added
+          read: report.read || false,
+          related_id: report.id,
+          user_email: report.reporter_email,
+          user_name: report.reporter_name
+        }));
+
+      const feedbackNotifications: AdminNotification[] = (userFeedback || []).map(feedback => ({
+        id: `feedback-${feedback.id}`,
+        type: 'feedback',
+        title: `User Feedback: ${feedback.subject}`,
+        message: feedback.message?.substring(0, 100) + (feedback.message && feedback.message.length > 100 ? '...' : '') || 'No message',
+        priority: 'medium',
+        created_at: feedback.created_at,
+        read: feedback.read || false,
+        related_id: feedback.id,
+        user_email: feedback.user_email
+      }));
+
+      // Combine all notifications
+      const allNotifications = [
+        ...reportNotifications,
+        ...feedbackFromReports, // NEW: Add feedback from incident_reports
+        ...feedbackNotifications
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setNotifications(allNotifications);
+    } catch (error) {
+      console.error('Error fetching admin notifications:', error);
+      setToastMessage('Error loading notifications');
+      setShowToast(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const setupRealtimeSubscription = () => {
+    const reportsChannel = supabase
+      .channel('admin_reports_channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'incident_reports' },
+        () => {
+          fetchUnreadCount();
+          fetchAdminNotifications();
+        }
+      )
+      .subscribe();
+
+    const feedbackChannel = supabase
+      .channel('admin_feedback_channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'feedback' },
+        () => {
+          fetchUnreadCount();
+          fetchAdminNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      reportsChannel.unsubscribe();
+      feedbackChannel.unsubscribe();
+    };
+  };
+
+  const filteredNotifications = notifications.filter(notification => {
+    const matchesSearch = notification.title.toLowerCase().includes(searchText.toLowerCase()) ||
+      notification.message.toLowerCase().includes(searchText.toLowerCase()) ||
+      (notification.user_name && notification.user_name.toLowerCase().includes(searchText.toLowerCase()));
+
+    const matchesFilter =
+      filter === 'all' ? true :
+        filter === 'unread' ? !notification.read :
+          filter === 'read' ? notification.read :
+            filter === 'reports' ? notification.type === 'incident_report' :
+              filter === 'feedback' ? notification.type === 'feedback' : true;
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const handleNotificationClick = async (notification: AdminNotification) => {
+    // Update read status in database
+    if (notification.type === 'incident_report') {
+      await supabase
+        .from('incident_reports')
+        .update({ read: true })
+        .eq('id', notification.related_id);
+    } else if (notification.type === 'feedback') {
+      // Handle feedback from incident_reports
+      if (notification.id.startsWith('report-feedback-')) {
+        await supabase
+          .from('incident_reports')
+          .update({ feedback_read: true })
+          .eq('id', notification.related_id);
+      } else {
+        // Handle feedback from feedback table
+        await supabase
+          .from('feedback')
+          .update({ read: true })
+          .eq('id', notification.related_id);
+      }
+    }
+
+    // Update unread count
+    fetchUnreadCount();
+
+    // Mark as read and show modal
+    setNotifications(prev =>
+      prev.map(n => n.id === notification.id ? { ...n, read: true } : n)
+    );
+    setSelectedNotification(notification);
+    setShowDetailsModal(true);
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'incident_report': return alertCircleOutline;
+      case 'feedback': return chatbubbleOutline; // Changed to chatbubble icon
+      case 'system': return notificationsOutline;
+      default: return alertCircleOutline;
+    }
+  };
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'incident_report': return '#dc2626';
+      case 'feedback': return '#8b5cf6'; // Purple color for feedback
+      case 'system': return '#10b981';
+      default: return '#6b7280';
+    }
+  };
+
+  const stats = {
+    total: notifications.length,
+    unread: notifications.filter(n => !n.read).length,
+    read: notifications.filter(n => n.read).length,
+    reports: notifications.filter(n => n.type === 'incident_report').length,
+    feedback: notifications.filter(n => n.type === 'feedback').length
+  };
+
+  // Check if all notifications are read
+  const allRead = stats.unread === 0 && stats.total > 0;
+
+  // Mark all as read function
+  const markAllAsRead = async () => {
+    try {
+      // Get all unread incident reports and feedback
+      const unreadReports = notifications
+        .filter(n => n.type === 'incident_report' && !n.read)
+        .map(n => n.related_id);
+
+      const unreadFeedbackFromReports = notifications
+        .filter(n => n.type === 'feedback' && n.id.startsWith('report-feedback-') && !n.read)
+        .map(n => n.related_id);
+
+      const unreadFeedback = notifications
+        .filter(n => n.type === 'feedback' && !n.id.startsWith('report-feedback-') && !n.read)
+        .map(n => n.related_id);
+
+      // Update incident reports
+      if (unreadReports.length > 0) {
+        await supabase
+          .from('incident_reports')
+          .update({ read: true })
+          .in('id', unreadReports);
+      }
+
+      // Update feedback from incident_reports
+      if (unreadFeedbackFromReports.length > 0) {
+        await supabase
+          .from('incident_reports')
+          .update({ read: true })
+          .in('id', unreadFeedbackFromReports);
+      }
+
+      // Update feedback table
+      if (unreadFeedback.length > 0) {
+        await supabase
+          .from('feedback')
+          .update({ read: true })
+          .in('id', unreadFeedback);
+      }
+
+      // Update local state
+      setNotifications(notifications.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+
+      setToastMessage('All notifications marked as read');
+      setShowToast(true);
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      setToastMessage('Error marking notifications as read');
+      setShowToast(true);
+    }
+  };
+
+  // Mark all as unread function
+  const markAllAsUnread = async () => {
+    try {
+      // Get all read incident reports and feedback
+      const readReports = notifications
+        .filter(n => n.type === 'incident_report' && n.read)
+        .map(n => n.related_id);
+
+      const readFeedbackFromReports = notifications
+        .filter(n => n.type === 'feedback' && n.id.startsWith('report-feedback-') && n.read)
+        .map(n => n.related_id);
+
+      const readFeedback = notifications
+        .filter(n => n.type === 'feedback' && !n.id.startsWith('report-feedback-') && n.read)
+        .map(n => n.related_id);
+
+      // Update incident reports
+      if (readReports.length > 0) {
+        await supabase
+          .from('incident_reports')
+          .update({ read: false })
+          .in('id', readReports);
+      }
+
+      // Update feedback from incident_reports
+      if (readFeedbackFromReports.length > 0) {
+        await supabase
+          .from('incident_reports')
+          .update({ read: false })
+          .in('id', readFeedbackFromReports);
+      }
+
+      // Update feedback table
+      if (readFeedback.length > 0) {
+        await supabase
+          .from('feedback')
+          .update({ read: false })
+          .in('id', readFeedback);
+      }
+
+      // Update local state
+      setNotifications(notifications.map(n => ({ ...n, read: false })));
+      setUnreadCount(stats.total);
+
+      setToastMessage('All notifications marked as unread');
+      setShowToast(true);
+    } catch (error) {
+      console.error('Error marking all as unread:', error);
+      setToastMessage('Error marking notifications as unread');
+      setShowToast(true);
+    }
+  };
+
+  const handleMarkUnread = async (notification: AdminNotification) => {
+  try {
+    // Update read status in database
+    if (notification.type === 'incident_report') {
+      await supabase
+        .from('incident_reports')
+        .update({ read: false })
+        .eq('id', notification.related_id);
+    } else if (notification.type === 'feedback') {
+      // Handle both feedback from incident_reports and feedback table
+      if (notification.id.startsWith('report-feedback-')) {
+        await supabase
+          .from('incident_reports')
+          .update({ feedback_read: false })
+          .eq('id', notification.related_id);
+      } else {
+        await supabase
+          .from('feedback')
+          .update({ read: false })
+          .eq('id', notification.related_id);
+      }
+    }
+
+    // Update unread count
+    fetchUnreadCount();
+
+    // Update local state
+    setNotifications(prev =>
+      prev.map(n => n.id === notification.id ? { ...n, read: false } : n)
+    );
+
+    setToastMessage('Notification marked as unread');
+    setShowToast(true);
+  } catch (error) {
+    console.error('Error marking notification as unread:', error);
+    setToastMessage('Error updating notification');
+    setShowToast(true);
+  }
+};
+
+  // Delete notification function
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      // Remove from local state only (since these are virtual notifications)
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+
+      setToastMessage('Notification deleted');
+      setShowToast(true);
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      setToastMessage('Error deleting notification');
+      setShowToast(true);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <IonPage>
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+            <IonTitle style={{ fontWeight: 'bold' }}>
+              <IonSkeletonText animated style={{ width: '250px', height: '20px' }} />
+            </IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent>
+          <div style={{ padding: '20px' }}>
+            {[1, 2, 3, 4, 5].map(i => (
+              <IonCard key={i}>
+                <IonCardContent>
+                  <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
+                  <IonSkeletonText animated style={{ width: '100%', height: '14px', marginBottom: '8px' }} />
+                  <IonSkeletonText animated style={{ width: '50%', height: '12px' }} />
+                </IonCardContent>
+              </IonCard>
+            ))}
+          </div>
+        </IonContent>
+      </IonPage>
+    );
+  }
+
   return (
     <IonPage>
       <IonHeader>
-        <IonToolbar>
-          <IonTitle>Admin Notifications</IonTitle>
+        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+          <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Admin Notifications</IonTitle>
+          <IonButtons slot="end">
+            <IonButton
+              fill="clear"
+              onClick={() => navigation.push('/it35-lab2/admin/notifications', 'forward', 'push')}
+              style={{
+                color: 'white',
+                position: 'relative',
+                borderBottom: '2px solid white'
+              }}
+            >
+              <IonIcon icon={notificationsOutline} />
+              {unreadCount > 0 && (
+                <IonBadge
+                  color="danger"
+                  style={{
+                    position: 'absolute',
+                    top: '0',
+                    right: '0',
+                    fontSize: '10px',
+                    transform: 'translate(25%, -25%)'
+                  }}
+                >
+                  {unreadCount}
+                </IonBadge>
+              )}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigation.push('/it35-lab2', 'root', 'replace');
+              }}
+              style={{ color: 'white' }}
+            >
+              <IonIcon icon={logOutOutline} />
+            </IonButton>
+          </IonButtons>
+        </IonToolbar>
+
+        {/* Menu Bar */}
+        <IonToolbar style={{ '--background': 'white' } as any}>
+          <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
+              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
+              { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
+              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' }
+            ].map(menu => (
+              <IonButton
+                key={menu.id}
+                fill="clear"
+                onClick={() => {
+                  if (menu.route) {
+                    navigation.push(menu.route, 'forward', 'push');
+                  }
+                }}
+                style={{
+                  '--color': '#6b7280',
+                  '--background': 'transparent',
+                  '--border-radius': '0',
+                  borderBottom: '2px solid transparent',
+                  margin: 0,
+                  flex: 1
+                } as any}
+              >
+                <IonIcon icon={menu.icon} slot="start" />
+                {menu.label}
+              </IonButton>
+            ))}
+          </div>
         </IonToolbar>
       </IonHeader>
-      <IonContent>
-        <IonList>
-          <IonItem>
-            <IonIcon icon={desktopOutline} slot="start" />
-            <IonLabel>MDRRMO Command Center</IonLabel>
-          </IonItem>
-          <IonItem>
-            <IonIcon icon={desktopOutline} slot="start" />
-            <IonLabel>Incident Tracking</IonLabel>
-          </IonItem>
-        </IonList>
+
+      <IonContent style={{ '--background': '#f8fafc' } as any}>
+        <div style={{ padding: '20px' }}>
+          {/* Stats Overview - UPDATED arrangement: Unread, Read, Reports, Feedback */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '12px',
+            marginBottom: '20px',
+            position: 'sticky',
+            top: '0',
+            zIndex: '100',
+            background: '#f8fafc',
+            padding: '10px 0'
+          }}>
+            {[
+              { label: 'Unread', value: stats.unread, color: '#3b82f6', icon: alertCircleOutline, filter: 'unread' },
+              { label: 'Read', value: stats.read, color: '#10b981', icon: checkmarkDoneOutline, filter: 'read' },
+              { label: 'Reports', value: stats.reports, color: '#dc2626', icon: documentTextOutline, filter: 'reports' },
+              { label: 'Feedback', value: stats.feedback, color: '#8b5cf6', icon: chatbubbleOutline, filter: 'feedback' }
+            ].map((stat, idx) => (
+              <div
+                key={idx}
+                onClick={() => stat.filter && setFilter(stat.filter as any)}
+                style={{
+                  background: filter === stat.filter ? stat.color + '20' : 'white',
+                  border: `1px solid ${filter === stat.filter ? stat.color : '#e5e7eb'}`,
+                  borderRadius: '12px',
+                  padding: '16px',
+                  textAlign: 'center',
+                  cursor: stat.filter ? 'pointer' : 'default'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <IonIcon icon={stat.icon} style={{ color: stat.color, fontSize: '20px' }} />
+                  <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>{stat.label}</div>
+                </div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Search Bar */}
+          <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+            <IonCardContent>
+              <IonSearchbar
+                value={searchText}
+                onIonInput={e => setSearchText(e.detail.value!)}
+                placeholder="Search notifications..."
+                style={{
+                  '--background': '#f8fafc',
+                  '--border-radius': '8px',
+                  '--box-shadow': 'none'
+                } as any}
+              />
+            </IonCardContent>
+          </IonCard>
+
+          {/* Notifications List */}
+          <div style={{ padding: '0 20px 20px 20px' }}>
+            <IonCard style={{ borderRadius: '16px' }}>
+              <IonCardContent style={{ padding: '16px' }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {filter === 'all' ? 'All Notifications' :
+                    filter === 'unread' ? 'Unread Notifications' :
+                      filter === 'read' ? 'Read Notifications' :
+                        filter === 'reports' ? 'Incident Reports' :
+                          'Feedback'} ({filteredNotifications.length})
+                  {stats.total > 0 && (
+                    allRead ? (
+                      <IonButton
+                        shape="round"
+                        fill="clear"
+                        onClick={markAllAsUnread}
+                        style={{ '--padding-start': '12px', '--padding-end': '12px' }}
+                      >
+                        <IonIcon icon={mailOutline} slot="start" style={{ marginRight: '6px' }} />
+                        Mark All Unread
+                      </IonButton>
+                    ) : (
+                      <IonButton
+                        shape="round"
+                        fill="clear"
+                        onClick={markAllAsRead}
+                        style={{ '--padding-start': '12px', '--padding-end': '12px' }}
+                      >
+                        <IonIcon icon={checkmarkDoneOutline} slot="start" style={{ marginRight: '6px' }} />
+                        Mark All Read
+                      </IonButton>
+                    )
+                  )}
+                </h3>
+
+                <IonList style={{ background: 'transparent' }}>
+                  {filteredNotifications.map(notification => (
+                    <IonItem
+                      key={notification.id}
+                      button
+                      onClick={() => handleNotificationClick(notification)}
+                      style={{
+                        '--background': notification.read ? 'transparent' : '#f0f9ff',
+                        '--border-radius': '8px',
+                        marginBottom: '12px'
+                      } as any}
+                    >
+                      <div style={{ width: '100%', padding: '12px 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                          <div style={{
+                            position: 'relative',
+                            width: '40px',
+                            height: '40px',
+                            background: getNotificationColor(notification.type) + '20',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <IonIcon
+                              icon={getNotificationIcon(notification.type)}
+                              style={{
+                                fontSize: '20px',
+                                color: getNotificationColor(notification.type)
+                              }}
+                            />
+
+                            {/* New badge positioned properly */}
+                            {!notification.read && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '-4px',
+                                right: '-4px',
+                                background: '#3b82f6',
+                                color: 'white',
+                                borderRadius: '6px',
+                                minWidth: '12px',
+                                height: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8px',
+                                fontWeight: 'bold',
+                                border: '1px solid white',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                                zIndex: 5
+                              }}></div>
+                            )}
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                              <h4 style={{
+                                margin: 0,
+                                fontSize: '16px',
+                                fontWeight: notification.read ? '500' : '600',
+                                color: notification.read ? '#6b7280' : '#1f2937'
+                              }}>
+                                {notification.title}
+                              </h4>
+                              {notification.read ? (
+                                <IonButton
+                                  fill="clear"
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkUnread(notification);
+                                  }}
+                                >
+                                  <IonIcon icon={mailOutline} />
+                                </IonButton>
+                              ) : (
+                                <IonBadge color="primary" style={{ fontSize: '10px' }}>
+                                  New
+                                </IonBadge>
+                              )}
+                            </div>
+
+                            <p style={{
+                              margin: '0 0 8px 0',
+                              fontSize: '14px',
+                              color: '#6b7280',
+                              lineHeight: '1.4'
+                            }}>
+                              {notification.message}
+                            </p>
+
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <IonChip
+                                  style={{
+                                    '--background': getNotificationColor(notification.type) + '20',
+                                    '--color': getNotificationColor(notification.type),
+                                    height: '24px',
+                                    fontSize: '10px',
+                                    fontWeight: '600'
+                                  } as any}
+                                >
+                                  {notification.type.replace('_', ' ').toUpperCase()}
+                                </IonChip>
+                                <span style={{ fontSize: '12px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <IonIcon icon={timeOutline} style={{ fontSize: '12px' }} />
+                                  {new Date(notification.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+
+                              {!notification.id.startsWith('report-') && (
+                                <IonButton
+                                  size="small"
+                                  fill="clear"
+                                  color="danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteNotification(notification.id);
+                                  }}
+                                >
+                                  <IonIcon icon={trashOutline} />
+                                </IonButton>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </IonItem>
+                  ))}
+                </IonList>
+
+                {filteredNotifications.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                    <IonIcon icon={notificationsOutline} style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }} />
+                    <div style={{ fontSize: '16px', fontWeight: '500' }}>No notifications found</div>
+                    <div style={{ fontSize: '14px', marginTop: '4px' }}>
+                      {filter === 'unread' ? 'All caught up!' :
+                        filter === 'read' ? 'No read notifications yet' :
+                          filter === 'reports' ? 'No incident reports found' :
+                            filter === 'feedback' ? 'No feedback found' :
+                              'You have no notifications'}
+                    </div>
+                  </div>
+                )}
+              </IonCardContent>
+            </IonCard>
+          </div>
+        </div>
+
+        <IonToast
+          isOpen={showToast}
+          onDidDismiss={() => setShowToast(false)}
+          message={toastMessage}
+          duration={3000}
+          position="top"
+        />
       </IonContent>
+      <IonModal isOpen={showDetailsModal} onDidDismiss={() => setShowDetailsModal(false)}>
+        <IonHeader>
+          <IonToolbar>
+            <IonTitle>Notification Details</IonTitle>
+            <IonButtons slot="end">
+              <IonButton onClick={() => setShowDetailsModal(false)}>Close</IonButton>
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent className="ion-padding">
+          {selectedNotification && (
+            <>
+              <h2>{selectedNotification.title}</h2>
+              <p>{selectedNotification.message}</p>
+              <p>Type: {selectedNotification.type.replace('_', ' ')}</p>
+              <p>Priority: {selectedNotification.priority}</p>
+              <p>Date: {new Date(selectedNotification.created_at).toLocaleString()}</p>
+              {selectedNotification.user_name && <p>From: {selectedNotification.user_name}</p>}
+              {selectedNotification.user_email && <p>Email: {selectedNotification.user_email}</p>}
+            </>
+          )}
+        </IonContent>
+      </IonModal>
     </IonPage>
   );
 };
