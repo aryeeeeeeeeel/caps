@@ -68,7 +68,7 @@ const App: React.FC = () => (
 
         {/* Admin Dashboard Routes */}
         <Route exact path="/it35-lab2/admin-dashboard" component={AdminDashboard} />
-        <Route exact path="/it35-lab2/admin/map" component={AdminNotifications} />
+        <Route exact path="/it35-lab2/admin/notifications" component={AdminNotifications} />
         <Route exact path="/it35-lab2/admin/analytics" component={AdminAnalytics} />
         <Route exact path="/it35-lab2/admin/incidents" component={AdminIncidents} />
         <Route exact path="/it35-lab2/admin/users" component={AdminUsers} />
