@@ -110,6 +110,50 @@ const AdminAnalytics: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      const { data: reports } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .eq('read', false);
+
+      const { data: feedbackFromReports } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .not('feedback_comment', 'is', null)
+        .eq('feedback_read', false);
+
+      const { data: feedback } = await supabase
+        .from('feedback')
+        .select('*')
+        .eq('read', false);
+
+      setUnreadCount(
+        (reports?.length || 0) +
+        (feedbackFromReports?.length || 0) +
+        (feedback?.length || 0)
+      );
+    };
+
+    fetchUnreadCount();
+
+    const reportsChannel = supabase
+      .channel('reports_unread_count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => fetchUnreadCount())
+      .subscribe();
+
+    const feedbackChannel = supabase
+      .channel('feedback_unread_count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchUnreadCount())
+      .subscribe();
+
+    return () => {
+      reportsChannel.unsubscribe();
+      feedbackChannel.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -356,15 +400,28 @@ ${Object.entries(reportData.byCategory)
     <IonPage>
       <IonHeader>
         <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
-          <IonButtons slot="start">
-            <IonButton onClick={() => navigation.push('/it35-lab2/admin-dashboard', 'back', 'pop')}>
-              <IonIcon icon={arrowBackOutline} />
-            </IonButton>
-          </IonButtons>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Analytics & Reports</IonTitle>
           <IonButtons slot="end">
-            <IonButton fill="clear" style={{ color: 'white' }}>
+            <IonButton
+              fill="clear"
+              onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")}
+              style={{ color: 'white' }}
+            >
               <IonIcon icon={notificationsOutline} />
+              {unreadCount > 0 && (
+                <IonBadge
+                  color="danger"
+                  style={{
+                    position: 'absolute',
+                    top: '0px',
+                    right: '0px',
+                    fontSize: '10px',
+                    transform: 'translate(25%, -25%)'
+                  }}
+                >
+                  {unreadCount}
+                </IonBadge>
+              )}
             </IonButton>
             <IonButton
               fill="clear"
