@@ -1,4 +1,4 @@
-// src/pages/Home.tsx - FIXED: Profile popover with better alignment and removed items
+// src/pages/Home.tsx - FIXED: Badge count updates, Profile picture & Full name display
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -28,7 +28,8 @@ import {
   homeOutline,
   addCircleOutline,
   listOutline,
-  mapOutline
+  mapOutline,
+  addSharp
 } from 'ionicons/icons';
 import { supabase } from '../utils/supabaseClient';
 
@@ -58,28 +59,52 @@ const Home: React.FC = () => {
   ];
 
   useEffect(() => {
+    let notificationsChannel: any;
+    let reportsChannel: any;
+
     const fetchUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        if (user && user.email) {
           setUser(user);
+          
+          // Fetch user profile data using email instead of id
+          await fetchUserProfile(user.email);
+          
+          // Fetch initial data
+          await fetchUserReports(user.email);
+          await fetchNotifications(user.email);
+          
+          // Set up real-time subscription for notifications
+          notificationsChannel = supabase
+            .channel('notifications_changes')
+            .on('postgres_changes', {
+              event: '*',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_email=eq.${user.email}`
+            }, () => {
+              if (user.email) {
+                fetchNotifications(user.email);
+              }
+            })
+            .subscribe();
 
-          // Fetch user profile from users table
-          const { data: profile, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('user_email', user.email)
-            .single();
-
-          if (!error && profile) {
-            setUserProfile(profile);
-          }
-
-          // Fetch user reports
-          if (user.email) {
-            await fetchUserReports(user.email);
-            await fetchNotifications(user.email);
-          }
+          // Set up real-time subscription for incident reports
+          reportsChannel = supabase
+            .channel('incident_reports_changes')
+            .on('postgres_changes', {
+              event: '*',
+              schema: 'public',
+              table: 'incident_reports',
+              filter: `reporter_email=eq.${user.email}`
+            }, () => {
+              if (user.email) {
+                fetchUserReports(user.email);
+                fetchNotifications(user.email); // Also update notifications when reports change
+              }
+            })
+            .subscribe();
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -87,7 +112,35 @@ const Home: React.FC = () => {
     };
 
     fetchUser();
+
+    // Cleanup function
+    return () => {
+      if (notificationsChannel) {
+        supabase.removeChannel(notificationsChannel);
+      }
+      if (reportsChannel) {
+        supabase.removeChannel(reportsChannel);
+      }
+    };
   }, []);
+
+  const fetchUserProfile = async (userEmail: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_email', userEmail)
+        .single();
+        
+      if (!error && data) {
+        setUserProfile(data);
+      } else if (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+    }
+  };
 
   const fetchUserReports = async (email: string) => {
     try {
@@ -96,7 +149,7 @@ const Home: React.FC = () => {
         .select('*')
         .eq('reporter_email', email)
         .order('created_at', { ascending: false });
-
+        
       if (!error && data) {
         setUserReports(data);
       }
@@ -107,18 +160,32 @@ const Home: React.FC = () => {
 
   const fetchNotifications = async (email: string) => {
     try {
-      const { data, error } = await supabase
+      // Fetch from notifications table
+      const { data: notificationsData } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_email', email)
-        .eq('read', false)
-        .order('created_at', { ascending: false });
+        .eq('read', false);
 
-      if (!error && data) {
-        setUnreadNotifications(data.length);
-      }
+      // Fetch from incident_reports table
+      const { data: incidentUpdates } = await supabase
+        .from('incident_reports')
+        .select('id, title, admin_response, updated_at, read')
+        .eq('reporter_email', email)
+        .not('admin_response', 'is', null)
+        .eq('read', false);
+
+      // Calculate total unread count
+      const unreadCount = (notificationsData?.length || 0) + (incidentUpdates?.length || 0);
+      setUnreadNotifications(unreadCount);
     } catch (err) {
       console.error('Error fetching notifications:', err);
+    }
+  };
+
+  const refreshNotificationCount = async () => {
+    if (user?.email) {
+      await fetchNotifications(user.email);
     }
   };
 
@@ -161,19 +228,22 @@ const Home: React.FC = () => {
             <IonButton
               fill="clear"
               onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
-              style={{ color: 'white', position: 'relative' }}
+              style={{
+                color: 'white',
+                position: 'relative',
+                borderBottom: location.pathname === '/it35-lab2/app/notifications' ? '2px solid white' : 'none'
+              }}
             >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
               {unreadNotifications > 0 && (
                 <IonBadge
+                  color="danger"
                   style={{
                     position: 'absolute',
-                    top: '4px',
-                    right: '4px',
-                    background: '#e53e3e',
-                    minWidth: '18px',
-                    height: '18px',
-                    fontSize: '10px'
+                    top: '0',
+                    right: '0',
+                    fontSize: '10px',
+                    transform: 'translate(25%, -25%)'
                   }}
                 >
                   {unreadNotifications}
@@ -201,7 +271,7 @@ const Home: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      {/* Profile Popover - FIXED */}
+      {/* Profile Popover */}
       <IonPopover
         isOpen={showProfilePopover}
         event={popoverEvent}
@@ -211,7 +281,7 @@ const Home: React.FC = () => {
           <div style={{ padding: '0', minWidth: '280px' }}>
             {user && (
               <>
-                {/* Profile Header - FIXED ALIGNMENT */}
+                {/* Profile Header */}
                 <div style={{
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   padding: '24px 20px',
@@ -219,9 +289,9 @@ const Home: React.FC = () => {
                   color: 'white'
                 }}>
                   {userProfile?.user_avatar_url ? (
-                    <IonAvatar style={{ 
-                      width: '60px', 
-                      height: '60px', 
+                    <IonAvatar style={{
+                      width: '60px',
+                      height: '60px',
                       margin: '0 auto 12px',
                       border: '3px solid rgba(255,255,255,0.3)'
                     }}>
@@ -248,7 +318,9 @@ const Home: React.FC = () => {
                     fontWeight: 'bold',
                     textAlign: 'center'
                   }}>
-                    {userProfile ? `${userProfile.user_firstname} ${userProfile.user_lastname}` : 'Community Member'}
+                    {userProfile?.user_firstname && userProfile?.user_lastname
+                      ? `${userProfile.user_firstname} ${userProfile.user_lastname}`
+                      : 'Community Member'}
                   </h3>
                   <p style={{
                     margin: '0 0 8px 0',
@@ -270,7 +342,7 @@ const Home: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Profile Menu Items - REMOVED MY REPORTS AND NOTIFICATIONS */}
+                {/* Profile Menu Items */}
                 <div style={{ padding: '12px 0' }}>
                   <IonItem
                     button
@@ -321,7 +393,7 @@ const Home: React.FC = () => {
             <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
             <Route exact path="/it35-lab2/app/map" component={IncidentMap} />
             <Route exact path="/it35-lab2/app/history" component={History} />
-            <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
+            <Route exact path="/it35-lab2/app/notifications" render={() => <Notifications refreshCount={refreshNotificationCount} />} />
             <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
 
             <Route exact path="/it35-lab2/app">
