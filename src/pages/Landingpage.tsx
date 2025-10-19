@@ -58,15 +58,16 @@ const LandingPage: React.FC = () => {
             '--border-width': '0',
             padding: '0 20px'
           } as any}>
-            <IonSkeletonText
-              animated
-              style={{
-                width: '120px',
-                height: '22px',
-                borderRadius: '4px',
-                margin: '0 auto'
-              }}
-            />
+            <div slot="start">
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '120px',
+                  height: '22px',
+                  borderRadius: '4px',
+                }}
+              />
+            </div>
             <div slot="end">
               <IonSkeletonText
                 animated
@@ -430,17 +431,18 @@ const LandingPage: React.FC = () => {
             <div slot="end">
               <IonButton
                 routerLink="/it35-lab2/admin-login"
-                fill="clear"
                 size="small"
                 style={{
                   color: 'white',
                   fontWeight: '600',
                   fontSize: '14px',
                   '--border-radius': '20px',
-                  border: '1px solid rgba(255,255,255,0.3)'
+                  '--background': 'primary',
+                  border: '2px solid rgba(255, 255, 255, 0.3)',
+                  borderRadius: '20px'
                 }}
               >
-                <IonIcon icon={shield} slot="start" />
+                <IonIcon icon={shield} slot="start" style={{ color: 'primary' }} />
                 Admin Portal
               </IonButton>
             </div>
