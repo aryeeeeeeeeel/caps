@@ -25,7 +25,11 @@ import {
   IonRow,
   IonCol,
   IonText,
-  IonSkeletonText
+  IonSkeletonText,
+  IonInput,
+  IonLabel,
+  IonSelect,
+  IonSelectOption
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -42,7 +46,9 @@ import {
   checkmarkCircleOutline,
   carOutline,
   calendarOutline,
-  desktopOutline
+  desktopOutline,
+  trashOutline,
+  createOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -133,6 +139,60 @@ const AdminIncidents: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingReport, setEditingReport] = useState<IncidentReport | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    status: 'pending' as 'pending' | 'active' | 'resolved',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
+    category: '',
+    barangay: ''
+  });
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      const { data: reports } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .eq('read', false);
+
+      const { data: feedbackFromReports } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .not('feedback_comment', 'is', null)
+        .eq('feedback_read', false);
+
+      const { data: feedback } = await supabase
+        .from('feedback')
+        .select('*')
+        .eq('read', false);
+
+      setUnreadCount(
+        (reports?.length || 0) +
+        (feedbackFromReports?.length || 0) +
+        (feedback?.length || 0)
+      );
+    };
+
+    fetchUnreadCount();
+
+    const reportsChannel = supabase
+      .channel('reports_unread_count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => fetchUnreadCount())
+      .subscribe();
+
+    const feedbackChannel = supabase
+      .channel('feedback_unread_count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchUnreadCount())
+      .subscribe();
+
+    return () => {
+      reportsChannel.unsubscribe();
+      feedbackChannel.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -182,17 +242,33 @@ const AdminIncidents: React.FC = () => {
   };
 
   const handleNotifyUser = async () => {
-    if (!selectedReport) return;
+    if (!selectedReport || !notificationMessage.trim()) return;
 
     try {
+      // Store the estimated time in the incident report if provided
+      if (estimatedTime) {
+        await supabase
+          .from('incident_reports')
+          .update({
+            estimated_arrival_time: estimatedTime,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedReport.id);
+      }
+
+      // Send notification
       const { error } = await supabase
         .from('notifications')
         .insert({
           user_email: selectedReport.reporter_email,
-          title: 'Update on Your Report',
+          title: `Update: ${selectedReport.title}`,
           message: notificationMessage,
           related_report_id: selectedReport.id,
-          type: 'update'
+          type: 'update',
+          // Store estimated time in the message if provided
+          ...(estimatedTime && {
+            message: `${notificationMessage}\n\nEstimated resolution: ${new Date(estimatedTime).toLocaleString()}`
+          })
         });
 
       if (error) throw error;
@@ -202,9 +278,13 @@ const AdminIncidents: React.FC = () => {
       setShowNotifyModal(false);
       setNotificationMessage('');
       setEstimatedTime('');
+
+      // Refresh reports to show updated estimated time
+      fetchReports();
+
     } catch (error) {
       console.error('Error sending notification:', error);
-      setToastMessage('Error sending notification');
+      setToastMessage('Error sending notification. Please check RLS policies.');
       setShowToast(true);
     }
   };
@@ -228,6 +308,68 @@ const AdminIncidents: React.FC = () => {
   const handleStatusFilterClick = (status: 'all' | 'pending' | 'active' | 'resolved') => {
     setStatusFilter(status);
     setPriorityFilter('all');
+  };
+
+  const handleEditReport = (report: IncidentReport) => {
+    setEditingReport(report);
+    setEditForm({
+      title: report.title,
+      description: report.description,
+      status: report.status,
+      priority: report.priority,
+      category: report.category,
+      barangay: report.barangay
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateReport = async () => {
+    if (!editingReport) return;
+
+    try {
+      const { error } = await supabase
+        .from('incident_reports')
+        .update({
+          title: editForm.title,
+          description: editForm.description,
+          status: editForm.status,
+          priority: editForm.priority,
+          category: editForm.category,
+          barangay: editForm.barangay,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingReport.id);
+
+      if (error) throw error;
+
+      setToastMessage('Report updated successfully');
+      setShowToast(true);
+      setShowEditModal(false);
+      fetchReports();
+    } catch (error) {
+      console.error('Error updating report:', error);
+      setToastMessage('Error updating report');
+      setShowToast(true);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    try {
+      const { error } = await supabase
+        .from('incident_reports')
+        .delete()
+        .eq('id', reportId);
+
+      if (error) throw error;
+
+      setToastMessage('Report deleted successfully');
+      setShowToast(true);
+      fetchReports();
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      setToastMessage('Error deleting report');
+      setShowToast(true);
+    }
   };
 
   // Show skeleton loading screen - FIRST CHECK
@@ -339,8 +481,26 @@ const AdminIncidents: React.FC = () => {
         <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Admin Dashboard</IonTitle>
           <IonButtons slot="end">
-            <IonButton fill="clear" style={{ color: 'white' }}>
+            <IonButton
+              fill="clear"
+              onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")}
+              style={{ color: 'white' }}
+            >
               <IonIcon icon={notificationsOutline} />
+              {unreadCount > 0 && (
+                <IonBadge
+                  color="danger"
+                  style={{
+                    position: 'absolute',
+                    top: '0px',
+                    right: '0px',
+                    fontSize: '10px',
+                    transform: 'translate(25%, -25%)'
+                  }}
+                >
+                  {unreadCount}
+                </IonBadge>
+              )}
             </IonButton>
             <IonButton
               fill="clear"
@@ -579,6 +739,107 @@ const AdminIncidents: React.FC = () => {
           </IonCard>
         </div>
 
+        <IonModal isOpen={showEditModal} onDidDismiss={() => setShowEditModal(false)}>
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => setShowEditModal(false)}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Edit Incident Report</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={handleUpdateReport}>
+                  Save
+                </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            {editingReport && (
+              <div style={{ padding: '16px' }}>
+                <IonCard>
+                  <IonCardContent>
+                    <IonItem>
+                      <IonLabel position="stacked">Title</IonLabel>
+                      <IonInput
+                        value={editForm.title}
+                        onIonInput={e => setEditForm({ ...editForm, title: e.detail.value! })}
+                      />
+                    </IonItem>
+
+                    <IonItem>
+                      <IonLabel position="stacked">Description</IonLabel>
+                      <IonTextarea
+                        value={editForm.description}
+                        onIonInput={e => setEditForm({ ...editForm, description: e.detail.value! })}
+                        rows={4}
+                      />
+                    </IonItem>
+
+                    <IonItem>
+                      <IonLabel position="stacked">Status</IonLabel>
+                      <IonSelect
+                        value={editForm.status}
+                        onIonChange={e => setEditForm({ ...editForm, status: e.detail.value })}
+                      >
+                        <IonSelectOption value="pending">Pending</IonSelectOption>
+                        <IonSelectOption value="active">Active</IonSelectOption>
+                        <IonSelectOption value="resolved">Resolved</IonSelectOption>
+                      </IonSelect>
+                    </IonItem>
+
+                    <IonItem>
+                      <IonLabel position="stacked">Priority</IonLabel>
+                      <IonSelect
+                        value={editForm.priority}
+                        onIonChange={e => setEditForm({ ...editForm, priority: e.detail.value })}
+                      >
+                        <IonSelectOption value="low">Low</IonSelectOption>
+                        <IonSelectOption value="medium">Medium</IonSelectOption>
+                        <IonSelectOption value="high">High</IonSelectOption>
+                        <IonSelectOption value="critical">Critical</IonSelectOption>
+                      </IonSelect>
+                    </IonItem>
+
+                    <IonItem>
+                      <IonLabel position="stacked">Category</IonLabel>
+                      <IonInput
+                        value={editForm.category}
+                        onIonInput={e => setEditForm({ ...editForm, category: e.detail.value! })}
+                      />
+                    </IonItem>
+
+                    <IonItem>
+                      <IonLabel position="stacked">Barangay</IonLabel>
+                      <IonInput
+                        value={editForm.barangay}
+                        onIonInput={e => setEditForm({ ...editForm, barangay: e.detail.value! })}
+                      />
+                    </IonItem>
+
+                    <div style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
+                      <IonButton
+                        expand="block"
+                        color="danger"
+                        onClick={() => {
+                          if (editingReport) {
+                            handleDeleteReport(editingReport.id);
+                            setShowEditModal(false);
+                          }
+                        }}
+                      >
+                        <IonIcon icon={trashOutline} slot="start" />
+                        Delete Report
+                      </IonButton>
+                    </div>
+                  </IonCardContent>
+                </IonCard>
+              </div>
+            )}
+          </IonContent>
+        </IonModal>
+
         <IonModal isOpen={showReportModal} onDidDismiss={() => setShowReportModal(false)}>
           <IonHeader>
             <IonToolbar>
@@ -594,7 +855,7 @@ const AdminIncidents: React.FC = () => {
                     navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
                     setShowReportModal(false);
                   }}
-                  style={{ '--background': '#dc2626', '--color': 'white' } as any}
+                  style={{ '--background': '#dc2626', '--color': 'white', '--border-radius': '8px' } as any}
                 >
                   <IonIcon icon={navigateOutline} slot="start" />
                   Track
@@ -607,8 +868,27 @@ const AdminIncidents: React.FC = () => {
               <div style={{ padding: '16px' }}>
                 <IonCard>
                   <IonCardContent>
-                    <h2 style={{ marginTop: 0, marginBottom: '16px' }}>{selectedReport.title}</h2>
-
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start'
+                    }}>
+                      <h1 style={{ margin: 0, flex: 1 }}>{selectedReport.title}</h1>
+                      <IonButton
+                        size="small"
+                        color="primary"
+                        onClick={() => {
+                          if (selectedReport) {
+                            handleEditReport(selectedReport);
+                            setShowReportModal(false);
+                          }
+                        }}
+                        style={{ marginLeft: '16px' }}
+                      >
+                        <IonIcon icon={createOutline} slot="start" />
+                        Edit Report
+                      </IonButton>
+                    </div>
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                       <IonBadge style={{ '--background': getStatusColor(selectedReport.status) } as any}>
                         {selectedReport.status}
@@ -687,17 +967,20 @@ const AdminIncidents: React.FC = () => {
                             <p>{new Date(selectedReport.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </IonCol>
+
+
+                        <IonCol size="6">
+                          <div style={{ marginBottom: '16px' }}>
+                            <strong>Description:</strong>
+                            <p style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.description}</p>
+                          </div>
+                        </IonCol>
                       </IonRow>
                     </IonGrid>
 
-                    <div style={{ marginBottom: '16px' }}>
-                      <strong>Description:</strong>
-                      <p style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.description}</p>
-                    </div>
-
                     <IonCard style={{ background: '#f8fafc' }}>
                       <IonCardContent>
-                        <h3 style={{ marginTop: 0 }}>Reporter Information</h3>
+                        <h2 style={{ marginTop: 0 }}>Reporter Information</h2>
                         <IonGrid>
                           <IonRow>
                             <IonCol size="6">
@@ -728,11 +1011,21 @@ const AdminIncidents: React.FC = () => {
                         <strong>Attached Images:</strong>
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
                           {selectedReport.image_urls.map((url, index) => (
-                            <IonImg
+                            <IonButton
                               key={index}
-                              src={url}
-                              style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }}
-                            />
+                              fill="clear"
+                              style={{
+                                '--padding-start': '0',
+                                '--padding-end': '0',
+                                '--border-radius': '8px'
+                              }}
+                              onClick={() => window.open(url, '_blank')}
+                            >
+                              <IonImg
+                                src={url}
+                                style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }}
+                              />
+                            </IonButton>
                           ))}
                         </div>
                       </div>
@@ -765,38 +1058,86 @@ const AdminIncidents: React.FC = () => {
         <IonModal isOpen={showNotifyModal} onDidDismiss={() => setShowNotifyModal(false)}>
           <IonHeader>
             <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => setShowNotifyModal(false)}>
+                  <IonIcon icon={closeOutline} />
+
+                </IonButton>
+              </IonButtons>
               <IonTitle>Notify User</IonTitle>
               <IonButtons slot="end">
-                <IonButton onClick={() => setShowNotifyModal(false)}>Cancel</IonButton>
-                <IonButton onClick={handleNotifyUser} strong>Send</IonButton>
+                <IonButton
+                  onClick={handleNotifyUser}
+                  strong
+                  disabled={!notificationMessage.trim()}
+                  color="primary"
+                >
+                  <IonIcon icon={sendOutline} slot="start" />
+                  Send
+                </IonButton>
               </IonButtons>
             </IonToolbar>
           </IonHeader>
           <IonContent>
-            <div style={{ padding: '20px' }}>
+            <div style={{ padding: '16px' }}>
               <IonCard>
                 <IonCardContent>
                   <IonItem>
+                    <IonLabel position="stacked" color="primary">
+                      Message to User *
+                    </IonLabel>
                     <IonTextarea
                       value={notificationMessage}
-                      onIonChange={e => setNotificationMessage(e.detail.value!)}
-                      placeholder="Enter update message for the user..."
-                      rows={6}
-                      label="Message"
-                      labelPlacement="stacked"
+                      onIonInput={e => setNotificationMessage(e.detail.value!)}
+                      placeholder="Enter update about their report..."
+                      rows={4}
+                      autoGrow
+                      counter
+                      maxlength={500}
                     />
                   </IonItem>
+
                   <IonItem>
+                    <IonLabel position="stacked" color="primary">
+                      Estimated Resolution Time (Optional)
+                    </IonLabel>
                     <IonDatetime
                       value={estimatedTime}
                       onIonChange={e => setEstimatedTime(e.detail.value as string)}
                       presentation="date-time"
-                    >
-                      <div slot="title">Estimated Resolution Time</div>
-                    </IonDatetime>
+                      min={new Date().toISOString()}
+                      preferred-columns="date-time"
+                    />
                   </IonItem>
+
+                  {estimatedTime && (
+                    <div style={{
+                      background: '#f0f9ff',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      marginTop: '12px',
+                      fontSize: '14px',
+                      color: '#0369a1'
+                    }}>
+                      <strong>User will be notified about resolution by:</strong><br />
+                      {new Date(estimatedTime).toLocaleString()}
+                    </div>
+                  )}
                 </IonCardContent>
               </IonCard>
+
+              {/* Preview of who we're notifying */}
+              {selectedReport && (
+                <IonCard style={{ marginTop: '16px' }}>
+                  <IonCardContent>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      <strong>Notifying:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_email})<br />
+                      <strong>Report:</strong> {selectedReport.title}
+                    </div>
+                  </IonCardContent>
+                </IonCard>
+              )}
             </div>
           </IonContent>
         </IonModal>
