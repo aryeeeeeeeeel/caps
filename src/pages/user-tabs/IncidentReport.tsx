@@ -40,6 +40,7 @@ import { Capacitor } from '@capacitor/core';
 import ExifReader from 'exifreader';
 
 interface IncidentReport {
+  title: string | number | null | undefined;
   category: string;
   description: string;
   priority: string;
@@ -700,6 +701,7 @@ const SkeletonInfoCard: React.FC = () => (
 
 const IncidentReport: React.FC = () => {
   const [formData, setFormData] = useState<IncidentReport>({
+    title: '',
     category: '',
     description: '',
     priority: 'medium',
@@ -1167,7 +1169,9 @@ const IncidentReport: React.FC = () => {
       return;
     }
 
-    if (!formData.description.trim()) {
+    // More robust description validation
+    const description = formData.description?.trim() || '';
+    if (description.length === 0 || !description.replace(/\s+/g, '').length) {
       showToastMessage('Please provide a description of the incident.', 'warning');
       return;
     }
@@ -1242,7 +1246,7 @@ const IncidentReport: React.FC = () => {
 
       // Prepare report data with metadata
       const reportData = {
-        title: formData.category,
+        title: (formData.title?.toString() || '').trim() || formData.category,
         description: formData.description.trim(),
         category: formData.category,
         priority: formData.priority,
@@ -1273,6 +1277,7 @@ const IncidentReport: React.FC = () => {
 
       // Reset form
       setFormData({
+        title: '',
         category: '',
         description: '',
         priority: 'medium',
@@ -1567,6 +1572,17 @@ const IncidentReport: React.FC = () => {
             </IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
+            {/* Title Field - Optional */}
+            <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
+              <IonLabel position="stacked">Title (Optional)</IonLabel>
+              <IonInput
+                value={formData.title}
+                onIonChange={e => setFormData(prev => ({ ...prev, title: e.detail.value! }))}
+                placeholder="Add a custom title for this report"
+                maxlength={100}
+              />
+            </IonItem>
+
             <IonItem style={{ '--border-radius': '12px', marginBottom: '12px' } as any}>
               <IonLabel position="stacked">Incident Category <span style={{ color: '#ef4444' }}>*</span></IonLabel>
               <IonSelect
