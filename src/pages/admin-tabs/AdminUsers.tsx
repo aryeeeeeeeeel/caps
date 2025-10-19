@@ -110,6 +110,50 @@ const AdminUsers: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [sortAlphabetical, setSortAlphabetical] = useState(true);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      const { data: reports } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .eq('read', false);
+
+      const { data: feedbackFromReports } = await supabase
+        .from('incident_reports')
+        .select('*')
+        .not('feedback_comment', 'is', null)
+        .eq('feedback_read', false);
+
+      const { data: feedback } = await supabase
+        .from('feedback')
+        .select('*')
+        .eq('read', false);
+
+      setUnreadCount(
+        (reports?.length || 0) +
+        (feedbackFromReports?.length || 0) +
+        (feedback?.length || 0)
+      );
+    };
+
+    fetchUnreadCount();
+
+    const reportsChannel = supabase
+      .channel('reports_unread_count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => fetchUnreadCount())
+      .subscribe();
+
+    const feedbackChannel = supabase
+      .channel('feedback_unread_count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchUnreadCount())
+      .subscribe();
+
+    return () => {
+      reportsChannel.unsubscribe();
+      feedbackChannel.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -165,12 +209,12 @@ const AdminUsers: React.FC = () => {
 
   const filterAndSortUsers = () => {
     let filtered = users.filter(user => {
-      const matchesSearch = 
+      const matchesSearch =
         `${user.user_firstname} ${user.user_lastname}`.toLowerCase().includes(searchText.toLowerCase()) ||
         user.user_email.toLowerCase().includes(searchText.toLowerCase());
-      
+
       const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-      
+
       return matchesSearch && matchesStatus;
     });
 
@@ -190,10 +234,10 @@ const AdminUsers: React.FC = () => {
 
     try {
       let updates: any = {};
-      
+
       switch (action) {
         case 'warn':
-          updates = { 
+          updates = {
             warnings: (selectedUser.warnings || 0) + 1,
             last_warning_date: new Date().toISOString()
           };
@@ -236,7 +280,7 @@ const AdminUsers: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     if (!status) return '#6b7280';
-    
+
     switch (status) {
       case 'active': return '#10b981';
       case 'suspended': return '#f59e0b';
@@ -318,16 +362,16 @@ const AdminUsers: React.FC = () => {
   if (isMobileDevice) {
     return (
       <IonPage>
-        <IonContent className="ion-padding" style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <IonContent className="ion-padding" style={{
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
           textAlign: 'center'
         }}>
           <div style={{ maxWidth: '400px', padding: '40px 20px' }}>
-            <IonIcon 
-              icon={desktopOutline} 
-              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }} 
+            <IonIcon
+              icon={desktopOutline}
+              style={{ fontSize: '64px', color: '#667eea', marginBottom: '20px' }}
             />
             <IonText>
               <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>
@@ -337,7 +381,7 @@ const AdminUsers: React.FC = () => {
                 This admin page is only accessible by an admin.
               </p>
             </IonText>
-            <IonButton 
+            <IonButton
               onClick={() => navigation.push('/it35-lab2')}
               style={{ marginTop: '20px' }}
             >
@@ -353,29 +397,42 @@ const AdminUsers: React.FC = () => {
     <IonPage>
       <IonHeader>
         <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
-          <IonButtons slot="start">
-            <IonButton onClick={() => navigation.push('/it35-lab2/admin-dashboard', 'back', 'pop')}>
-              <IonIcon icon={arrowBackOutline} />
-            </IonButton>
-          </IonButtons>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - User Management</IonTitle>
           <IonButtons slot="end">
-            <IonButton fill="clear" style={{ color: 'white' }}>
+            <IonButton
+              fill="clear"
+              onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")}
+              style={{ color: 'white' }}
+            >
               <IonIcon icon={notificationsOutline} />
+              {unreadCount > 0 && (
+                <IonBadge
+                  color="danger"
+                  style={{
+                    position: 'absolute',
+                    top: '0px',
+                    right: '0px',
+                    fontSize: '10px',
+                    transform: 'translate(25%, -25%)'
+                  }}
+                >
+                  {unreadCount}
+                </IonBadge>
+              )}
             </IonButton>
-            <IonButton 
-              fill="clear" 
+            <IonButton
+              fill="clear"
               onClick={async () => {
                 await supabase.auth.signOut();
                 navigation.push('/it35-lab2', 'root', 'replace');
-              }} 
+              }}
               style={{ color: 'white' }}
             >
               <IonIcon icon={logOutOutline} />
             </IonButton>
           </IonButtons>
         </IonToolbar>
-        
+
         {/* Menu Bar */}
         <IonToolbar style={{ '--background': 'white' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
@@ -420,7 +477,7 @@ const AdminUsers: React.FC = () => {
               { label: 'Suspended', value: stats.suspended, color: '#f59e0b', status: 'suspended' },
               { label: 'Banned', value: stats.banned, color: '#dc2626', status: 'banned' }
             ].map((stat, idx) => (
-              <div 
+              <div
                 key={idx}
                 onClick={() => setStatusFilter(stat.status as any)}
                 style={{
@@ -447,7 +504,7 @@ const AdminUsers: React.FC = () => {
                   value={searchText}
                   onIonInput={e => setSearchText(e.detail.value!)}
                   placeholder="Search users by name or email..."
-                  style={{ 
+                  style={{
                     flex: 1,
                     '--background': '#f8fafc',
                     '--border-radius': '8px',
@@ -536,7 +593,7 @@ const AdminUsers: React.FC = () => {
                           <IonIcon icon={warningOutline} slot="start" />
                           Warn
                         </IonButton>
-                        
+
                         <IonButton
                           size="small"
                           fill="outline"
@@ -551,7 +608,7 @@ const AdminUsers: React.FC = () => {
                           <IonIcon icon={user.status === 'suspended' ? checkmarkCircleOutline : pauseCircleOutline} slot="start" />
                           {user.status === 'suspended' ? 'Activate' : 'Suspend'}
                         </IonButton>
-                        
+
                         <IonButton
                           size="small"
                           fill="outline"
@@ -593,9 +650,9 @@ const AdminUsers: React.FC = () => {
           message={`Are you sure you want to ${userAction} ${selectedUser?.user_firstname} ${selectedUser?.user_lastname}?`}
           buttons={[
             { text: 'Cancel', role: 'cancel' },
-            { 
-              text: 'Confirm', 
-              role: 'confirm', 
+            {
+              text: 'Confirm',
+              role: 'confirm',
               handler: () => handleUserAction(userAction)
             }
           ]}
