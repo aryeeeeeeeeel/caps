@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminIncidents.tsx - Fixed skeleton screen
+// src/pages/admin-tabs/AdminIncidents.tsx - Updated with status change modal
 import React, { useState, useEffect } from 'react';
 import {
   IonPage,
@@ -26,10 +26,7 @@ import {
   IonCol,
   IonText,
   IonSkeletonText,
-  IonInput,
-  IonLabel,
-  IonSelect,
-  IonSelectOption
+  IonLabel
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -37,7 +34,6 @@ import {
   locationOutline,
   closeOutline,
   sendOutline,
-  navigateOutline,
   statsChartOutline,
   alertCircleOutline,
   peopleOutline,
@@ -47,8 +43,7 @@ import {
   carOutline,
   calendarOutline,
   desktopOutline,
-  trashOutline,
-  createOutline
+  mapOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -118,8 +113,6 @@ const SkeletonIncidentItem: React.FC = () => (
       </div>
 
       <IonSkeletonText animated style={{ width: '60%', height: '12px', marginBottom: '12px' }} />
-
-      <IonSkeletonText animated style={{ width: '80px', height: '24px', borderRadius: '12px' }} />
     </div>
   </IonItem>
 );
@@ -133,22 +126,14 @@ const AdminIncidents: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showStatusChangeModal, setShowStatusChangeModal] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [statusChangeType, setStatusChangeType] = useState<'pending-to-active' | 'active-to-resolved' | null>(null);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isMobileDevice, setIsMobileDevice] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingReport, setEditingReport] = useState<IncidentReport | null>(null);
-  const [editForm, setEditForm] = useState({
-    title: '',
-    description: '',
-    status: 'pending' as 'pending' | 'active' | 'resolved',
-    priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
-    category: '',
-    barangay: ''
-  });
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -241,6 +226,83 @@ const AdminIncidents: React.FC = () => {
     };
   };
 
+  const handleStatusBadgeClick = (report: IncidentReport, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (report.status === 'pending') {
+      setStatusChangeType('pending-to-active');
+      setSelectedReport(report);
+      setShowStatusChangeModal(true);
+    } else if (report.status === 'active') {
+      setStatusChangeType('active-to-resolved');
+      setSelectedReport(report);
+      setShowStatusChangeModal(true);
+    }
+    // Resolved status is not clickable
+  };
+
+  const handleStatusChange = async () => {
+    if (!selectedReport || !notificationMessage.trim() || !estimatedTime) {
+      setToastMessage('Please fill in all required fields');
+      setShowToast(true);
+      return;
+    }
+
+    try {
+      let newStatus: 'pending' | 'active' | 'resolved' = selectedReport.status;
+      let updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+
+      if (statusChangeType === 'pending-to-active') {
+        newStatus = 'active';
+        updateData.status = 'active';
+        updateData.scheduled_response_time = estimatedTime;
+      } else if (statusChangeType === 'active-to-resolved') {
+        newStatus = 'resolved';
+        updateData.status = 'resolved';
+        updateData.estimated_arrival_time = estimatedTime;
+      }
+
+      // Update the incident report
+      const { error: updateError } = await supabase
+        .from('incident_reports')
+        .update(updateData)
+        .eq('id', selectedReport.id);
+
+      if (updateError) throw updateError;
+
+      // Send notification to user
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_email: selectedReport.reporter_email,
+          title: `Status Update: ${selectedReport.title}`,
+          message: `${notificationMessage}\n\n${statusChangeType === 'pending-to-active' ? 'Estimated Response Time' : 'Resolved At'}: ${new Date(estimatedTime).toLocaleString()}`,
+          related_report_id: selectedReport.id,
+          type: 'status_update'
+        });
+
+      if (notificationError) throw notificationError;
+
+      setToastMessage(`Status updated to ${newStatus} successfully`);
+      setShowToast(true);
+      setShowStatusChangeModal(false);
+      setNotificationMessage('');
+      setEstimatedTime('');
+      setSelectedReport(null);
+      setStatusChangeType(null);
+
+      // Refresh reports
+      fetchReports();
+
+    } catch (error) {
+      console.error('Error updating status:', error);
+      setToastMessage('Error updating status. Please try again.');
+      setShowToast(true);
+    }
+  };
+
   const handleNotifyUser = async () => {
     if (!selectedReport || !notificationMessage.trim()) return;
 
@@ -262,13 +324,11 @@ const AdminIncidents: React.FC = () => {
         .insert({
           user_email: selectedReport.reporter_email,
           title: `Update: ${selectedReport.title}`,
-          message: notificationMessage,
+          message: estimatedTime 
+            ? `${notificationMessage}\n\nEstimated resolution: ${new Date(estimatedTime).toLocaleString()}`
+            : notificationMessage,
           related_report_id: selectedReport.id,
-          type: 'update',
-          // Store estimated time in the message if provided
-          ...(estimatedTime && {
-            message: `${notificationMessage}\n\nEstimated resolution: ${new Date(estimatedTime).toLocaleString()}`
-          })
+          type: 'update'
         });
 
       if (error) throw error;
@@ -310,65 +370,10 @@ const AdminIncidents: React.FC = () => {
     setPriorityFilter('all');
   };
 
-  const handleEditReport = (report: IncidentReport) => {
-    setEditingReport(report);
-    setEditForm({
-      title: report.title,
-      description: report.description,
-      status: report.status,
-      priority: report.priority,
-      category: report.category,
-      barangay: report.barangay
-    });
-    setShowEditModal(true);
-  };
-
-  const handleUpdateReport = async () => {
-    if (!editingReport) return;
-
-    try {
-      const { error } = await supabase
-        .from('incident_reports')
-        .update({
-          title: editForm.title,
-          description: editForm.description,
-          status: editForm.status,
-          priority: editForm.priority,
-          category: editForm.category,
-          barangay: editForm.barangay,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingReport.id);
-
-      if (error) throw error;
-
-      setToastMessage('Report updated successfully');
-      setShowToast(true);
-      setShowEditModal(false);
-      fetchReports();
-    } catch (error) {
-      console.error('Error updating report:', error);
-      setToastMessage('Error updating report');
-      setShowToast(true);
-    }
-  };
-
-  const handleDeleteReport = async (reportId: string) => {
-    try {
-      const { error } = await supabase
-        .from('incident_reports')
-        .delete()
-        .eq('id', reportId);
-
-      if (error) throw error;
-
-      setToastMessage('Report deleted successfully');
-      setShowToast(true);
-      fetchReports();
-    } catch (error) {
-      console.error('Error deleting report:', error);
-      setToastMessage('Error deleting report');
-      setShowToast(true);
+  const handleViewInMap = () => {
+    if (selectedReport) {
+      setShowReportModal(false);
+      navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
     }
   };
 
@@ -655,10 +660,13 @@ const AdminIncidents: React.FC = () => {
                         </div>
                         <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                           <IonBadge
+                            onClick={(e) => handleStatusBadgeClick(report, e)}
                             style={{
                               fontSize: '10px',
                               '--background': getStatusColor(report.status),
-                              '--color': 'white'
+                              '--color': 'white',
+                              cursor: report.status !== 'resolved' ? 'pointer' : 'default',
+                              opacity: report.status !== 'resolved' ? 1 : 0.7
                             } as any}
                           >
                             {report.status}
@@ -684,28 +692,6 @@ const AdminIncidents: React.FC = () => {
 
                       <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
                         Reporter: {report.reporter_name}
-                      </div>
-
-                      <div style={{ marginTop: '8px' }}>
-                        <IonButton
-                          size="small"
-                          fill="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
-                          }}
-                          disabled={report.status === 'resolved'}
-                          style={{
-                            '--background': '#dc2626',
-                            '--color': 'white',
-                            '--border-color': '#dc2626',
-                            fontSize: '10px',
-                            height: '24px'
-                          } as any}
-                        >
-                          <IonIcon icon={navigateOutline} slot="start" style={{ fontSize: '10px' }} />
-                          Track
-                        </IonButton>
                       </div>
 
                       {report.scheduled_response_time && (
@@ -739,107 +725,7 @@ const AdminIncidents: React.FC = () => {
           </IonCard>
         </div>
 
-        <IonModal isOpen={showEditModal} onDidDismiss={() => setShowEditModal(false)}>
-          <IonHeader>
-            <IonToolbar>
-              <IonButtons slot="start">
-                <IonButton onClick={() => setShowEditModal(false)}>
-                  <IonIcon icon={closeOutline} />
-                </IonButton>
-              </IonButtons>
-              <IonTitle>Edit Incident Report</IonTitle>
-              <IonButtons slot="end">
-                <IonButton onClick={handleUpdateReport}>
-                  Save
-                </IonButton>
-              </IonButtons>
-            </IonToolbar>
-          </IonHeader>
-          <IonContent>
-            {editingReport && (
-              <div style={{ padding: '16px' }}>
-                <IonCard>
-                  <IonCardContent>
-                    <IonItem>
-                      <IonLabel position="stacked">Title</IonLabel>
-                      <IonInput
-                        value={editForm.title}
-                        onIonInput={e => setEditForm({ ...editForm, title: e.detail.value! })}
-                      />
-                    </IonItem>
-
-                    <IonItem>
-                      <IonLabel position="stacked">Description</IonLabel>
-                      <IonTextarea
-                        value={editForm.description}
-                        onIonInput={e => setEditForm({ ...editForm, description: e.detail.value! })}
-                        rows={4}
-                      />
-                    </IonItem>
-
-                    <IonItem>
-                      <IonLabel position="stacked">Status</IonLabel>
-                      <IonSelect
-                        value={editForm.status}
-                        onIonChange={e => setEditForm({ ...editForm, status: e.detail.value })}
-                      >
-                        <IonSelectOption value="pending">Pending</IonSelectOption>
-                        <IonSelectOption value="active">Active</IonSelectOption>
-                        <IonSelectOption value="resolved">Resolved</IonSelectOption>
-                      </IonSelect>
-                    </IonItem>
-
-                    <IonItem>
-                      <IonLabel position="stacked">Priority</IonLabel>
-                      <IonSelect
-                        value={editForm.priority}
-                        onIonChange={e => setEditForm({ ...editForm, priority: e.detail.value })}
-                      >
-                        <IonSelectOption value="low">Low</IonSelectOption>
-                        <IonSelectOption value="medium">Medium</IonSelectOption>
-                        <IonSelectOption value="high">High</IonSelectOption>
-                        <IonSelectOption value="critical">Critical</IonSelectOption>
-                      </IonSelect>
-                    </IonItem>
-
-                    <IonItem>
-                      <IonLabel position="stacked">Category</IonLabel>
-                      <IonInput
-                        value={editForm.category}
-                        onIonInput={e => setEditForm({ ...editForm, category: e.detail.value! })}
-                      />
-                    </IonItem>
-
-                    <IonItem>
-                      <IonLabel position="stacked">Barangay</IonLabel>
-                      <IonInput
-                        value={editForm.barangay}
-                        onIonInput={e => setEditForm({ ...editForm, barangay: e.detail.value! })}
-                      />
-                    </IonItem>
-
-                    <div style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
-                      <IonButton
-                        expand="block"
-                        color="danger"
-                        onClick={() => {
-                          if (editingReport) {
-                            handleDeleteReport(editingReport.id);
-                            setShowEditModal(false);
-                          }
-                        }}
-                      >
-                        <IonIcon icon={trashOutline} slot="start" />
-                        Delete Report
-                      </IonButton>
-                    </div>
-                  </IonCardContent>
-                </IonCard>
-              </div>
-            )}
-          </IonContent>
-        </IonModal>
-
+        {/* Incident Details Modal */}
         <IonModal isOpen={showReportModal} onDidDismiss={() => setShowReportModal(false)}>
           <IonHeader>
             <IonToolbar>
@@ -851,14 +737,11 @@ const AdminIncidents: React.FC = () => {
               <IonTitle>Incident Details</IonTitle>
               <IonButtons slot="end">
                 <IonButton
-                  onClick={() => {
-                    navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
-                    setShowReportModal(false);
-                  }}
-                  style={{ '--background': '#dc2626', '--color': 'white', '--border-radius': '8px' } as any}
+                  onClick={handleViewInMap}
+                  color="primary"
                 >
-                  <IonIcon icon={navigateOutline} slot="start" />
-                  Track
+                  <IonIcon icon={mapOutline} slot="start" />
+                  View in Map
                 </IonButton>
               </IonButtons>
             </IonToolbar>
@@ -868,29 +751,19 @@ const AdminIncidents: React.FC = () => {
               <div style={{ padding: '16px' }}>
                 <IonCard>
                   <IonCardContent>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start'
-                    }}>
-                      <h1 style={{ margin: 0, flex: 1 }}>{selectedReport.title}</h1>
-                      <IonButton
-                        size="small"
-                        color="primary"
-                        onClick={() => {
-                          if (selectedReport) {
-                            handleEditReport(selectedReport);
-                            setShowReportModal(false);
-                          }
-                        }}
-                        style={{ marginLeft: '16px' }}
-                      >
-                        <IonIcon icon={createOutline} slot="start" />
-                        Edit Report
-                      </IonButton>
-                    </div>
+                    <h1 style={{ margin: 0, marginBottom: '16px' }}>{selectedReport.title}</h1>
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                      <IonBadge style={{ '--background': getStatusColor(selectedReport.status) } as any}>
+                      <IonBadge
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStatusBadgeClick(selectedReport, e);
+                        }}
+                        style={{
+                          '--background': getStatusColor(selectedReport.status),
+                          cursor: selectedReport.status !== 'resolved' ? 'pointer' : 'default',
+                          opacity: selectedReport.status !== 'resolved' ? 1 : 0.7
+                        } as any}
+                      >
                         {selectedReport.status}
                       </IonBadge>
                       <IonBadge style={{ '--background': getPriorityColor(selectedReport.priority) } as any}>
@@ -967,9 +840,7 @@ const AdminIncidents: React.FC = () => {
                             <p>{new Date(selectedReport.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </IonCol>
-
-
-                        <IonCol size="6">
+                        <IonCol size="12">
                           <div style={{ marginBottom: '16px' }}>
                             <strong>Description:</strong>
                             <p style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.description}</p>
@@ -1042,7 +913,17 @@ const AdminIncidents: React.FC = () => {
                       <IonButton
                         expand="block"
                         color="primary"
-                        onClick={() => setShowNotifyModal(true)}
+                        onClick={() => {
+                          setShowReportModal(false);
+                          setShowStatusChangeModal(false);
+                          setStatusChangeType(null);
+                          setNotificationMessage('');
+                          setEstimatedTime('');
+                          // Open a separate notify modal
+                          setTimeout(() => {
+                            setShowNotifyModal(true);
+                          }, 100);
+                        }}
                       >
                         <IonIcon icon={sendOutline} slot="start" />
                         Notify User
@@ -1055,13 +936,135 @@ const AdminIncidents: React.FC = () => {
           </IonContent>
         </IonModal>
 
+        {/* Status Change Modal */}
+        <IonModal isOpen={showStatusChangeModal} onDidDismiss={() => {
+          setShowStatusChangeModal(false);
+          setNotificationMessage('');
+          setEstimatedTime('');
+        }}>
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => {
+                  setShowStatusChangeModal(false);
+                  setNotificationMessage('');
+                  setEstimatedTime('');
+                }}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Update Status</IonTitle>
+              <IonButtons slot="end">
+                <IonButton
+                  onClick={handleStatusChange}
+                  strong
+                  disabled={!notificationMessage.trim() || !estimatedTime}
+                  color="primary"
+                >
+                  <IonIcon icon={sendOutline} slot="start" />
+                  Update
+                </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              <IonCard>
+                <IonCardContent>
+                  {/* Status Change Info */}
+                  <div style={{
+                    background: statusChangeType === 'pending-to-active' ? '#eff6ff' : '#ecfdf5',
+                    border: `1px solid ${statusChangeType === 'pending-to-active' ? '#93c5fd' : '#6ee7b7'}`,
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '20px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <strong style={{ color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '16px' }}>
+                        Status Change
+                      </strong>
+                    </div>
+                    <p style={{ margin: 0, color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '14px' }}>
+                      {statusChangeType === 'pending-to-active' ? 'Pending → Active' : 'Active → Resolved'}
+                    </p>
+                  </div>
+
+                  {/* Message Input */}
+                  <IonItem>
+                    <IonLabel position="stacked" color="primary">
+                      Message to User *
+                    </IonLabel>
+                    <IonTextarea
+                      value={notificationMessage}
+                      onIonInput={e => setNotificationMessage(e.detail.value!)}
+                      placeholder={statusChangeType === 'pending-to-active' 
+                        ? 'Enter message about response activation...'
+                        : 'Enter message about incident resolution...'}
+                      rows={4}
+                      autoGrow
+                      counter
+                      maxlength={500}
+                    />
+                  </IonItem>
+
+                  {/* Date/Time Input */}
+                  <IonItem>
+                    <IonLabel position="stacked" color="primary">
+                      {statusChangeType === 'pending-to-active' 
+                        ? 'Estimated Response Time *'
+                        : 'Resolved Date & Time *'}
+                    </IonLabel>
+                    <IonDatetime
+                      value={estimatedTime}
+                      onIonChange={e => setEstimatedTime(e.detail.value as string)}
+                      presentation="date-time"
+                      min={new Date().toISOString()}
+                    />
+                  </IonItem>
+
+                  {estimatedTime && (
+                    <div style={{
+                      background: '#f0f9ff',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      marginTop: '12px',
+                      fontSize: '14px',
+                      color: '#0369a1'
+                    }}>
+                      <strong>
+                        {statusChangeType === 'pending-to-active' 
+                          ? 'Response scheduled for:'
+                          : 'Report will be marked as resolved at:'}
+                      </strong><br />
+                      {new Date(estimatedTime).toLocaleString()}
+                    </div>
+                  )}
+                </IonCardContent>
+              </IonCard>
+
+              {/* Preview */}
+              {selectedReport && (
+                <IonCard style={{ marginTop: '16px' }}>
+                  <IonCardContent>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      <strong>Report:</strong> {selectedReport.title}<br />
+                      <strong>Notifying:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_email})
+                    </div>
+                  </IonCardContent>
+                </IonCard>
+              )}
+            </div>
+          </IonContent>
+        </IonModal>
+
+        {/* Notify User Modal (Separate from Status Change) */}
         <IonModal isOpen={showNotifyModal} onDidDismiss={() => setShowNotifyModal(false)}>
           <IonHeader>
             <IonToolbar>
               <IonButtons slot="start">
                 <IonButton onClick={() => setShowNotifyModal(false)}>
                   <IonIcon icon={closeOutline} />
-
                 </IonButton>
               </IonButtons>
               <IonTitle>Notify User</IonTitle>
