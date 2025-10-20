@@ -289,7 +289,7 @@ const AdminDashboard: React.FC = () => {
     try {
       const now = new Date()
 
-      console.log("🔄 Checking automated notifications...")
+      console.log("🛠️ Checking automated notifications...")
 
       // Check for reports that need status updates
       const pendingReports = reports.filter((report) => {
@@ -309,7 +309,7 @@ const AdminDashboard: React.FC = () => {
 
       // Update pending reports to active
       for (const report of pendingReports) {
-        console.log(`🔄 Activating report: ${report.id}`)
+        console.log(`🛠️ Activating report: ${report.id}`)
         await updateReportStatus(report.id, "active")
         await createAutomatedNotification(
           report.reporter_email,
@@ -333,7 +333,7 @@ const AdminDashboard: React.FC = () => {
         }
       })
 
-      console.log(`🚗 ${activeReports.length} active reports with valid ETA`)
+      console.log(`🚑 ${activeReports.length} active reports with valid ETA`)
 
       for (const report of activeReports) {
         try {
@@ -398,7 +398,7 @@ const AdminDashboard: React.FC = () => {
       })
 
       if (error) throw error
-      console.log(`Automated notification sent: ${triggerType}`)
+      console.log(`✅ Automated notification sent: ${triggerType}`)
     } catch (error) {
       console.error("Error creating automated notification:", error)
     }
@@ -481,7 +481,7 @@ const AdminDashboard: React.FC = () => {
       const estimatedArrival = new Date(Date.now() + duration * 60000)
       const estimatedArrivalISO = estimatedArrival.toISOString()
 
-      console.log("🔄 Saving route data for report:", reportId, {
+      console.log("🛠️ Saving route data for report:", reportId, {
         distance,
         duration,
         estimatedArrival: estimatedArrivalISO,
@@ -814,7 +814,7 @@ const AdminDashboard: React.FC = () => {
               mapInstanceRef.current?.setView([validatedCoords.lat, validatedCoords.lng], 15)
 
               // Show toast notification
-              setToastMessage(`🚨 New incident reported: ${newReport.title} in ${newReport.barangay}`)
+              setToastMessage(`🎉 New incident reported: ${newReport.title} in ${newReport.barangay}`)
               setShowToast(true)
             }
           }
@@ -828,7 +828,7 @@ const AdminDashboard: React.FC = () => {
   // NEW: Handle incident updates
   const handleUpdatedIncident = async (updatedReport: IncidentReport) => {
     try {
-      console.log("🔄 Processing updated incident:", updatedReport.id)
+      console.log("🛠️ Processing updated incident:", updatedReport.id)
 
       // Validate and parse coordinates
       const validatedCoords = parseAndValidateCoordinates(updatedReport.coordinates)
@@ -1250,7 +1250,7 @@ const AdminDashboard: React.FC = () => {
       // Clear existing route
       clearRoute()
 
-      console.log("🔄 Calculating route from:", COMMAND_CENTER, "to:", destination)
+      console.log("🛠️ Calculating route from:", COMMAND_CENTER, "to:", destination)
 
       // Use OpenStreetMap Routing API with error handling
       const response = await fetch(
@@ -2327,7 +2327,12 @@ const AdminDashboard: React.FC = () => {
               <IonTitle>Incident Details</IonTitle>
               <IonButtons slot="end">
                 <IonButton
-                  onClick={() => selectedReport && handleTrackReport(selectedReport)}
+                  onClick={() => {
+                    if (selectedReport) {
+                      handleTrackReport(selectedReport)
+                      setShowReportModal(false)
+                    }
+                  }}
                   style={{ "--background": "#dc2626", "--color": "white" } as any}
                 >
                   <IonIcon icon={navigateOutline} slot="start" />
