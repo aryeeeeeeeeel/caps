@@ -170,7 +170,7 @@ const AdminUsers: React.FC = () => {
               .select('id')
               .eq('reporter_email', user.user_email)
               .limit(1);
-            
+
             return {
               ...user,
               status: user.status || 'active',
@@ -207,20 +207,23 @@ const AdminUsers: React.FC = () => {
 
   const filterAndSortUsers = () => {
     let filtered = users.filter(user => {
-      const matchesSearch = `${user.user_firstname} ${user.user_lastname}`.toLowerCase().includes(searchText.toLowerCase()) || user.user_email.toLowerCase().includes(searchText.toLowerCase());
-      
+      const matchesSearch = `${user.user_firstname} ${user.user_lastname}`.toLowerCase().includes(searchText.toLowerCase()) ||
+        user.user_email.toLowerCase().includes(searchText.toLowerCase());
+
       let matchesStatus = false;
       if (statusFilter === 'all') {
         matchesStatus = true;
       } else if (statusFilter === 'active') {
         matchesStatus = user.status === 'active' && (user.has_reports ?? false);
       } else if (statusFilter === 'inactive') {
-        matchesStatus = user.status === 'active' && !user.has_reports;
+        matchesStatus = user.status === 'active' && !(user.has_reports ?? false);
       } else {
         matchesStatus = user.status === statusFilter;
       }
-      
-      const matchesActivity = activityFilter === 'all' || (activityFilter === 'online' && isUserOnline(user)) || (activityFilter === 'offline' && !isUserOnline(user));
+
+      const matchesActivity = activityFilter === 'all' ||
+        (activityFilter === 'online' && isUserOnline(user)) ||
+        (activityFilter === 'offline' && !isUserOnline(user));
       return matchesSearch && matchesStatus && matchesActivity;
     });
 
@@ -258,7 +261,7 @@ const AdminUsers: React.FC = () => {
         .from('users')
         .update(updates)
         .eq('user_id', selectedUser.user_id);
-        
+
       if (error) throw error;
 
       const actionMessage = action === 'warn' && updates.warnings >= 3 ? 'User warned and auto-suspended (3 warnings)' : `User ${action}ed successfully`;
@@ -493,13 +496,25 @@ const AdminUsers: React.FC = () => {
                           <div style={{ fontSize: '14px', color: '#6b7280' }}>{user.user_email}</div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <IonBadge style={{ fontSize: '10px', '--background': getStatusColor(user.status), '--color': 'white' } as any}>{user.status.toUpperCase()}</IonBadge>
+                          <IonBadge
+                            style={{
+                              fontSize: '10px',
+                              '--background': user.status !== 'active' ? getStatusColor(user.status) : ((user.has_reports ?? false) ? '#10b981' : '#9ca3af'),
+                              '--color': 'white'
+                            } as any}
+                          >
+                            {user.status !== 'active'
+                              ? user.status.toUpperCase()
+                              : ((user.has_reports ?? false) ? 'ACTIVE' : 'INACTIVE')
+                            }
+                          </IonBadge>
                           {user.warnings > 0 && <IonBadge color="warning" style={{ fontSize: '10px' }}>{user.warnings} âš ï¸</IonBadge>}
                         </div>
                       </div>
 
+
                       <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px' }}>
-                        Joined: {formatDate(user.date_registered)} â€¢ Last active: {getLastActiveText(user)}
+                        Joined: {formatDate(user.date_registered)} Last Online: {getLastActiveText(user)}
                       </div>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
