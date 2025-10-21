@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/AdminIncidents.tsx - Updated with status change modal
+// src/pages/admin-tabs/AdminIncidents.tsx - Fixed version
 import React, { useState, useEffect } from 'react';
 import {
   IonPage,
@@ -67,6 +67,7 @@ interface IncidentReport {
   scheduled_response_time?: string;
   estimated_arrival_time?: string;
   current_eta_minutes?: number;
+  resolved_photo_url?: string;
 }
 
 // Skeleton Components
@@ -135,6 +136,8 @@ const AdminIncidents: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [resolvedPhoto, setResolvedPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -228,7 +231,7 @@ const AdminIncidents: React.FC = () => {
 
   const handleStatusBadgeClick = (report: IncidentReport, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     if (report.status === 'pending') {
       setStatusChangeType('pending-to-active');
       setSelectedReport(report);
@@ -248,20 +251,36 @@ const AdminIncidents: React.FC = () => {
       return;
     }
 
+    // Additional validation for resolved status
+    if (statusChangeType === 'active-to-resolved' && !resolvedPhoto) {
+      setToastMessage('Proof of resolution photo is required');
+      setShowToast(true);
+      return;
+    }
+
     try {
       let newStatus: 'pending' | 'active' | 'resolved' = selectedReport.status;
       let updateData: any = {
         updated_at: new Date().toISOString()
       };
 
+      const formattedTime = new Date(estimatedTime).toISOString();
+
       if (statusChangeType === 'pending-to-active') {
         newStatus = 'active';
         updateData.status = 'active';
-        updateData.scheduled_response_time = estimatedTime;
+        updateData.scheduled_response_time = formattedTime;
+        updateData.resolved_at = null;
       } else if (statusChangeType === 'active-to-resolved') {
         newStatus = 'resolved';
         updateData.status = 'resolved';
-        updateData.estimated_arrival_time = estimatedTime;
+        updateData.resolved_at = new Date().toISOString();
+
+        // Upload resolved photo
+        if (resolvedPhoto) {
+          const photoUrl = await uploadResolvedPhoto(resolvedPhoto, selectedReport.id);
+          updateData.resolved_photo_url = photoUrl;
+        }
       }
 
       // Update the incident report
@@ -272,7 +291,7 @@ const AdminIncidents: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      // Send notification to user
+      // Send notification
       const { error: notificationError } = await supabase
         .from('notifications')
         .insert({
@@ -280,26 +299,31 @@ const AdminIncidents: React.FC = () => {
           title: `Status Update: ${selectedReport.title}`,
           message: `${notificationMessage}\n\n${statusChangeType === 'pending-to-active' ? 'Estimated Response Time' : 'Resolved At'}: ${new Date(estimatedTime).toLocaleString()}`,
           related_report_id: selectedReport.id,
-          type: 'status_update'
+          type: 'update'
         });
 
       if (notificationError) throw notificationError;
 
       setToastMessage(`Status updated to ${newStatus} successfully`);
       setShowToast(true);
+
+      // Close the modal and reset state
       setShowStatusChangeModal(false);
       setNotificationMessage('');
       setEstimatedTime('');
+      setResolvedPhoto(null);
+      setPhotoPreview(null);
       setSelectedReport(null);
       setStatusChangeType(null);
 
-      // Refresh reports
-      fetchReports();
+      // Force refresh reports to show updated status
+      await fetchReports();
 
     } catch (error) {
       console.error('Error updating status:', error);
       setToastMessage('Error updating status. Please try again.');
       setShowToast(true);
+      setShowStatusChangeModal(false);
     }
   };
 
@@ -324,7 +348,7 @@ const AdminIncidents: React.FC = () => {
         .insert({
           user_email: selectedReport.reporter_email,
           title: `Update: ${selectedReport.title}`,
-          message: estimatedTime 
+          message: estimatedTime
             ? `${notificationMessage}\n\nEstimated resolution: ${new Date(estimatedTime).toLocaleString()}`
             : notificationMessage,
           related_report_id: selectedReport.id,
@@ -376,6 +400,76 @@ const AdminIncidents: React.FC = () => {
       navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
     }
   };
+
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        setToastMessage('Please upload an image file');
+        setShowToast(true);
+        return;
+      }
+
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setToastMessage('Image size must be less than 5MB');
+        setShowToast(true);
+        return;
+      }
+
+      setResolvedPhoto(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPhotoPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadResolvedPhoto = async (file: File, reportId: string): Promise<string> => {
+  try {
+    const fileName = `resolved-proof-${Date.now()}.png`;
+    const filePath = `${reportId}/${fileName}`;
+
+    // Upload the file
+    const { data, error } = await supabase.storage
+      .from('resolved-photos')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      if (error.message.includes('Bucket not found')) {
+        console.error('Storage bucket not found. Please create "resolved-photos" bucket in Supabase.');
+        throw new Error('Storage configuration error. Please contact administrator.');
+      }
+      throw error;
+    }
+
+    // Get a signed URL for temporary access (if needed for display)
+    const { data: signedUrlData } = await supabase.storage
+      .from('resolved-photos')
+      .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+    return signedUrlData?.signedUrl || data.path;
+  } catch (error) {
+    console.error('Error uploading resolved photo:', error);
+    throw new Error('Failed to upload photo');
+  }
+};
+
+// Function to get signed URL when displaying the image
+const getResolvedPhotoUrl = async (filePath: string): Promise<string> => {
+  const { data } = await supabase.storage
+    .from('resolved-photos')
+    .createSignedUrl(filePath, 3600); // 1 hour expiry
+  
+  return data?.signedUrl || '';
+};
 
   // Show skeleton loading screen - FIRST CHECK
   if (isLoading) {
@@ -789,26 +883,26 @@ const AdminIncidents: React.FC = () => {
                       </div>
                     )}
 
-                    {selectedReport.current_eta_minutes && selectedReport.status === 'active' && (
+                    {selectedReport.current_eta_minutes && (
                       <div style={{
-                        background: '#eff6ff',
-                        border: '1px solid #93c5fd',
+                        background: 'rgba(59, 130, 246, 0.05)',
+                        border: '1px solid #68a1fdff',
                         borderRadius: '8px',
                         padding: '12px',
-                        marginBottom: '16px'
+                        marginBottom: '12px'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <IonIcon icon={carOutline} style={{ color: '#3b82f6' }} />
-                          <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <IonIcon icon={carOutline} style={{ color: '#3b82f6', fontSize: '18px' }} />
+                          <strong style={{ color: '#1e40af', fontSize: '14px' }}>Estimated Arrival</strong>
                         </div>
-                        <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
+                        <IonText style={{
+                          fontSize: '16px',
+                          color: '#1e293b',
+                          fontWeight: '500',
+                          marginLeft: '26px'
+                        }}>
                           {selectedReport.current_eta_minutes} minutes
-                        </p>
-                        {selectedReport.estimated_arrival_time && (
-                          <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '12px' }}>
-                            Arrival at: {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
-                          </p>
-                        )}
+                        </IonText>
                       </div>
                     )}
 
@@ -909,6 +1003,27 @@ const AdminIncidents: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Proof of Resolution Photo - FIXED PLACEMENT */}
+                    {selectedReport.resolved_photo_url && (
+                      <div style={{ marginTop: '16px' }}>
+                        <strong>Proof of Resolution:</strong>
+                        <div style={{ marginTop: '8px' }}>
+                          <IonImg
+                            src={selectedReport.resolved_photo_url}
+                            style={{
+                              maxWidth: '300px',
+                              maxHeight: '300px',
+                              borderRadius: '8px',
+                              border: '2px solid #10b981'
+                            }}
+                          />
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                            Photo taken when incident was resolved
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
                       <IonButton
                         expand="block"
@@ -941,6 +1056,8 @@ const AdminIncidents: React.FC = () => {
           setShowStatusChangeModal(false);
           setNotificationMessage('');
           setEstimatedTime('');
+          setResolvedPhoto(null);
+          setPhotoPreview(null);
         }}>
           <IonHeader>
             <IonToolbar>
@@ -949,6 +1066,8 @@ const AdminIncidents: React.FC = () => {
                   setShowStatusChangeModal(false);
                   setNotificationMessage('');
                   setEstimatedTime('');
+                  setResolvedPhoto(null);
+                  setPhotoPreview(null);
                 }}>
                   <IonIcon icon={closeOutline} />
                 </IonButton>
@@ -958,7 +1077,7 @@ const AdminIncidents: React.FC = () => {
                 <IonButton
                   onClick={handleStatusChange}
                   strong
-                  disabled={!notificationMessage.trim() || !estimatedTime}
+                  disabled={!notificationMessage.trim() || !estimatedTime || (statusChangeType === 'active-to-resolved' && !resolvedPhoto)}
                   color="primary"
                 >
                   <IonIcon icon={sendOutline} slot="start" />
@@ -997,7 +1116,7 @@ const AdminIncidents: React.FC = () => {
                     <IonTextarea
                       value={notificationMessage}
                       onIonInput={e => setNotificationMessage(e.detail.value!)}
-                      placeholder={statusChangeType === 'pending-to-active' 
+                      placeholder={statusChangeType === 'pending-to-active'
                         ? 'Enter message about response activation...'
                         : 'Enter message about incident resolution...'}
                       rows={4}
@@ -1010,7 +1129,7 @@ const AdminIncidents: React.FC = () => {
                   {/* Date/Time Input */}
                   <IonItem>
                     <IonLabel position="stacked" color="primary">
-                      {statusChangeType === 'pending-to-active' 
+                      {statusChangeType === 'pending-to-active'
                         ? 'Estimated Response Time *'
                         : 'Resolved Date & Time *'}
                     </IonLabel>
@@ -1021,6 +1140,73 @@ const AdminIncidents: React.FC = () => {
                       min={new Date().toISOString()}
                     />
                   </IonItem>
+
+                  {/* Proof of Photo - Only for Active to Resolved */}
+                  {statusChangeType === 'active-to-resolved' && (
+                    <div style={{ marginTop: '16px' }}>
+                      <IonItem>
+                        <IonLabel position="stacked" color="primary">
+                          Proof of Resolution Photo *
+                          <IonText style={{ fontSize: '12px', color: '#6b7280' }}>
+                            {' '}(Required for resolution)
+                          </IonText>
+                        </IonLabel>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handlePhotoUpload}
+                          style={{ marginTop: '8px' }}
+                        />
+                      </IonItem>
+
+                      {photoPreview && (
+                        <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                          <IonText style={{ fontSize: '14px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
+                            Photo Preview:
+                          </IonText>
+                          <IonImg
+                            src={photoPreview}
+                            style={{
+                              maxWidth: '200px',
+                              maxHeight: '200px',
+                              borderRadius: '8px',
+                              margin: '0 auto',
+                              border: '2px solid #e5e7eb'
+                            }}
+                          />
+                          <IonButton
+                            size="small"
+                            color="danger"
+                            fill="clear"
+                            onClick={() => {
+                              setResolvedPhoto(null);
+                              setPhotoPreview(null);
+                            }}
+                            style={{ marginTop: '8px' }}
+                          >
+                            <IonIcon icon={closeOutline} slot="start" />
+                            Remove Photo
+                          </IonButton>
+                        </div>
+                      )}
+
+                      {!photoPreview && (
+                        <div style={{
+                          background: '#fef3cd',
+                          border: '1px solid #f59e0b',
+                          borderRadius: '8px',
+                          padding: '12px',
+                          marginTop: '12px',
+                          fontSize: '14px',
+                          color: '#92400e'
+                        }}>
+                          <strong>Photo Requirement:</strong> A photo is required to mark this incident as resolved.
+                          This serves as proof that the issue has been addressed.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {estimatedTime && (
                     <div style={{
@@ -1033,7 +1219,7 @@ const AdminIncidents: React.FC = () => {
                       color: '#0369a1'
                     }}>
                       <strong>
-                        {statusChangeType === 'pending-to-active' 
+                        {statusChangeType === 'pending-to-active'
                           ? 'Response scheduled for:'
                           : 'Report will be marked as resolved at:'}
                       </strong><br />

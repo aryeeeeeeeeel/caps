@@ -556,6 +556,17 @@ const Profile: React.FC = () => {
         </div>
     );
 
+    const handleOtpChange = (e: CustomEvent) => {
+        const value = e.detail.value!;
+        const numericValue = value.replace(/\D/g, '').slice(0, 6);
+        setOtp(numericValue);
+
+        // Auto-verify when 6 digits are entered
+        if (numericValue.length === 6) {
+            handleVerifyOtp();
+        }
+    };
+
     if (isPageLoading) {
         return (
             <IonPage>
@@ -1248,7 +1259,7 @@ const Profile: React.FC = () => {
                                             maxlength={6}
                                             placeholder="000000"
                                             value={otp}
-                                            onIonChange={e => setOtp(e.detail.value!)}
+                                            onIonChange={handleOtpChange}
                                             onKeyPress={(e: React.KeyboardEvent) => {
                                                 // Allow only numbers and control keys
                                                 if (!/^\d$/.test(e.key) &&

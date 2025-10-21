@@ -452,50 +452,68 @@ const History: React.FC = () => {
   };
 
   const submitFeedback = async () => {
-    if (!selectedReport) return;
+  if (!selectedReport) return;
 
-    if (feedbackRating === 0) {
-      setToastMessage('Please provide an overall rating');
-      setShowToast(true);
-      return;
-    }
+  if (feedbackRating === 0) {
+    setToastMessage('Please provide an overall rating');
+    setShowToast(true);
+    return;
+  }
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+  
+    // Insert into feedback table
+    const { error: feedbackError } = await supabase
+      .from('feedback')
+      .insert({
+        report_id: selectedReport.id,
+        user_email: user.email,
+        overall_rating: feedbackRating,
+        response_time_rating: responseTimeRating,
+        communication_rating: communicationRating,
+        resolution_satisfaction: resolutionSatisfaction,
+        categories: feedbackCategories,
+        comments: feedbackComment,
+        would_recommend: wouldRecommend
+        // Removed contact_method
+      });
+
+    if (feedbackError) throw feedbackError;
+
+    // Also update incident_reports for backward compatibility
+    const { error: reportError } = await supabase
+      .from('incident_reports')
+      .update({
+        feedback_rating: feedbackRating,
+        feedback_comment: feedbackComment,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', selectedReport.id);
+
+    if (reportError) throw reportError;
     
-      const { error: reportError } = await supabase
-        .from('incident_reports')
-        .update({
-          feedback_rating: feedbackRating,
-          feedback_comment: feedbackComment,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', selectedReport.id);
-
-      if (reportError) throw reportError;
-      
-      setToastMessage('Feedback submitted successfully');
-      setShowToast(true);
-      setShowFeedbackModal(false);
-      
-      // Reset form
-      setFeedbackRating(0);
-      setFeedbackComment('');
-      setResponseTimeRating(0);
-      setCommunicationRating(0);
-      setResolutionSatisfaction(0);
-      setFeedbackCategories([]);
-      setWouldRecommend(null);
-      setContactMethod('');
-      
-      fetchResolvedReports();
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      setToastMessage('Failed to submit feedback');
-      setShowToast(true);
-    }
-  };
+    setToastMessage('Feedback submitted successfully');
+    setShowToast(true);
+    setShowFeedbackModal(false);
+    
+    // Reset form
+    setFeedbackRating(0);
+    setFeedbackComment('');
+    setResponseTimeRating(0);
+    setCommunicationRating(0);
+    setResolutionSatisfaction(0);
+    setFeedbackCategories([]);
+    setWouldRecommend(null);
+    
+    fetchResolvedReports();
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    setToastMessage('Failed to submit feedback');
+    setShowToast(true);
+  }
+};
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -525,50 +543,52 @@ const History: React.FC = () => {
   };
 
   const renderStarRating = (
-    rating: number,
-    onChange: (rating: number) => void,
-    label: string
-  ) => {
-    return (
-      <div style={{ marginBottom: '20px' }}>
-        <p style={{
-          fontSize: '14px',
-          fontWeight: '600',
-          color: '#374151',
-          marginBottom: '8px'
+  rating: number,
+  onChange: (rating: number) => void,
+  label: string
+) => {
+  return (
+    <div style={{ marginBottom: '20px' }}>
+      <p style={{
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: '12px'
+      }}>
+        {label}
+      </p>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {[1, 2, 3, 4, 5].map((starNumber) => (
+          <button
+            key={starNumber}
+            type="button"
+            onClick={() => onChange(starNumber)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '6px',
+              fontSize: '32px',
+              color: starNumber <= rating ? '#fbbf24' : '#d1d5db',
+              transition: 'color 0.2s',
+              lineHeight: 1
+            }}
+          >
+            {starNumber <= rating ? '★' : '☆'}
+          </button>
+        ))}
+        <span style={{
+          fontSize: '16px',
+          color: '#6b7280',
+          marginLeft: '12px',
+          fontWeight: '500'
         }}>
-          {label}
-        </p>
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          {[1, 2, 3, 4, 5].map((starNumber) => (
-            <button
-              key={starNumber}
-              type="button"
-              onClick={() => onChange(starNumber)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                fontSize: '24px',
-                color: starNumber <= rating ? '#fbbf24' : '#d1d5db',
-                transition: 'color 0.2s'
-              }}
-            >
-              {starNumber <= rating ? '★' : '☆'}
-            </button>
-          ))}
-          <span style={{
-            fontSize: '14px',
-            color: '#6b7280',
-            marginLeft: '8px'
-          }}>
-            {rating > 0 ? `${rating}/5` : 'No rating'}
-          </span>
-        </div>
+          {rating > 0 ? `${rating}/5` : 'No rating'}
+        </span>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   const handleCategoryToggle = (category: string, checked: boolean) => {
     setFeedbackCategories(prev =>
@@ -1123,7 +1143,7 @@ const History: React.FC = () => {
       <IonModal
         isOpen={showFeedbackModal}
         onDidDismiss={() => setShowFeedbackModal(false)}
-        style={{ '--border-radius': '20px' } as any}
+        style={{ '--border-radius': '0px' } as any}
       >
         <div style={{
           padding: '0',
@@ -1249,33 +1269,6 @@ const History: React.FC = () => {
                         </IonItem>
                       </div>
                     </IonRadioGroup>
-                  </div>
-
-                  {/* Contact Method */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <p style={{
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '8px'
-                    }}>
-                      Preferred contact method for updates?
-                    </p>
-                    <IonSelect
-                      value={contactMethod}
-                      placeholder="Select method"
-                      onIonChange={e => setContactMethod(e.detail.value)}
-                      style={{
-                        width: '100%',
-                        '--placeholder-color': '#9ca3af'
-                      } as any}
-                    >
-                      {contactMethods.map(method => (
-                        <IonSelectOption key={method} value={method}>
-                          {method}
-                        </IonSelectOption>
-                      ))}
-                    </IonSelect>
                   </div>
 
                   {/* Comments */}

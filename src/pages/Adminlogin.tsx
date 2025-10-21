@@ -438,6 +438,17 @@ const AdminLogin: React.FC = () => {
     }
   };
 
+  const handleOtpChange = (e: CustomEvent) => {
+  const value = e.detail.value!;
+  const numericValue = value.replace(/\D/g, '').slice(0, 6);
+  setOtp(numericValue);
+  
+  // Auto-verify when 6 digits are entered
+  if (numericValue.length === 6) {
+    verifyAndLogin();
+  }
+};
+
   const handleLogin = async () => {
     await sendOtp();
   };
@@ -777,11 +788,7 @@ const AdminLogin: React.FC = () => {
                       maxlength={6}
                       placeholder="000000"
                       value={otp}
-                      onIonChange={e => {
-                        const value = e.detail.value!;
-                        const numericValue = value.replace(/\D/g, '').slice(0, 6);
-                        setOtp(numericValue);
-                      }}
+                      onIonChange={handleOtpChange}
                       onKeyPress={(e: React.KeyboardEvent) => {
                         if (!/^\d$/.test(e.key) &&
                           e.key !== 'Backspace' &&

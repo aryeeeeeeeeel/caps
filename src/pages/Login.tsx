@@ -842,6 +842,17 @@ const Login: React.FC = () => {
   const currentSavedAccount = savedAccounts.find(acc => acc.identifier === loginIdentifier);
   const showAccountCount = savedAccounts.length > 1;
 
+  const handleOtpChange = (e: CustomEvent) => {
+  const value = e.detail.value!;
+  const numericValue = value.replace(/\D/g, '').slice(0, 6);
+  setOtpCode(numericValue);
+  
+  // Auto-verify when 6 digits are entered
+  if (numericValue.length === 6) {
+    handleOTPVerification();
+  }
+};
+
   return (
     <IonPage>
       <IonHeader>
@@ -1566,7 +1577,7 @@ const Login: React.FC = () => {
                       maxlength={6}
                       placeholder="000000"
                       value={otpCode}
-                      onIonChange={e => setOtpCode(e.detail.value || '')}
+                      onIonChange={handleOtpChange}
                       onKeyPress={(e: React.KeyboardEvent) => {
                         // Allow only numbers and control keys
                         if (!/^\d$/.test(e.key) &&

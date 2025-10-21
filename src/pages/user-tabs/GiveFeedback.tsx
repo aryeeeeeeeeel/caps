@@ -1,4 +1,4 @@
-// src/pages/user-tabs/GiveFeedback.tsx - UPDATED: Consistent with History.tsx
+// src/pages/user-tabs/GiveFeedback.tsx - UPDATED
 import React, { useState, useEffect } from 'react';
 import {
   IonContent,
@@ -36,7 +36,8 @@ import {
   thumbsUpOutline,
   thumbsDownOutline,
   refreshOutline,
-  timeOutline
+  timeOutline,
+  closeOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -92,14 +93,6 @@ const GiveFeedback: React.FC = () => {
     'Communication Quality',
     'Follow-up Service',
     'Overall Experience'
-  ];
-
-  const contactMethods = [
-    'Phone Call',
-    'Email',
-    'Text Message',
-    'In-Person Visit',
-    'Mobile App Notification'
   ];
 
   useEffect(() => {
@@ -172,7 +165,25 @@ const GiveFeedback: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Update incident_reports table (same as History.tsx)
+      // Insert into feedback table
+      const { error: feedbackError } = await supabase
+        .from('feedback')
+        .insert({
+          report_id: selectedReport,
+          user_email: user.email,
+          overall_rating: feedbackData.overall_rating,
+          response_time_rating: feedbackData.response_time_rating,
+          communication_rating: feedbackData.communication_rating,
+          resolution_satisfaction: feedbackData.resolution_satisfaction,
+          categories: feedbackData.categories,
+          comments: feedbackData.comments,
+          would_recommend: feedbackData.would_recommend,
+          contact_method: feedbackData.contact_method
+        });
+
+      if (feedbackError) throw feedbackError;
+
+      // Also update incident_reports table for backward compatibility
       const { error: reportError } = await supabase
         .from('incident_reports')
         .update({
@@ -222,11 +233,11 @@ const GiveFeedback: React.FC = () => {
         fontSize: '14px',
         fontWeight: '600',
         color: '#374151',
-        marginBottom: '8px'
+        marginBottom: '12px'
       }}>
         {label}
       </p>
-      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {[1, 2, 3, 4, 5].map((starNumber) => (
           <button
             key={starNumber}
@@ -236,96 +247,24 @@ const GiveFeedback: React.FC = () => {
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: '4px',
-              fontSize: '24px',
+              padding: '6px',
+              fontSize: '32px',
               color: starNumber <= rating ? '#fbbf24' : '#d1d5db',
-              transition: 'color 0.2s'
+              transition: 'color 0.2s',
+              lineHeight: 1
             }}
           >
             {starNumber <= rating ? '★' : '☆'}
           </button>
         ))}
         <span style={{
-          fontSize: '14px',
+          fontSize: '16px',
           color: '#6b7280',
-          marginLeft: '8px'
+          marginLeft: '12px',
+          fontWeight: '500'
         }}>
           {rating > 0 ? `${rating}/5` : 'No rating'}
         </span>
-      </div>
-    </div>
-  );
-
-  const SatisfactionRating: React.FC<{
-    rating: number;
-    onRatingChange: (rating: number) => void;
-    label: string;
-  }> = ({ rating, onRatingChange, label }) => (
-    <div style={{ marginBottom: '20px' }}>
-      <p style={{
-        fontSize: '14px',
-        fontWeight: '600',
-        color: '#374151',
-        marginBottom: '8px'
-      }}>
-        {label}
-      </p>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <button
-          type="button"
-          onClick={() => onRatingChange(1)}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            color: rating === 1 ? '#ef4444' : '#6b7280',
-            backgroundColor: rating === 1 ? '#fef2f2' : 'transparent'
-          }}
-        >
-          <IonIcon icon={thumbsDownOutline} style={{ fontSize: '20px' }} />
-          <span style={{ fontSize: '12px', fontWeight: '500' }}>Poor</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onRatingChange(2)}
-          style={{
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            color: rating === 2 ? '#f59e0b' : '#6b7280',
-            backgroundColor: rating === 2 ? '#fffbeb' : 'transparent'
-          }}
-        >
-          <IonIcon icon={timeOutline} style={{ fontSize: '20px' }} />
-          <span style={{ fontSize: '12px', fontWeight: '500' }}>Fair</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onRatingChange(3)}
-          style={{
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            color: rating === 3 ? '#10b981' : '#6b7280',
-            background: rating === 3 ? '#f0fdf4' : 'transparent'
-          }}
-        >
-          <IonIcon icon={thumbsUpOutline} style={{ fontSize: '20px' }} />
-          <span style={{ fontSize: '12px', fontWeight: '500' }}>Good</span>
-        </button>
       </div>
     </div>
   );
@@ -361,12 +300,12 @@ const GiveFeedback: React.FC = () => {
   const RatingSkeleton: React.FC = () => (
     <div style={{ marginBottom: '20px' }}>
       <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '8px' }} />
-      <div style={{ display: 'flex', gap: '4px' }}>
+      <div style={{ display: 'flex', gap: '8px' }}>
         {[1, 2, 3, 4, 5].map((star) => (
           <IonSkeletonText
             key={star}
             animated
-            style={{ width: '24px', height: '24px', borderRadius: '4px' }}
+            style={{ width: '32px', height: '32px', borderRadius: '4px' }}
           />
         ))}
       </div>
@@ -387,6 +326,11 @@ const GiveFeedback: React.FC = () => {
       </div>
     </div>
   );
+
+  // Filter reports based on selection
+  const displayReports = selectedReport
+    ? userReports.filter(report => report.id === selectedReport)
+    : userReports;
 
   return (
     <IonContent style={{ '--background': '#f8fafc' } as any}>
@@ -425,10 +369,26 @@ const GiveFeedback: React.FC = () => {
 
         {/* Main Content Card */}
         <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-          <IonCardHeader>
+          <IonCardHeader style={{ position: 'relative' }}>
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
               Select Report to Review
             </IonCardTitle>
+            {selectedReport && (
+              <IonButton
+                fill="clear"
+                size="small"
+                onClick={() => setSelectedReport('')}
+                style={{
+                  position: 'absolute',
+                  right: '16px',
+                  top: '16px',
+                  '--padding-start': '8px',
+                  '--padding-end': '8px'
+                } as any}
+              >
+                <IonIcon icon={closeOutline} slot="icon-only" />
+              </IonButton>
+            )}
           </IonCardHeader>
           <IonCardContent>
             {isReportsLoading ? (
@@ -463,10 +423,12 @@ const GiveFeedback: React.FC = () => {
                   color: '#6b7280',
                   marginBottom: '16px'
                 }}>
-                  Select a resolved report to provide feedback:
+                  {selectedReport
+                    ? 'Selected report for feedback:'
+                    : 'Select a resolved report to provide feedback:'}
                 </p>
                 <IonList style={{ background: 'transparent' }}>
-                  {userReports.map((report) => (
+                  {displayReports.map((report) => (
                     <IonItem
                       key={report.id}
                       button
@@ -482,61 +444,75 @@ const GiveFeedback: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         width: '100%',
-                        padding: '12px 0'
+                        padding: '12px 0',
+                        justifyContent: 'space-between'
                       }}>
-                        <div style={{
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          background: '#10b981',
-                          marginRight: '12px',
-                          flexShrink: 0
-                        }}></div>
+                        <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: 'calc(100% - 100px)' }}>
+                          <div style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: '#10b981',
+                            marginRight: '12px',
+                            flexShrink: 0
+                          }}></div>
 
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h3 style={{
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            color: '#1f2937',
-                            margin: '0 0 4px 0',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {report.title}
-                          </h3>
-                          <p style={{
-                            fontSize: '12px',
-                            color: '#6b7280',
-                            margin: '0 0 4px 0'
-                          }}>
-                            {report.category}
-                          </p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <IonChip
-                              style={{
-                                '--background': '#10b98120',
-                                '--color': '#10b981',
-                                height: '20px',
-                                fontSize: '10px',
-                                fontWeight: '600'
-                              } as any}
-                            >
-                              RESOLVED
-                            </IonChip>
-                            <span style={{
-                              fontSize: '10px',
-                              color: '#9ca3af'
+                          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                            <h3 style={{
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: '#1f2937',
+                              margin: '0 0 4px 0',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
                             }}>
-                              {new Date(report.created_at).toLocaleDateString()}
-                            </span>
+                              {report.title}
+                            </h3>
+                            <p style={{
+                              fontSize: '12px',
+                              color: '#6b7280',
+                              margin: '0 0 4px 0',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {report.category}
+                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <IonChip
+                                style={{
+                                  '--background': '#10b98120',
+                                  '--color': '#10b981',
+                                  height: '20px',
+                                  fontSize: '10px',
+                                  fontWeight: '600'
+                                } as any}
+                              >
+                                RESOLVED
+                              </IonChip>
+                              <span style={{
+                                fontSize: '10px',
+                                color: '#9ca3af'
+                              }}>
+                                {new Date(report.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
                         <IonRadio
                           value={report.id}
                           aria-checked={selectedReport === report.id}
-                          style={{ marginLeft: '8px' }}
+                          style={{
+                            marginLeft: '16px',
+                            '--inner-border-radius': '50%',
+                            '--border-radius': '50%',
+                            '--border-width': '2px',
+                            '--border-color': '#d1d5db',
+                            '--color': '#10b981',
+                            '--color-checked': '#10b981'
+                          } as any}
                         />
                       </div>
                     </IonItem>
@@ -660,43 +636,46 @@ const GiveFeedback: React.FC = () => {
                       onIonChange={(e) => setFeedbackData(prev => ({ ...prev, would_recommend: e.detail.value }))}
                     >
                       <div style={{ display: 'flex', gap: '16px' }}>
-                        <IonItem style={{ '--background': 'transparent' } as any}>
-                          <IonRadio value={true} style={{ marginRight: '8px' }} />
+                        <IonItem style={{
+                          '--background': 'transparent',
+                          '--padding-start': '0',
+                          '--inner-padding-end': '0'
+                        } as any}>
+                          <IonRadio
+                            value={true}
+                            style={{
+                              marginRight: '8px',
+                              '--inner-border-radius': '50%',
+                              '--border-radius': '50%',
+                              '--border-width': '2px',
+                              '--border-color': '#d1d5db',
+                              '--color': '#10b981',
+                              '--color-checked': '#10b981'
+                            } as any}
+                          />
                           <IonLabel style={{ fontSize: '14px' }}>Yes</IonLabel>
                         </IonItem>
-                        <IonItem style={{ '--background': 'transparent' } as any}>
-                          <IonRadio value={false} style={{ marginRight: '8px' }} />
+                        <IonItem style={{
+                          '--background': 'transparent',
+                          '--padding-start': '0',
+                          '--inner-padding-end': '0'
+                        } as any}>
+                          <IonRadio
+                            value={false}
+                            style={{
+                              marginRight: '8px',
+                              '--inner-border-radius': '50%',
+                              '--border-radius': '50%',
+                              '--border-width': '2px',
+                              '--border-color': '#d1d5db',
+                              '--color': '#10b981',
+                              '--color-checked': '#10b981'
+                            } as any}
+                          />
                           <IonLabel style={{ fontSize: '14px' }}>No</IonLabel>
                         </IonItem>
                       </div>
                     </IonRadioGroup>
-                  </div>
-
-                  {/* Preferred Contact Method */}
-                  <div style={{ marginBottom: '24px' }}>
-                    <p style={{
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '8px'
-                    }}>
-                      Preferred contact method for updates?
-                    </p>
-                    <IonSelect
-                      value={feedbackData.contact_method}
-                      placeholder="Select method"
-                      onIonChange={(e) => setFeedbackData(prev => ({ ...prev, contact_method: e.detail.value }))}
-                      style={{
-                        width: '100%',
-                        '--placeholder-color': '#9ca3af'
-                      } as any}
-                    >
-                      {contactMethods.map((method) => (
-                        <IonSelectOption key={method} value={method}>
-                          {method}
-                        </IonSelectOption>
-                      ))}
-                    </IonSelect>
                   </div>
 
                   {/* Additional Comments */}
