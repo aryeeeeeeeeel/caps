@@ -430,46 +430,46 @@ const AdminIncidents: React.FC = () => {
   };
 
   const uploadResolvedPhoto = async (file: File, reportId: string): Promise<string> => {
-  try {
-    const fileName = `resolved-proof-${Date.now()}.png`;
-    const filePath = `${reportId}/${fileName}`;
+    try {
+      const fileName = `resolved-proof-${Date.now()}.png`;
+      const filePath = `${reportId}/${fileName}`;
 
-    // Upload the file
-    const { data, error } = await supabase.storage
-      .from('resolved-photos')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+      // Upload the file
+      const { data, error } = await supabase.storage
+        .from('resolved-photos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-    if (error) {
-      if (error.message.includes('Bucket not found')) {
-        console.error('Storage bucket not found. Please create "resolved-photos" bucket in Supabase.');
-        throw new Error('Storage configuration error. Please contact administrator.');
+      if (error) {
+        if (error.message.includes('Bucket not found')) {
+          console.error('Storage bucket not found. Please create "resolved-photos" bucket in Supabase.');
+          throw new Error('Storage configuration error. Please contact administrator.');
+        }
+        throw error;
       }
-      throw error;
-    }
 
-    // Get a signed URL for temporary access (if needed for display)
-    const { data: signedUrlData } = await supabase.storage
+      // Get a signed URL for temporary access (if needed for display)
+      const { data: signedUrlData } = await supabase.storage
+        .from('resolved-photos')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+      return signedUrlData?.signedUrl || data.path;
+    } catch (error) {
+      console.error('Error uploading resolved photo:', error);
+      throw new Error('Failed to upload photo');
+    }
+  };
+
+  // Function to get signed URL when displaying the image
+  const getResolvedPhotoUrl = async (filePath: string): Promise<string> => {
+    const { data } = await supabase.storage
       .from('resolved-photos')
       .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-    return signedUrlData?.signedUrl || data.path;
-  } catch (error) {
-    console.error('Error uploading resolved photo:', error);
-    throw new Error('Failed to upload photo');
-  }
-};
-
-// Function to get signed URL when displaying the image
-const getResolvedPhotoUrl = async (filePath: string): Promise<string> => {
-  const { data } = await supabase.storage
-    .from('resolved-photos')
-    .createSignedUrl(filePath, 3600); // 1 hour expiry
-  
-  return data?.signedUrl || '';
-};
+    return data?.signedUrl || '';
+  };
 
   // Show skeleton loading screen - FIRST CHECK
   if (isLoading) {
@@ -651,10 +651,10 @@ const getResolvedPhotoUrl = async (filePath: string): Promise<string> => {
         <div style={{ padding: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
+              { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, status: 'all' },
               { label: 'Pending', value: stats.pending, color: '#f59e0b', icon: timeOutline, status: 'pending' },
               { label: 'Active', value: stats.active, color: '#3b82f6', icon: alertCircleOutline, status: 'active' },
-              { label: 'Resolved', value: stats.resolved, color: '#10b981', icon: checkmarkCircleOutline, status: 'resolved' },
-              { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, status: 'all' }
+              { label: 'Resolved', value: stats.resolved, color: '#10b981', icon: checkmarkCircleOutline, status: 'resolved' }
             ].map((stat, idx) => (
               <div
                 key={idx}
