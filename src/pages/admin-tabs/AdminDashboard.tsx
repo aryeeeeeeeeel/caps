@@ -47,10 +47,12 @@ import {
   carOutline,
   businessOutline,
   calendarOutline,
-  checkmarkDoneOutline,
+  checkmarkCircleOutline,
   warningOutline,
   pauseCircleOutline,
   banOutline,
+  checkmarkCircleOutline as activateOutline,
+  filterOutline,
 } from "ionicons/icons"
 import { supabase } from "../../utils/supabaseClient"
 import L from "leaflet"
@@ -99,13 +101,18 @@ interface IncidentReport {
 
 interface User {
   id: string
+  user_id: string
   user_firstname: string
   user_lastname: string
   user_email: string
   status: "active" | "suspended" | "banned"
   warnings: number
   last_warning_date?: string
-  created_at: string
+  date_registered: string
+  last_active_at?: string
+  user_contact_number?: string
+  user_address?: string
+  has_reports?: boolean
 }
 
 interface IncidentResponseRoute {
@@ -132,7 +139,7 @@ const AdminDashboard: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null)
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "active" | "resolved">("all")
   const [priorityFilter, setPriorityFilter] = useState<"all" | "low" | "medium" | "high" | "critical">("all")
-  const [userFilter, setUserFilter] = useState<"all" | "active" | "inactive">("all")
+  const [userFilter, setUserFilter] = useState<"all" | "active" | "inactive" | "suspended" | "banned">("all")
   const [userSort, setUserSort] = useState<"alphabetical">("alphabetical")
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -156,8 +163,9 @@ const AdminDashboard: React.FC = () => {
   const [isRouteDisplayed, setIsRouteDisplayed] = useState(false)
   const [showUserActionModal, setShowUserActionModal] = useState(false)
   const [selectedUserForAction, setSelectedUserForAction] = useState<User | null>(null)
-  const [userActionType, setUserActionType] = useState<"warn" | "suspend" | "ban">("warn")
+  const [userActionType, setUserActionType] = useState<"warn" | "suspend" | "ban" | "activate">("warn")
   const [unreadCount, setUnreadCount] = useState(0);
+  const [sortAlphabetical, setSortAlphabetical] = useState(true)
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -713,7 +721,24 @@ const AdminDashboard: React.FC = () => {
       }
 
       if (usersData) {
-        setUsers(usersData)
+        // Fetch reports for each user to determine if they're truly "active"
+        const usersWithReports = await Promise.all(
+          usersData.map(async (user) => {
+            const { data: reports } = await supabase
+              .from('incident_reports')
+              .select('id')
+              .eq('reporter_email', user.user_email)
+              .limit(1);
+
+            return {
+              ...user,
+              status: user.status || 'active',
+              warnings: user.warnings || 0,
+              has_reports: (reports && reports.length > 0) || false
+            };
+          })
+        );
+        setUsers(usersWithReports);
       }
     } catch (error) {
       console.error("Error fetching initial data:", error)
@@ -1388,14 +1413,56 @@ const AdminDashboard: React.FC = () => {
     }
   }
 
+  // User Management Helper Functions
+  const isUserOnline = (user: User): boolean => {
+    if (!user.last_active_at) return false;
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    return new Date(user.last_active_at) > oneDayAgo;
+  };
+
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch { return 'Invalid Date'; }
+  };
+
+  const getLastActiveText = (user: User): string => {
+    if (!user.last_active_at) return 'Never';
+    const lastActive = new Date(user.last_active_at);
+    const now = new Date();
+    const diffMs = now.getTime() - lastActive.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return formatDate(user.last_active_at);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return '#10b981';
+      case 'suspended': return '#f59e0b';
+      case 'banned': return '#dc2626';
+      default: return '#6b7280';
+    }
+  };
+
   const stats = useMemo(
     () => ({
       pending: reports.filter((r) => r.status === "pending").length,
       active: reports.filter((r) => r.status === "active").length,
       resolved: reports.filter((r) => r.status === "resolved").length,
       total: reports.length,
-      activeUsers: users.filter((u) => u.status === "active").length,
-      inactiveUsers: users.filter((u) => u.status !== "active").length,
+      activeUsers: users.filter((u) => u.status === 'active' && (u.has_reports ?? false)).length,
+      inactiveUsers: users.filter((u) => u.status === 'active' && !(u.has_reports ?? false)).length,
+      suspendedUsers: users.filter((u) => u.status === 'suspended').length,
+      bannedUsers: users.filter((u) => u.status === 'banned').length,
       totalUsers: users.length,
     }),
     [reports, users],
@@ -1424,28 +1491,37 @@ const AdminDashboard: React.FC = () => {
 
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = users.filter((user) => {
-      if (userFilter === "all") return true
-      if (userFilter === "active") return user.status === "active"
-      if (userFilter === "inactive") return user.status !== "active"
-      return true
-    })
+      // Apply status filter
+      let matchesStatus = false;
+      if (userFilter === 'all') {
+        matchesStatus = true;
+      } else if (userFilter === 'active') {
+        matchesStatus = user.status === 'active' && (user.has_reports ?? false);
+      } else if (userFilter === 'inactive') {
+        matchesStatus = user.status === 'active' && !(user.has_reports ?? false);
+      } else {
+        matchesStatus = user.status === userFilter;
+      }
 
-    // Apply search filter
-    if (userSearchText) {
-      filtered = filtered.filter(
-        (user) =>
-          `${user.user_firstname} ${user.user_lastname}`.toLowerCase().includes(userSearchText.toLowerCase()) ||
-          user.user_email.toLowerCase().includes(userSearchText.toLowerCase()),
-      )
-    }
+      // Apply search filter
+      const matchesSearch = userSearchText === '' ||
+        `${user.user_firstname} ${user.user_lastname}`.toLowerCase().includes(userSearchText.toLowerCase()) ||
+        user.user_email.toLowerCase().includes(userSearchText.toLowerCase());
+
+      return matchesStatus && matchesSearch;
+    });
 
     // Sort alphabetically by full name
-    return filtered.sort((a, b) => {
-      const fullNameA = `${a.user_firstname} ${a.user_lastname}`.toLowerCase()
-      const fullNameB = `${b.user_firstname} ${b.user_lastname}`.toLowerCase()
-      return fullNameA.localeCompare(fullNameB)
-    })
-  }, [users, userFilter, userSort, userSearchText])
+    if (sortAlphabetical) {
+      filtered = filtered.sort((a, b) => {
+        const nameA = `${a.user_firstname} ${a.user_lastname}`.toLowerCase();
+        const nameB = `${b.user_firstname} ${b.user_lastname}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    }
+
+    return filtered;
+  }, [users, userFilter, userSearchText, sortAlphabetical]);
 
   // Handle status filter click - reset priority to 'all'
   const handleStatusFilterClick = (status: "all" | "pending" | "active" | "resolved") => {
@@ -1453,40 +1529,42 @@ const AdminDashboard: React.FC = () => {
     setPriorityFilter("all") // Reset priority filter when status changes
   }
 
-  const handleUserActionModal = async (action: "warn" | "suspend" | "ban") => {
+  const handleUserActionModal = async (action: "warn" | "suspend" | "ban" | "activate") => {
     if (!selectedUserForAction) return
 
     try {
-      let newStatus = selectedUserForAction.status
-      let warnings = selectedUserForAction.warnings || 0
-
+      let updates: any = {};
       switch (action) {
         case "warn":
-          warnings += 1
-          if (warnings >= 3) newStatus = "suspended"
-          break
+          updates = { warnings: (selectedUserForAction.warnings || 0) + 1, last_warning_date: new Date().toISOString() };
+          if (updates.warnings >= 3) updates.status = 'suspended';
+          break;
         case "suspend":
-          newStatus = "suspended"
-          break
+          updates = { status: 'suspended' };
+          break;
         case "ban":
-          newStatus = "banned"
-          break
+          updates = { status: 'banned' };
+          break;
+        case "activate":
+          updates = { status: 'active', warnings: 0, last_warning_date: null };
+          break;
       }
 
       const { error } = await supabase
         .from("users")
-        .update({
-          status: newStatus,
-          warnings: warnings,
-          last_warning_date: action === "warn" ? new Date().toISOString() : selectedUserForAction.last_warning_date,
-        })
+        .update(updates)
         .eq("id", selectedUserForAction.id)
 
       if (error) throw error
 
-      setToastMessage(`User ${action}ed successfully`)
-      setShowToast(true)
-      await fetchInitialData()
+      const actionMessage = action === 'warn' && updates.warnings >= 3 ?
+        'User warned and auto-suspended (3 warnings)' :
+        `User ${action}ed successfully`;
+
+      setToastMessage(actionMessage);
+      setShowToast(true);
+      setShowUserActionModal(false);
+      await fetchInitialData();
     } catch (error) {
       console.error("Error updating user:", error)
       setToastMessage("Error updating user")
@@ -1628,7 +1706,7 @@ const AdminDashboard: React.FC = () => {
             {/* Right Panel Skeleton - Users */}
             <div
               style={{
-                width: "300px",
+                width: "360px",
                 borderLeft: "1px solid #e5e7eb",
                 background: "white",
                 display: "flex",
@@ -1660,7 +1738,7 @@ const AdminDashboard: React.FC = () => {
               <div style={{ padding: "12px", borderBottom: "1px solid #e5e7eb" }}>
                 <IonSkeletonText animated style={{ width: "80px", height: "12px", marginBottom: "8px" }} />
                 <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                  {[1, 2, 3].map((item) => (
+                  {[1, 2, 3, 4, 5].map((item) => (
                     <IonSkeletonText
                       key={item}
                       animated
@@ -2154,7 +2232,7 @@ const AdminDashboard: React.FC = () => {
           {/* Right Panel - Users */}
           <div
             style={{
-              width: isUsersCollapsed ? "60px" : "300px",
+              width: isUsersCollapsed ? "60px" : "360px",
               borderLeft: "1px solid #e5e7eb",
               background: "white",
               transition: "width 0.3s",
@@ -2194,22 +2272,34 @@ const AdminDashboard: React.FC = () => {
 
             {!isUsersCollapsed && (
               <>
-                {/* User Search - Made smaller with 8px gap */}
+               
+
+                {/* User Search and Sort */}
                 <div style={{ padding: "8px", borderBottom: "1px solid #e5e7eb" }}>
-                  <IonSearchbar
-                    value={userSearchText}
-                    onIonInput={(e) => setUserSearchText(e.detail.value!)}
-                    placeholder="Search users..."
-                    style={
-                      {
-                        "--background": "#f8fafc",
-                        "--border-radius": "8px",
-                        "--box-shadow": "none",
-                        fontSize: "12px",
-                        height: "40px",
-                      } as any
-                    }
-                  />
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <IonSearchbar
+                      value={userSearchText}
+                      onIonInput={(e) => setUserSearchText(e.detail.value!)}
+                      placeholder="Search users..."
+                      style={
+                        {
+                          "--background": "#f8fafc",
+                          "--border-radius": "8px",
+                          "--box-shadow": "none",
+                          fontSize: "12px",
+                          height: "40px",
+                          flex: 1,
+                        } as any
+                      }
+                    />
+                    <IonButton
+                      fill={sortAlphabetical ? 'solid' : 'outline'}
+                      onClick={() => setSortAlphabetical(!sortAlphabetical)}
+                      style={{ '--border-radius': '8px', height: '40px' } as any}
+                    >
+                      <IonIcon icon={filterOutline} slot="icon-only" />
+                    </IonButton>
+                  </div>
                 </div>
 
                 {/* User Filters */}
@@ -2221,7 +2311,9 @@ const AdminDashboard: React.FC = () => {
                     {[
                       { value: "all", label: "All", count: stats.totalUsers, color: "#6b7280" },
                       { value: "active", label: "Active", count: stats.activeUsers, color: "#10b981" },
-                      { value: "inactive", label: "Inactive", count: stats.inactiveUsers, color: "#ef4444" },
+                      { value: "inactive", label: "Inactive", count: stats.inactiveUsers, color: "#9ca3af" },
+                      { value: "suspended", label: "Suspended", count: stats.suspendedUsers, color: "#f59e0b" },
+                      { value: "banned", label: "Banned", count: stats.bannedUsers, color: "#dc2626" },
                     ].map((filter) => (
                       <IonChip
                         key={filter.value}
@@ -2234,7 +2326,8 @@ const AdminDashboard: React.FC = () => {
                             "--color": userFilter === filter.value ? "white" : filter.color,
                             cursor: "pointer",
                             margin: 0,
-                            fontSize: "12px",
+                            fontSize: "10px",
+                            height: "24px",
                           } as any
                         }
                       >
@@ -2252,58 +2345,105 @@ const AdminDashboard: React.FC = () => {
                       <p>No users found</p>
                     </div>
                   ) : (
-                    <IonList style={{ padding: 0 }}>
+                    <IonList style={{ padding: "8px" }}>
                       {filteredAndSortedUsers.map((user) => (
                         <IonItem
                           key={user.id}
-                          button
-                          detail={false}
-                          onClick={() => {
-                            setSelectedUserForAction(user)
-                            setUserActionType("warn")
-                            setShowUserActionModal(true)
-                          }}
+                          style={{
+                            '--background': 'white',
+                            '--border-radius': '8px',
+                            marginBottom: '8px',
+                            '--padding-start': '0',
+                            '--padding-end': '0',
+                          } as any}
                         >
-                          <div style={{ width: "100%", padding: "8px 0" }}>
+                          <div style={{ width: "100%", padding: "12px" }}>
                             <div
                               style={{
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "flex-start",
-                                marginBottom: "4px",
+                                marginBottom: "8px",
                               }}
                             >
-                              <span style={{ fontWeight: "bold", fontSize: "14px", color: "#1f2937" }}>
-                                {user.user_firstname} {user.user_lastname}
-                              </span>
-                              <IonBadge
-                                style={
-                                  {
-                                    fontSize: "10px",
-                                    "--background":
-                                      user.status === "active"
-                                        ? "#10b981"
-                                        : user.status === "suspended"
-                                          ? "#f59e0b"
-                                          : "#ef4444",
-                                    "--color": "white",
-                                  } as any
-                                }
-                              >
-                                {user.status}
-                              </IonBadge>
-                            </div>
-                            <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>
-                              {user.user_email}
-                            </div>
-                            <div style={{ fontSize: "11px", color: "#9ca3af" }}>
-                              Joined: {new Date(user.created_at).toLocaleDateString()}
-                            </div>
-                            {user.warnings > 0 && (
-                              <div style={{ fontSize: "11px", color: "#f59e0b", marginTop: "4px" }}>
-                                ⚠️ {user.warnings} warning{user.warnings > 1 ? "s" : ""}
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                                  <div style={{ fontSize: "14px", fontWeight: "bold", color: "#1f2937" }}>
+                                    {user.user_firstname} {user.user_lastname}
+                                  </div>
+                                  {isUserOnline(user) && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", boxShadow: "0 0 0 2px #d1fae5" }} />}
+                                </div>
+                                <div style={{ fontSize: "12px", color: "#6b7280" }}>{user.user_email}</div>
                               </div>
-                            )}
+                              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                <IonBadge
+                                  style={
+                                    {
+                                      fontSize: "9px",
+                                      "--background": user.status !== 'active' ? getStatusColor(user.status) : ((user.has_reports ?? false) ? '#10b981' : '#9ca3af'),
+                                      "--color": "white",
+                                    } as any
+                                  }
+                                >
+                                  {user.status !== 'active'
+                                    ? user.status.toUpperCase()
+                                    : ((user.has_reports ?? false) ? 'ACTIVE' : 'INACTIVE')
+                                  }
+                                </IonBadge>
+                                {user.warnings > 0 && <IonBadge color="warning" style={{ fontSize: "9px" }}>{user.warnings} ⚠️</IonBadge>}
+                              </div>
+                            </div>
+
+                            <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "8px" }}>
+                              Joined: {formatDate(user.date_registered)} • Last Online: {getLastActiveText(user)}
+                            </div>
+
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                              <IonButton
+                                size="small"
+                                fill="outline"
+                                color="warning"
+                                onClick={() => {
+                                  setSelectedUserForAction(user);
+                                  setUserActionType("warn");
+                                  setShowUserActionModal(true);
+                                }}
+                                disabled={user.status === 'banned'}
+                                style={{ height: "24px", fontSize: "10px" }}
+                              >
+                                <IonIcon icon={warningOutline} slot="start" style={{ fontSize: "10px" }} />
+                                Warn
+                              </IonButton>
+                              <IonButton
+                                size="small"
+                                fill="outline"
+                                color="medium"
+                                onClick={() => {
+                                  setSelectedUserForAction(user);
+                                  setUserActionType(user.status === 'suspended' ? "activate" : "suspend");
+                                  setShowUserActionModal(true);
+                                }}
+                                disabled={user.status === 'banned'}
+                                style={{ height: "24px", fontSize: "10px" }}
+                              >
+                                <IonIcon icon={user.status === 'suspended' ? activateOutline : pauseCircleOutline} slot="start" style={{ fontSize: "10px" }} />
+                                {user.status === 'suspended' ? 'Activate' : 'Suspend'}
+                              </IonButton>
+                              <IonButton
+                                size="small"
+                                fill="outline"
+                                color="danger"
+                                onClick={() => {
+                                  setSelectedUserForAction(user);
+                                  setUserActionType(user.status === 'banned' ? "activate" : "ban");
+                                  setShowUserActionModal(true);
+                                }}
+                                style={{ height: "24px", fontSize: "10px" }}
+                              >
+                                <IonIcon icon={banOutline} slot="start" style={{ fontSize: "10px" }} />
+                                {user.status === 'banned' ? 'Unban' : 'Ban'}
+                              </IonButton>
+                            </div>
                           </div>
                         </IonItem>
                       ))}
@@ -2512,7 +2652,7 @@ const AdminDashboard: React.FC = () => {
                           color="success"
                           onClick={() => selectedReport && markAsResolved(selectedReport.id)}
                         >
-                          <IonIcon icon={checkmarkDoneOutline} slot="start" />
+                          <IonIcon icon={checkmarkCircleOutline} slot="start" />
                           Mark Resolved
                         </IonButton>
                       )}
@@ -2630,25 +2770,6 @@ const AdminDashboard: React.FC = () => {
           </IonContent>
         </IonModal>
 
-        {/* Alerts and Toasts */}
-        <IonAlert
-          isOpen={showLogoutAlert}
-          onDidDismiss={() => setShowLogoutAlert(false)}
-          header={"Logout"}
-          message={"Are you sure you want to logout?"}
-          buttons={[
-            { text: "Cancel", role: "cancel" },
-            {
-              text: "Logout",
-              role: "confirm",
-              handler: () => {
-                supabase.auth.signOut()
-                navigation.push("/it35-lab2", "root", "replace")
-              },
-            },
-          ]}
-        />
-
         {/* User Action Modal */}
         <IonModal isOpen={showUserActionModal} onDidDismiss={() => setShowUserActionModal(false)}>
           <IonHeader>
@@ -2704,7 +2825,18 @@ const AdminDashboard: React.FC = () => {
                           </IonCol>
                           <IonCol size="6">
                             <p>
-                              <strong>Joined:</strong> {new Date(selectedUserForAction.created_at).toLocaleDateString()}
+                              <strong>Joined:</strong> {new Date(selectedUserForAction.date_registered).toLocaleDateString()}
+                            </p>
+                          </IonCol>
+                        </IonRow>
+                        <IonRow>
+                          <IonCol size="12">
+                            <p>
+                              <strong>Activity Status:</strong>{" "}
+                              {selectedUserForAction.status === 'active'
+                                ? ((selectedUserForAction.has_reports ?? false) ? 'ACTIVE (Has reports)' : 'INACTIVE (No reports)')
+                                : selectedUserForAction.status.toUpperCase()
+                              }
                             </p>
                           </IonCol>
                         </IonRow>
@@ -2738,19 +2870,34 @@ const AdminDashboard: React.FC = () => {
                           <IonIcon icon={banOutline} slot="start" />
                           Ban User
                         </IonButton>
+                        {(selectedUserForAction.status === 'suspended' || selectedUserForAction.status === 'banned') && (
+                          <IonButton
+                            fill={userActionType === "activate" ? "solid" : "outline"}
+                            color="success"
+                            onClick={() => setUserActionType("activate")}
+                          >
+                            <IonIcon icon={activateOutline} slot="start" />
+                            Activate User
+                          </IonButton>
+                        )}
                       </div>
                     </div>
 
                     <IonButton
                       expand="block"
-                      color={userActionType === "warn" ? "warning" : userActionType === "suspend" ? "medium" : "danger"}
+                      color={
+                        userActionType === "warn" ? "warning" :
+                          userActionType === "suspend" ? "medium" :
+                            userActionType === "ban" ? "danger" : "success"
+                      }
                       onClick={() => {
                         handleUserActionModal(userActionType)
-                        setShowUserActionModal(false)
                       }}
                     >
                       Confirm{" "}
-                      {userActionType === "warn" ? "Warning" : userActionType === "suspend" ? "Suspension" : "Ban"}
+                      {userActionType === "warn" ? "Warning" :
+                        userActionType === "suspend" ? "Suspension" :
+                          userActionType === "ban" ? "Ban" : "Activation"}
                     </IonButton>
                   </IonCardContent>
                 </IonCard>
@@ -2758,6 +2905,25 @@ const AdminDashboard: React.FC = () => {
             )}
           </IonContent>
         </IonModal>
+
+        {/* Alerts and Toasts */}
+        <IonAlert
+          isOpen={showLogoutAlert}
+          onDidDismiss={() => setShowLogoutAlert(false)}
+          header={"Logout"}
+          message={"Are you sure you want to logout?"}
+          buttons={[
+            { text: "Cancel", role: "cancel" },
+            {
+              text: "Logout",
+              role: "confirm",
+              handler: () => {
+                supabase.auth.signOut()
+                navigation.push("/it35-lab2", "root", "replace")
+              },
+            },
+          ]}
+        />
 
         <IonToast
           isOpen={showToast}
@@ -2771,7 +2937,7 @@ const AdminDashboard: React.FC = () => {
   )
 
   // Helper functions
-  function getStatusColor(status: string): string {
+  function getIncidentStatusColor(status: string): string {
     const colors: { [key: string]: string } = {
       pending: "#f59e0b",
       active: "#3b82f6",
@@ -2788,47 +2954,6 @@ const AdminDashboard: React.FC = () => {
       low: "#84cc16",
     }
     return colors[priority] || "#6b7280"
-  }
-
-  async function handleUserAction(action: "warn" | "suspend" | "ban") {
-    if (!selectedUser) return
-
-    try {
-      let newStatus = selectedUser.status
-      let warnings = selectedUser.warnings || 0
-
-      switch (action) {
-        case "warn":
-          warnings += 1
-          if (warnings >= 3) newStatus = "suspended"
-          break
-        case "suspend":
-          newStatus = "suspended"
-          break
-        case "ban":
-          newStatus = "banned"
-          break
-      }
-
-      const { error } = await supabase
-        .from("users")
-        .update({
-          status: newStatus,
-          warnings: warnings,
-          last_warning_date: action === "warn" ? new Date().toISOString() : selectedUser.last_warning_date,
-        })
-        .eq("id", selectedUser.id)
-
-      if (error) throw error
-
-      setToastMessage(`User ${action}ed successfully`)
-      setShowToast(true)
-      await fetchInitialData()
-    } catch (error) {
-      console.error("Error updating user:", error)
-      setToastMessage("Error updating user")
-      setShowToast(true)
-    }
   }
 }
 
