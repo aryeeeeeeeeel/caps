@@ -1712,7 +1712,7 @@ const IncidentReport: React.FC = () => {
             <IonButton
               fill="clear"
               expand="block"
-              routerLink="/it35-lab2/app/home/dashboard"
+              routerLink="/it35-lab2/app/dashboard"
               onClick={() => setShowSuccessModal(false)}
               style={{ '--color': '#6b7280' }}
             >
