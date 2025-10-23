@@ -464,7 +464,7 @@ const History: React.FC = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
   
-    // Insert into feedback table
+    // Insert into feedback table with timestamp
     const { error: feedbackError } = await supabase
       .from('feedback')
       .insert({
@@ -476,23 +476,13 @@ const History: React.FC = () => {
         resolution_satisfaction: resolutionSatisfaction,
         categories: feedbackCategories,
         comments: feedbackComment,
-        would_recommend: wouldRecommend
-        // Removed contact_method
+        would_recommend: wouldRecommend,
+        created_at: new Date().toISOString()
       });
 
     if (feedbackError) throw feedbackError;
 
-    // Also update incident_reports for backward compatibility
-    const { error: reportError } = await supabase
-      .from('incident_reports')
-      .update({
-        feedback_rating: feedbackRating,
-        feedback_comment: feedbackComment,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', selectedReport.id);
-
-    if (reportError) throw reportError;
+    // Only store feedback in feedback table
     
     setToastMessage('Feedback submitted successfully');
     setShowToast(true);
