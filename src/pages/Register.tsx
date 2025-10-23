@@ -1,4 +1,4 @@
-// src/pages/Register.tsx - WITH SKELETON LOADING
+// src/pages/Register.tsx - WITH SKELETON LOADING & is_authenticated COLUMN
 import React, { useState, useEffect } from 'react';
 import {
     IonButton,
@@ -350,15 +350,53 @@ const Register: React.FC = () => {
         setIsRegistering(true);
 
         try {
-            const { data, error } = await supabase.auth.signUp({ email, password });
+            // First, check if username already exists
+            const { data: existingUser, error: checkError } = await supabase
+                .from("users")
+                .select("username")
+                .eq("username", username)
+                .single();
 
-            if (error) {
-                throw new Error("Account creation failed: " + error.message);
+            if (existingUser && !checkError) {
+                throw new Error("Username already exists. Please choose a different username.");
+            }
+
+            // Check if email already exists
+            const { data: existingEmail, error: emailCheckError } = await supabase
+                .from("users")
+                .select("user_email")
+                .eq("user_email", email)
+                .single();
+
+            if (existingEmail && !emailCheckError) {
+                throw new Error("Email already registered. Please use a different email or sign in.");
+            }
+
+            // Create Supabase Auth user
+            const { data: authData, error: authError } = await supabase.auth.signUp({ 
+                email, 
+                password,
+                options: {
+                    data: {
+                        username: username,
+                        first_name: firstName,
+                        last_name: lastName
+                    }
+                }
+            });
+
+            if (authError) {
+                throw new Error("Account creation failed: " + authError.message);
+            }
+
+            if (!authData.user) {
+                throw new Error("No user data returned from authentication.");
             }
 
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
 
+            // Insert into users table with is_authenticated = false initially
             const { error: insertError } = await supabase.from("users").insert([
                 {
                     username,
@@ -368,10 +406,13 @@ const Register: React.FC = () => {
                     user_address: address,
                     user_contact_number: contactNumber,
                     user_password: hashedPassword,
+                    is_authenticated: false, // Set to false initially
+                    auth_uuid: authData.user.id // Link to Supabase Auth user
                 },
             ]);
 
             if (insertError) {
+                console.error('Insert error:', insertError);
                 throw new Error("Failed to save user data: " + insertError.message);
             }
 
@@ -1039,168 +1080,8 @@ const Register: React.FC = () => {
                         </IonCard>
                     </div>
                 </IonModal>
-                <IonModal isOpen={showVerificationModal} onDidDismiss={() => setShowVerificationModal(false)}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: '100%',
-                        background: 'rgba(0,0,0,0.5)'
-                    }}>
-                        <IonCard style={{
-                            width: '90%',
-                            maxWidth: '450px',
-                            borderRadius: '20px',
-                            boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
-                            overflow: 'hidden',
-                            margin: '0'
-                        }}>
-                            <div style={{
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                padding: '30px 24px',
-                                textAlign: 'center'
-                            }}>
-                                <div style={{
-                                    width: '60px',
-                                    height: '60px',
-                                    background: 'rgba(255,255,255,0.2)',
-                                    borderRadius: '50%',
-                                    margin: '0 auto 16px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <IonIcon icon={checkmarkCircleOutline} style={{
-                                        fontSize: '28px',
-                                        color: 'white'
-                                    }} />
-                                </div>
-                                <h2 style={{
-                                    fontSize: '22px',
-                                    fontWeight: 'bold',
-                                    color: 'white',
-                                    margin: '0 0 8px 0'
-                                }}>Confirm Registration</h2>
-                                <p style={{
-                                    fontSize: '14px',
-                                    color: 'rgba(255,255,255,0.9)',
-                                    margin: 0
-                                }}>Please verify your information</p>
-                            </div>
 
-                            <IonCardContent style={{ padding: '32px 24px' }}>
-                                <div style={{ marginBottom: '20px' }}>
-                                    <p style={{
-                                        fontSize: '13px',
-                                        fontWeight: '600',
-                                        color: '#4a5568',
-                                        marginBottom: '4px'
-                                    }}>Full Name</p>
-                                    <p style={{
-                                        fontSize: '16px',
-                                        fontWeight: 'bold',
-                                        color: '#2d3748',
-                                        margin: 0
-                                    }}>{firstName} {lastName}</p>
-                                </div>
-
-                                <div style={{ marginBottom: '20px' }}>
-                                    <p style={{
-                                        fontSize: '13px',
-                                        fontWeight: '600',
-                                        color: '#4a5568',
-                                        marginBottom: '4px'
-                                    }}>Username</p>
-                                    <p style={{
-                                        fontSize: '16px',
-                                        fontWeight: 'bold',
-                                        color: '#2d3748',
-                                        margin: 0
-                                    }}>{username}</p>
-                                </div>
-
-                                <div style={{ marginBottom: '20px' }}>
-                                    <p style={{
-                                        fontSize: '13px',
-                                        fontWeight: '600',
-                                        color: '#4a5568',
-                                        marginBottom: '4px'
-                                    }}>Email Address</p>
-                                    <p style={{
-                                        fontSize: '16px',
-                                        fontWeight: 'bold',
-                                        color: '#2d3748',
-                                        margin: 0
-                                    }}>{email}</p>
-                                </div>
-
-                                <div style={{ marginBottom: '20px' }}>
-                                    <p style={{
-                                        fontSize: '13px',
-                                        fontWeight: '600',
-                                        color: '#4a5568',
-                                        marginBottom: '4px'
-                                    }}>Address</p>
-                                    <p style={{
-                                        fontSize: '16px',
-                                        fontWeight: 'bold',
-                                        color: '#2d3748',
-                                        margin: 0
-                                    }}>{address}</p>
-                                </div>
-
-                                <div style={{ marginBottom: '32px' }}>
-                                    <p style={{
-                                        fontSize: '13px',
-                                        fontWeight: '600',
-                                        color: '#4a5568',
-                                        marginBottom: '4px'
-                                    }}>Contact Number</p>
-                                    <p style={{
-                                        fontSize: '16px',
-                                        fontWeight: 'bold',
-                                        color: '#2d3748',
-                                        margin: 0
-                                    }}>{contactNumber}</p>
-                                </div>
-
-                                <IonButton
-                                    onClick={doRegister}
-                                    expand="block"
-                                    size="large"
-                                    disabled={isRegistering}
-                                    style={{
-                                        '--border-radius': '12px',
-                                        '--padding-top': '16px',
-                                        '--padding-bottom': '16px',
-                                        fontWeight: '600',
-                                        fontSize: '16px',
-                                        height: '52px',
-                                        '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                        '--color': 'white',
-                                        marginBottom: '12px'
-                                    } as any}
-                                >
-                                    {isRegistering ? 'Creating Account...' : 'CONFIRM & CREATE'}
-                                </IonButton>
-
-                                <IonButton
-                                    expand="block"
-                                    fill="clear"
-                                    onClick={() => setShowVerificationModal(false)}
-                                    style={{
-                                        color: '#718096',
-                                        fontWeight: '500'
-                                    }}
-                                >
-                                    Back to Edit
-                                </IonButton>
-                            </IonCardContent>
-                        </IonCard>
-                    </div>
-                </IonModal>
-
-                {/* Success Modal */}
+                {/* Success Modal - UPDATED */}
                 <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
                     <div style={{
                         display: 'flex',
@@ -1239,14 +1120,34 @@ const Register: React.FC = () => {
                                 fontWeight: 'bold',
                                 color: '#065f46',
                                 margin: '0 0 16px 0'
-                            }}>Welcome to iAMUMA ta!</h1>
+                            }}>Check Your Email!</h1>
 
                             <p style={{
                                 fontSize: '16px',
                                 color: '#047857',
                                 lineHeight: '1.6',
-                                margin: '0 0 30px 0'
-                            }}>Your account has been created successfully. Please check your email for verification instructions.</p>
+                                margin: '0 0 20px 0'
+                            }}>
+                                Your account has been created successfully. 
+                                <strong> Please check your email and click the confirmation link</strong> to activate your account.
+                            </p>
+
+                            <div style={{
+                                backgroundColor: '#f0f9ff',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                marginBottom: '20px'
+                            }}>
+                                <p style={{
+                                    fontSize: '14px',
+                                    color: '#1e40af',
+                                    margin: '0',
+                                    fontWeight: '600'
+                                }}>
+                                    📧 Important: Check your spam folder if you don't see the email!
+                                </p>
+                            </div>
 
                             <IonButton
                                 routerLink="/it35-lab2/user-login"
