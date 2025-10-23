@@ -5,7 +5,6 @@ import {
   IonPage,
   IonInput,
   useIonRouter,
-  IonAlert,
   IonToast,
   IonIcon,
   IonCard,
@@ -44,17 +43,7 @@ import {
   isRememberMeEnabled
 } from '../utils/supabaseClient';
 
-const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
-  return (
-    <IonAlert
-      isOpen={isOpen}
-      onDidDismiss={onClose}
-      header="Login Notification"
-      message={message}
-      buttons={['OK']}
-    />
-  );
-};
+// Removed AlertBox - using toast messages instead
 
 interface SavedAccount {
   identifier: string;
@@ -141,9 +130,9 @@ const Login: React.FC = () => {
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [showAlert, setShowAlert] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastColor, setToastColor] = useState<'primary' | 'success' | 'warning' | 'danger'>('primary');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showSavedAccounts, setShowSavedAccounts] = useState(false);
@@ -162,6 +151,13 @@ const Login: React.FC = () => {
   const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
   const [isSendingOTP, setIsSendingOTP] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Helper function for showing toast messages
+  const showCustomToast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') => {
+    setToastMessage(message);
+    setToastColor(color);
+    setShowToast(true);
+  };
 
   // Load saved accounts on component mount
   useEffect(() => {
@@ -567,8 +563,7 @@ const Login: React.FC = () => {
 
       if (error) {
         console.error('OTP send error:', error);
-        setAlertMessage('Failed to send verification code. Please try again.');
-        setShowAlert(true);
+        showCustomToast('Failed to send verification code. Please try again.', 'danger');
         return false;
       }
 
@@ -577,8 +572,7 @@ const Login: React.FC = () => {
       return true;
     } catch (error: any) {
       console.error('Error sending OTP:', error);
-      setAlertMessage('Failed to send verification code. Please try again.');
-      setShowAlert(true);
+      showCustomToast('Failed to send verification code. Please try again.', 'danger');
       return false;
     } finally {
       setIsSendingOTP(false);
@@ -595,8 +589,7 @@ const Login: React.FC = () => {
 
       if (error) {
         console.error('OTP verification error:', error);
-        setAlertMessage('Invalid or expired verification code. Please try again.');
-        setShowAlert(true);
+        showCustomToast('Invalid or expired verification code. Please try again.', 'danger');
         return false;
       }
 
@@ -609,8 +602,7 @@ const Login: React.FC = () => {
       return true;
     } catch (error: any) {
       console.error('OTP verification error:', error);
-      setAlertMessage(error.message || 'OTP verification failed.');
-      setShowAlert(true);
+      showCustomToast(error.message || 'OTP verification failed.', 'danger');
       return false;
     }
   };
@@ -621,9 +613,13 @@ const Login: React.FC = () => {
   };
 
   const handleLogin = async () => {
-    if (!loginIdentifier || !password) {
-      setAlertMessage('Please enter both email/username and password');
-      setShowAlert(true);
+    if (!loginIdentifier) {
+      showCustomToast('Please enter your email or username', 'warning');
+      return;
+    }
+
+    if (!password) {
+      showCustomToast('Please enter your password', 'warning');
       return;
     }
 
@@ -634,14 +630,48 @@ const Login: React.FC = () => {
       if (!loginIdentifier.includes('@')) {
         const { data, error } = await supabase
           .from('users')
-          .select('user_email')
+          .select('user_email, is_authenticated')
           .eq('username', loginIdentifier)
           .single();
 
         if (error || !data) {
-          throw new Error('Invalid username. Please check your credentials.');
+          showCustomToast('Username not found. Please check your credentials or create an account.', 'warning');
+          setIsLoggingIn(false);
+          return;
         }
         userEmail = data.user_email;
+        
+        if (!data.is_authenticated) {
+          showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
+          setIsLoggingIn(false);
+          return;
+        }
+      } else {
+        // Check if email exists in database
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('user_email, is_authenticated')
+          .eq('user_email', loginIdentifier)
+          .maybeSingle();
+
+        if (userError) {
+          console.error('Database error:', userError);
+          showCustomToast('Database error. Please try again.', 'danger');
+          setIsLoggingIn(false);
+          return;
+        }
+
+        if (!userData) {
+          showCustomToast('Email is not registered. Please create an account.', 'warning');
+          setIsLoggingIn(false);
+          return;
+        }
+
+        if (!userData.is_authenticated) {
+          showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
+          setIsLoggingIn(false);
+          return;
+        }
       }
 
       const fingerprint = await generateDeviceFingerprint();
@@ -654,16 +684,20 @@ const Login: React.FC = () => {
 
       if (authError) {
         if (authError.message.includes('Invalid login credentials')) {
-          throw new Error('Invalid email/username or password. Please try again.');
+          showCustomToast('Invalid credentials, please try again', 'danger');
         } else if (authError.message.includes('Email not confirmed')) {
-          throw new Error('Please verify your email address before logging in.');
+          showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
         } else {
-          throw new Error(authError.message);
+          showCustomToast(authError.message || 'Login failed', 'danger');
         }
+        setIsLoggingIn(false);
+        return;
       }
 
       if (!authData.user) {
-        throw new Error('Login failed. No user data returned.');
+        showCustomToast('Login failed. No user data returned.', 'danger');
+        setIsLoggingIn(false);
+        return;
       }
 
       setCurrentUserId(authData.user.id);
@@ -682,8 +716,7 @@ const Login: React.FC = () => {
       await completeLogin(authData.user.id, userEmail, fingerprint);
 
     } catch (error: any) {
-      setAlertMessage(error.message || 'Login failed. Please check your credentials and try again.');
-      setShowAlert(true);
+      showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
       setIsLoggingIn(false);
     }
   };
@@ -704,7 +737,7 @@ const Login: React.FC = () => {
         localStorage.removeItem('rememberMe');
       }
 
-      setShowToast(true);
+      showCustomToast('Welcome back! Redirecting to your dashboard...', 'success');
 
       const clearInputFocus = async () => {
         if (loginIdentifierInputRef.current) {
@@ -733,8 +766,7 @@ const Login: React.FC = () => {
       }, 800);
 
     } catch (error: any) {
-      setAlertMessage('Login completion failed: ' + error.message);
-      setShowAlert(true);
+      showCustomToast('Login completion failed: ' + error.message, 'danger');
     } finally {
       setIsLoggingIn(false);
     }
@@ -742,8 +774,7 @@ const Login: React.FC = () => {
 
   const handleOTPVerification = async () => {
     if (!otpCode || otpCode.length < 6) {
-      setAlertMessage('Please enter a valid 6-digit verification code.');
-      setShowAlert(true);
+      showCustomToast('Please enter a valid 6-digit verification code.', 'warning');
       return;
     }
 
@@ -760,8 +791,7 @@ const Login: React.FC = () => {
       }
     } catch (error: any) {
       console.error('OTP verification error:', error);
-      setAlertMessage('Failed to verify code. Please try again.');
-      setShowAlert(true);
+      showCustomToast('Failed to verify code. Please try again.', 'danger');
     } finally {
       setIsVerifyingOTP(false);
     }
@@ -782,8 +812,7 @@ const Login: React.FC = () => {
   };
 
   const handleForgotPassword = () => {
-    setAlertMessage('Password reset feature is coming soon. Please contact support if you need assistance.');
-    setShowAlert(true);
+    showCustomToast('Password reset feature is coming soon. Please contact support if you need assistance.', 'warning');
   };
 
   const handleAvatarClick = (e: React.MouseEvent) => {
@@ -814,8 +843,7 @@ const Login: React.FC = () => {
       setShowSavedAccounts(false);
     }
 
-    setAlertMessage(`Account "${identifier}" has been removed from saved accounts.`);
-    setShowAlert(true);
+    showCustomToast(`Account "${identifier}" has been removed from saved accounts.`, 'success');
   };
 
   const handleClearAllAccounts = () => {
@@ -825,8 +853,7 @@ const Login: React.FC = () => {
     setPassword('');
     setRememberMe(false);
     setShowSavedAccounts(false);
-    setAlertMessage('All saved accounts have been cleared.');
-    setShowAlert(true);
+    showCustomToast('All saved accounts have been cleared.', 'success');
   };
 
   const handleNewAccountLogin = () => {
@@ -1469,19 +1496,13 @@ const Login: React.FC = () => {
           </IonCard>
         </div>
 
-        <AlertBox
-          message={alertMessage}
-          isOpen={showAlert}
-          onClose={() => setShowAlert(false)}
-        />
-
         <IonToast
           isOpen={showToast}
           onDidDismiss={() => setShowToast(false)}
-          message="Welcome back! Redirecting to your dashboard..."
+          message={toastMessage}
           duration={3000}
           position="top"
-          color="success"
+          color={toastColor}
         />
 
         {/* OTP Verification Modal */}
