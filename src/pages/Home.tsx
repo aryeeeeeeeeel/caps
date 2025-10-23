@@ -17,7 +17,8 @@ import {
   IonAvatar,
   IonPopover,
   IonBadge,
-  IonItem
+  IonItem,
+  IonToast
 } from '@ionic/react';
 import { Route, Redirect, useHistory, useLocation } from 'react-router-dom';
 import {
@@ -49,6 +50,8 @@ const Home: React.FC = () => {
   const [showProfilePopover, setShowProfilePopover] = useState(false);
   const [popoverEvent, setPopoverEvent] = useState<any>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showToast, setShowToast] = useState(false);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
   const [userReports, setUserReports] = useState<any[]>([]);
 
   const tabs = [
@@ -98,7 +101,8 @@ const Home: React.FC = () => {
               schema: 'public',
               table: 'incident_reports',
               filter: `reporter_email=eq.${user.email}`
-            }, () => {
+            }, (payload) => {
+              console.log('Change received!', payload);
               if (user.email) {
                 fetchUserReports(user.email);
                 fetchNotifications(user.email); // Also update notifications when reports change
@@ -160,24 +164,41 @@ const Home: React.FC = () => {
 
   const fetchNotifications = async (email: string) => {
     try {
+      console.log('Fetching notifications...');
       // Fetch from notifications table
-      const { data: notificationsData } = await supabase
+      const { data: notificationsData, error: notificationsError } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_email', email)
         .eq('read', false);
 
+      if (notificationsError) {
+        console.error('Notifications error:', notificationsError);
+      }
+
       // Fetch from incident_reports table
-      const { data: incidentUpdates } = await supabase
+      const { data: incidentUpdates, error: reportsError } = await supabase
         .from('incident_reports')
         .select('id, title, admin_response, updated_at, read')
         .eq('reporter_email', email)
         .not('admin_response', 'is', null)
         .eq('read', false);
 
+      if (reportsError) {
+        console.error('Reports error:', reportsError);
+      }
+
       // Calculate total unread count
       const unreadCount = (notificationsData?.length || 0) + (incidentUpdates?.length || 0);
+      console.log('New unread count:', unreadCount, 'Previous:', prevUnreadCount);
       setUnreadNotifications(unreadCount);
+      
+      // Show toast if new notifications arrive
+      if (unreadCount > prevUnreadCount) {
+        console.log('Showing toast for new notifications');
+        setShowToast(true);
+      }
+      setPrevUnreadCount(unreadCount);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     }
@@ -209,6 +230,14 @@ const Home: React.FC = () => {
 
   return (
     <IonPage>
+      <IonToast
+        isOpen={showToast}
+        onDidDismiss={() => setShowToast(false)}
+        message={unreadNotifications > 0 ? "Your pending report has been updated to active. Check it out for more info!" : "Your report has been resolved. Check it out to review and rate it!"}
+        duration={3000}
+        position="top"
+        color={unreadNotifications > 0 ? 'primary' : 'success'}
+      />
       <IonHeader>
         <IonToolbar style={{
           '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
