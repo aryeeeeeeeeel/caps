@@ -262,38 +262,63 @@ const AdminLogin: React.FC = () => {
   };
 
   const validateCredentials = async (email: string, password: string): Promise<boolean> => {
-    if (!email || !password) {
-      showCustomToast('Please enter both email and password', 'warning');
+  if (!email) {
+    showCustomToast('Please enter your administrative email', 'warning');
+    return false;
+  }
+
+  if (!password) {
+    showCustomToast('Please enter your password', 'warning');
+    return false;
+  }
+
+  try {
+    // First check if email exists in the database
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('user_email, is_authenticated')
+      .eq('user_email', email)
+      .maybeSingle();
+
+    if (userError) {
+      console.error('Database error:', userError);
+      showCustomToast('Database error. Please try again.', 'danger');
       return false;
     }
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    if (!userData) {
+      showCustomToast('Email is not registered. Please contact administrator.', 'warning');
+      return false;
+    }
 
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          showCustomToast('Invalid email or password. Please check your credentials.', 'danger');
-          return false;
-        } else if (error.message.includes('Email not confirmed')) {
-          showCustomToast('Please verify your email address before logging in.', 'warning');
-          return false;
-        } else {
-          showCustomToast(error.message || 'Login failed. Please try again.', 'danger');
-          return false;
-        }
+    if (!userData.is_authenticated) {
+      showCustomToast('Your account is not authenticated. Please contact administrator to verify your account.', 'warning');
+      return false;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        showCustomToast('Invalid credentials, please try again', 'danger');
+      } else if (error.message.includes('Email not confirmed')) {
+        showCustomToast('Your account is not authenticated. Please contact administrator to verify your account.', 'warning');
+      } else {
+        showCustomToast(error.message || 'Login failed', 'danger');
       }
-
-      await supabase.auth.signOut();
-      return true;
-
-    } catch (error: any) {
-      showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
       return false;
     }
-  };
+
+    await supabase.auth.signOut();
+    return true;
+  } catch (error: any) {
+    showCustomToast(error.message || 'Login failed', 'danger');
+    return false;
+  }
+};
 
   const sendOtp = async () => {
     if (!email) {
@@ -450,20 +475,34 @@ const AdminLogin: React.FC = () => {
 };
 
   const handleLogin = async () => {
+  const currentPassword = password; // Store password before validation
+  const isValid = await validateCredentials(email, currentPassword);
+  if (isValid) {
     await sendOtp();
-  };
+  } else {
+    setPassword(currentPassword); // Restore password if validation fails
+  }
+};
 
   const handleEmailKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+  if (e.key === 'Enter') {
+    if (email) {
       passwordInputRef.current?.setFocus();
+    } else {
+      showCustomToast('Please enter your email', 'warning');
     }
-  };
+  }
+};
 
-  const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter') {
+    if (password) {
       handleLogin();
+    } else {
+      showCustomToast('Please enter your password', 'warning');
     }
-  };
+  }
+};
 
   return (
     <IonPage>
@@ -619,7 +658,10 @@ const AdminLogin: React.FC = () => {
                     type="password"
                     placeholder="Enter your secure password"
                     value={password}
-                    onIonChange={e => setPassword(e.detail.value!)}
+                    onIonChange={e => {
+                      setPassword(e.detail.value!);
+                      e.preventDefault(); // Prevent default behavior that might clear the input
+                    }}
                     onKeyPress={handlePasswordKeyPress}
                     style={{
                       '--border-radius': '12px',
