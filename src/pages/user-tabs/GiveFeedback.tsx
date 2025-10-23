@@ -50,7 +50,7 @@ interface FeedbackData {
   categories: string[];
   comments: string;
   would_recommend: boolean | null;
-  contact_method: string;
+
 }
 
 interface UserReport {
@@ -74,7 +74,7 @@ const GiveFeedback: React.FC = () => {
     categories: [],
     comments: '',
     would_recommend: null,
-    contact_method: ''
+  
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -165,7 +165,7 @@ const GiveFeedback: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Insert into feedback table
+      // Insert into feedback table with timestamp
       const { error: feedbackError } = await supabase
         .from('feedback')
         .insert({
@@ -178,7 +178,7 @@ const GiveFeedback: React.FC = () => {
           categories: feedbackData.categories,
           comments: feedbackData.comments,
           would_recommend: feedbackData.would_recommend,
-          contact_method: feedbackData.contact_method
+          created_at: new Date().toISOString()
         });
 
       if (feedbackError) throw feedbackError;
@@ -219,7 +219,6 @@ const GiveFeedback: React.FC = () => {
       categories: [],
       comments: '',
       would_recommend: null,
-      contact_method: ''
     });
   };
 
