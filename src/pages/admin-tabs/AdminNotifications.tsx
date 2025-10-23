@@ -66,12 +66,29 @@ const AdminNotifications: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<AdminNotification | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
 
   useEffect(() => {
     fetchUnreadCount();
     fetchAdminNotifications();
     setupRealtimeSubscription();
   }, []);
+
+  useEffect(() => {
+  if (unreadCount > prevUnreadCount) {
+    // Check last notification type to show appropriate message
+    const lastNotification = notifications[0];
+    if (lastNotification) {
+      setToastMessage(
+        lastNotification.type === 'incident_report' 
+          ? "A new incident report was submitted. Check it out!"
+          : "A new feedback was submitted. Check it out!"
+      );
+      setShowToast(true);
+    }
+  }
+  setPrevUnreadCount(unreadCount);
+}, [unreadCount, notifications]);
 
   // Fetch unread count for badge (same as other admin pages)
   const fetchUnreadCount = async () => {
@@ -80,20 +97,14 @@ const AdminNotifications: React.FC = () => {
       .select('*')
       .eq('read', false);
 
-    const { data: feedbackFromReports } = await supabase
-      .from('incident_reports')
-      .select('*')
-      .not('feedback_comment', 'is', null)
-      .eq('feedback_read', false);
-
     const { data: feedback } = await supabase
       .from('feedback')
       .select('*')
-      .eq('read', false);
+      .eq('read', false)
+      .order('created_at', { ascending: false });
 
     setUnreadCount(
       (reports?.length || 0) +
-      (feedbackFromReports?.length || 0) +
       (feedback?.length || 0)
     );
   };
@@ -110,11 +121,26 @@ const AdminNotifications: React.FC = () => {
         .limit(50);
 
       // Fetch user feedback
+      // Fetch feedback from both feedback table and incident_reports table
       const { data: userFeedback } = await supabase
-        .from('feedback')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      .from('feedback')
+      .select(`
+          id,
+          user_email,
+          created_at,
+          report_id,
+          overall_rating,
+          response_time_rating,
+          communication_rating,
+          resolution_satisfaction,
+          categories,
+          would_recommend,
+          comments,
+          read
+        `)
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+      .limit(50);
 
       // Convert to notification format
       const reportNotifications: AdminNotification[] = (recentReports || []).map(report => ({
@@ -130,40 +156,32 @@ const AdminNotifications: React.FC = () => {
         user_name: report.reporter_name
       }));
 
-      // NEW: Fetch feedback from incident_reports table (feedback_comment field)
-      const feedbackFromReports: AdminNotification[] = (recentReports || [])
-        .filter(report => report.feedback_comment) // Only include reports with feedback
-        .map(report => ({
-          id: `report-feedback-${report.id}`,
-          type: 'feedback',
-          title: `Feedback on: ${report.title}`,
-          message: `Rating: ${report.feedback_rating || 'N/A'}/5 - ${report.feedback_comment?.substring(0, 100) || ''}${report.feedback_comment && report.feedback_comment.length > 100 ? '...' : ''}`,
-          priority: 'medium',
-          created_at: report.updated_at || report.created_at, // Use updated_at when feedback was added
-          read: report.read || false,
-          related_id: report.id,
-          user_email: report.reporter_email,
-          user_name: report.reporter_name
-        }));
-
       const feedbackNotifications: AdminNotification[] = (userFeedback || []).map(feedback => ({
         id: `feedback-${feedback.id}`,
         type: 'feedback',
-        title: `User Feedback: ${feedback.subject}`,
-        message: feedback.message?.substring(0, 100) + (feedback.message && feedback.message.length > 100 ? '...' : '') || 'No message',
+        title: `User Feedback: ${feedback.overall_rating}/5 rating`,
+        message: feedback.comments ||
+          `Overall: ${feedback.overall_rating}/5 | Response Time: ${feedback.response_time_rating || 'N/A'}/5 | Communication: ${feedback.communication_rating || 'N/A'}/5 | Resolution: ${feedback.resolution_satisfaction || 'N/A'}/5`,
         priority: 'medium',
         created_at: feedback.created_at,
         read: feedback.read || false,
         related_id: feedback.id,
-        user_email: feedback.user_email
+        user_email: feedback.user_email,
+        user_name: feedback.user_email.split('@')[0] // Add username derived from email
       }));
 
       // Combine all notifications
       const allNotifications = [
         ...reportNotifications,
-        ...feedbackFromReports, // NEW: Add feedback from incident_reports
-        ...feedbackNotifications
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        ...feedbackNotifications,
+      ].sort((a, b) => {
+        // Sort feedback notifications by their timestamp (newest first)
+        if (a.type === 'feedback' && b.type === 'feedback') {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        // Keep original sorting for other types
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
 
       setNotifications(allNotifications);
     } catch (error) {
@@ -229,7 +247,7 @@ const AdminNotifications: React.FC = () => {
         .update({ read: true })
         .eq('id', notification.related_id);
     } else if (notification.type === 'feedback') {
-      // Handle feedback from incident_reports
+      // Handle feedback from incident_reports table (feedback_comment field)
       if (notification.id.startsWith('report-feedback-')) {
         await supabase
           .from('incident_reports')
@@ -312,7 +330,7 @@ const AdminNotifications: React.FC = () => {
       if (unreadFeedbackFromReports.length > 0) {
         await supabase
           .from('incident_reports')
-          .update({ read: true })
+          .update({ feedback_read: true })
           .in('id', unreadFeedbackFromReports);
       }
 
@@ -339,56 +357,56 @@ const AdminNotifications: React.FC = () => {
 
   // Mark all as unread function
   const markAllAsUnread = async () => {
-    try {
-      // Get all read incident reports and feedback
-      const readReports = notifications
-        .filter(n => n.type === 'incident_report' && n.read)
-        .map(n => n.related_id);
+  try {
+    // Get all read incident reports and feedback
+    const readReports = notifications
+      .filter(n => n.type === 'incident_report' && n.read)
+      .map(n => n.related_id);
 
-      const readFeedbackFromReports = notifications
-        .filter(n => n.type === 'feedback' && n.id.startsWith('report-feedback-') && n.read)
-        .map(n => n.related_id);
+    const readFeedbackFromReports = notifications
+      .filter(n => n.type === 'feedback' && n.id.startsWith('report-feedback-') && n.read)
+      .map(n => n.related_id);
 
-      const readFeedback = notifications
-        .filter(n => n.type === 'feedback' && !n.id.startsWith('report-feedback-') && n.read)
-        .map(n => n.related_id);
+    const readFeedback = notifications
+      .filter(n => n.type === 'feedback' && !n.id.startsWith('report-feedback-') && n.read)
+      .map(n => n.related_id);
 
-      // Update incident reports
-      if (readReports.length > 0) {
-        await supabase
-          .from('incident_reports')
-          .update({ read: false })
-          .in('id', readReports);
-      }
-
-      // Update feedback from incident_reports
-      if (readFeedbackFromReports.length > 0) {
-        await supabase
-          .from('incident_reports')
-          .update({ read: false })
-          .in('id', readFeedbackFromReports);
-      }
-
-      // Update feedback table
-      if (readFeedback.length > 0) {
-        await supabase
-          .from('feedback')
-          .update({ read: false })
-          .in('id', readFeedback);
-      }
-
-      // Update local state
-      setNotifications(notifications.map(n => ({ ...n, read: false })));
-      setUnreadCount(stats.total);
-
-      setToastMessage('All notifications marked as unread');
-      setShowToast(true);
-    } catch (error) {
-      console.error('Error marking all as unread:', error);
-      setToastMessage('Error marking notifications as unread');
-      setShowToast(true);
+    // Update incident reports
+    if (readReports.length > 0) {
+      await supabase
+        .from('incident_reports')
+        .update({ read: false })
+        .in('id', readReports);
     }
-  };
+
+    // Update feedback from incident_reports (feedback_comment field)
+    if (readFeedbackFromReports.length > 0) {
+      await supabase
+        .from('incident_reports')
+        .update({ feedback_read: false })
+        .in('id', readFeedbackFromReports);
+    }
+
+    // Update feedback table
+    if (readFeedback.length > 0) {
+      await supabase
+        .from('feedback')
+        .update({ read: false })
+        .in('id', readFeedback);
+    }
+
+    // Update local state
+    setNotifications(notifications.map(n => ({ ...n, read: false })));
+    setUnreadCount(stats.total);
+
+    setToastMessage('All notifications marked as unread');
+    setShowToast(true);
+  } catch (error) {
+    console.error('Error marking all as unread:', error);
+    setToastMessage('Error marking notifications as unread');
+    setShowToast(true);
+  }
+};
 
   const handleMarkUnread = async (notification: AdminNotification) => {
   try {
@@ -445,39 +463,176 @@ const AdminNotifications: React.FC = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <IonPage>
-        <IonHeader>
-          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
-            <IonTitle style={{ fontWeight: 'bold' }}>
-              <IonSkeletonText animated style={{ width: '250px', height: '20px' }} />
-            </IonTitle>
-            <IonButtons slot="end">
-              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
-              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
-            </IonButtons>
-          </IonToolbar>
-        </IonHeader>
-        <IonContent>
-          <div style={{ padding: '20px' }}>
-            {[1, 2, 3, 4, 5].map(i => (
-              <IonCard key={i}>
-                <IonCardContent>
-                  <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
-                  <IonSkeletonText animated style={{ width: '100%', height: '14px', marginBottom: '8px' }} />
-                  <IonSkeletonText animated style={{ width: '50%', height: '12px' }} />
-                </IonCardContent>
-              </IonCard>
+  // Replace the entire isLoading return section with this fixed version
+if (isLoading) {
+  return (
+    <IonPage>
+      <IonHeader>
+        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+          <IonTitle style={{ fontWeight: 'bold' }}>
+            <IonSkeletonText animated style={{ width: '250px', height: '24px', margin: '0 auto' }} />
+          </IonTitle>
+          <IonButtons slot="end">
+            <IonSkeletonText animated style={{ 
+              width: '32px', 
+              height: '32px', 
+              borderRadius: '50%', 
+              marginRight: '8px' 
+            }} />
+            <IonSkeletonText animated style={{ 
+              width: '32px', 
+              height: '32px', 
+              borderRadius: '50%' 
+            }} />
+          </IonButtons>
+        </IonToolbar>
+        
+        {/* Skeleton for menu bar */}
+        <IonToolbar style={{ '--background': 'white' } as any}>
+          <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} style={{ flex: 1, padding: '8px', display: 'flex', justifyContent: 'center' }}>
+                <IonSkeletonText 
+                  animated 
+                  style={{ 
+                    width: '80%',
+                    height: '20px',
+                  }} 
+                />
+              </div>
             ))}
           </div>
-        </IonContent>
-      </IonPage>
-    );
-  }
+        </IonToolbar>
+      </IonHeader>
+      
+      <IonContent style={{ '--background': '#f8fafc' } as any}>
+        <div style={{ padding: '20px' }}>
+          {/* Skeleton for stats cards - matches the 4-column grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '12px',
+            marginBottom: '20px'
+          }}>
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} style={{
+                background: 'white',
+                borderRadius: '12px',
+                padding: '16px',
+                textAlign: 'center',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <IonSkeletonText animated style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                  <IonSkeletonText animated style={{ width: '40px', height: '12px' }} />
+                </div>
+                <IonSkeletonText animated style={{ width: '60%', height: '28px', margin: '0 auto' }} />
+              </div>
+            ))}
+          </div>
+          
+          {/* Skeleton for search bar card */}
+          <div style={{ borderRadius: '16px', marginBottom: '20px', overflow: 'hidden' }}>
+            <IonSkeletonText 
+              animated 
+              style={{ 
+                width: '100%', 
+                height: '60px'
+              }} 
+            />
+          </div>
+
+          {/* Skeleton for notifications card */}
+          <div style={{ padding: '0 20px 20px 20px' }}>
+            <div style={{ 
+              background: 'white', 
+              borderRadius: '16px',
+              padding: '16px',
+              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+            }}>
+              {/* Card header skeleton */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginBottom: '16px' 
+              }}>
+                <IonSkeletonText animated style={{ width: '180px', height: '18px' }} />
+                <IonSkeletonText animated style={{ width: '120px', height: '32px', borderRadius: '16px' }} />
+              </div>
+              
+              {/* Skeleton for notifications list */}
+              <div style={{ background: 'transparent' }}>
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} style={{ 
+                    background: i % 2 === 0 ? '#f0f9ff' : 'transparent',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginBottom: '12px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      {/* Notification icon skeleton */}
+                      <IonSkeletonText 
+                        animated 
+                        style={{ 
+                          width: '40px', 
+                          height: '40px', 
+                          borderRadius: '12px',
+                          flexShrink: 0
+                        }} 
+                      />
+                      
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Notification header skeleton */}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'flex-start', 
+                          marginBottom: '8px' 
+                        }}>
+                          <IonSkeletonText animated style={{ width: '70%', height: '16px' }} />
+                          <IonSkeletonText animated style={{ width: '40px', height: '20px', borderRadius: '10px' }} />
+                        </div>
+                        
+                        {/* Message skeleton */}
+                        <IonSkeletonText animated style={{ width: '90%', height: '14px', marginBottom: '8px' }} />
+                        <IonSkeletonText animated style={{ width: '80%', height: '14px', marginBottom: '8px' }} />
+                        
+                        {/* Footer skeleton */}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between' 
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <IonSkeletonText animated style={{ width: '60px', height: '24px', borderRadius: '12px' }} />
+                            <IonSkeletonText animated style={{ width: '80px', height: '12px' }} />
+                          </div>
+                          <IonSkeletonText animated style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </IonContent>
+    </IonPage>
+  );
+}
 
   return (
     <IonPage>
+      <IonToast
+        isOpen={showToast}
+        onDidDismiss={() => setShowToast(false)}
+        message={toastMessage}
+        duration={3000}
+        position="top"
+      />
       <IonHeader>
         <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Admin Notifications</IonTitle>
