@@ -22,7 +22,8 @@ import {
   IonBadge,
   useIonRouter,
   IonText,
-  IonSkeletonText
+  IonSkeletonText,
+  IonToast
 } from '@ionic/react';
 import {
   arrowBackOutline,
@@ -111,6 +112,9 @@ const AdminAnalytics: React.FC = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+  const [showNewNotificationToast, setShowNewNotificationToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -120,21 +124,39 @@ const AdminAnalytics: React.FC = () => {
         .eq('read', false);
 
       const { data: feedbackFromReports } = await supabase
-        .from('incident_reports')
+        .from('feedback')
         .select('*')
-        .not('feedback_comment', 'is', null)
-        .eq('feedback_read', false);
+        .eq('read', false);
 
       const { data: feedback } = await supabase
         .from('feedback')
         .select('*')
         .eq('read', false);
 
-      setUnreadCount(
-        (reports?.length || 0) +
+      const newCount = (reports?.length || 0) +
         (feedbackFromReports?.length || 0) +
-        (feedback?.length || 0)
-      );
+        (feedback?.length || 0);
+
+      // Combine all notifications to find last one
+      const allNotifications = [
+        ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
+        ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
+        ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const lastNotification = allNotifications[0];
+
+      // Show toast when unread count increases
+      if (newCount > prevUnreadCount && prevUnreadCount > 0 && lastNotification) {
+        setToastMessage(
+          lastNotification.type === 'incident_report'
+            ? "A new incident report was submitted. Check it out!"
+            : "A new feedback was submitted. Check it out!"
+        );
+        setShowNewNotificationToast(true);
+      }
+      setPrevUnreadCount(newCount);
+      setUnreadCount(newCount);
     };
 
     fetchUnreadCount();
@@ -153,7 +175,22 @@ const AdminAnalytics: React.FC = () => {
       reportsChannel.unsubscribe();
       feedbackChannel.unsubscribe();
     };
+  }, [prevUnreadCount]); // Added dependency
+
+  useEffect(() => {
+    const checkDevice = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      setIsMobileDevice(isMobile);
+    };
+
+    checkDevice();
+    setIsInitialLoading(false);
   }, []);
+
+  useEffect(() => {
+    setDefaultDates();
+  }, [reportPeriod]);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -732,6 +769,13 @@ ${Object.entries(reportData.byCategory)
               </IonCardContent>
             </IonCard>
           )}
+        <IonToast
+          isOpen={showNewNotificationToast}
+          onDidDismiss={() => setShowNewNotificationToast(false)}
+          message={toastMessage}
+          duration={3000}
+          position="top"
+        />
         </div>
       </IonContent>
     </IonPage>
@@ -739,3 +783,7 @@ ${Object.entries(reportData.byCategory)
 };
 
 export default AdminAnalytics;
+
+function setShowToast(arg0: boolean) {
+  throw new Error('Function not implemented.');
+}
