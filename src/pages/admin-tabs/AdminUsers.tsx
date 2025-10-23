@@ -1,6 +1,6 @@
 // src/pages/admin-tabs/AdminUsers.tsx - Updated with proper status logic
 import React, { useState, useEffect } from 'react';
-import { desktopOutline } from 'ionicons/icons';
+import { desktopOutline, notifications } from 'ionicons/icons';
 import {
   IonPage,
   IonHeader,
@@ -90,6 +90,8 @@ const AdminUsers: React.FC = () => {
   const [sortAlphabetical, setSortAlphabetical] = useState(true);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+  const [showNewNotificationToast, setShowNewNotificationToast] = useState(false);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -99,21 +101,39 @@ const AdminUsers: React.FC = () => {
         .eq('read', false);
 
       const { data: feedbackFromReports } = await supabase
-        .from('incident_reports')
+        .from('feedback')
         .select('*')
-        .not('feedback_comment', 'is', null)
-        .eq('feedback_read', false);
+        .eq('read', false);
 
       const { data: feedback } = await supabase
         .from('feedback')
         .select('*')
         .eq('read', false);
 
-      setUnreadCount(
-        (reports?.length || 0) +
+      const newCount = (reports?.length || 0) +
         (feedbackFromReports?.length || 0) +
-        (feedback?.length || 0)
-      );
+        (feedback?.length || 0);
+
+      // Combine all notifications to find last one
+      const allNotifications = [
+        ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
+        ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
+        ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const lastNotification = allNotifications[0];
+
+      // Show toast when unread count increases
+      if (newCount > prevUnreadCount && prevUnreadCount > 0 && lastNotification) {
+        setToastMessage(
+          lastNotification.type === 'incident_report'
+            ? "A new incident report was submitted. Check it out!"
+            : "A new feedback was submitted. Check it out!"
+        );
+        setShowToast(true);
+      }
+      setPrevUnreadCount(newCount);
+      setUnreadCount(newCount);
     };
 
     fetchUnreadCount();
@@ -132,7 +152,7 @@ const AdminUsers: React.FC = () => {
       reportsChannel.unsubscribe();
       feedbackChannel.unsubscribe();
     };
-  }, []);
+  }, [prevUnreadCount]); // Added dependency
 
   useEffect(() => {
     const checkDevice = () => {
@@ -142,6 +162,15 @@ const AdminUsers: React.FC = () => {
     };
     checkDevice();
   }, []);
+
+  useEffect(() => {
+    fetchUsers();
+    setupRealtimeSubscription();
+  }, []);
+
+  useEffect(() => {
+    filterAndSortUsers();
+  }, [users, searchText, statusFilter, activityFilter, sortAlphabetical]);
 
   useEffect(() => {
     fetchUsers();
@@ -484,8 +513,8 @@ const AdminUsers: React.FC = () => {
               </div>
 
               <IonList style={{ background: 'transparent' }}>
-                {filteredUsers.map(user => (
-                  <IonItem key={user.id} style={{ '--background': 'white', '--border-radius': '8px', marginBottom: '12px' } as any}>
+                {filteredUsers.map((user, index) => (
+                  <IonItem key={user.id || `user-${index}`} style={{ '--background': 'white', '--border-radius': '8px', marginBottom: '12px' } as any}>
                     <div style={{ width: '100%', padding: '16px 0' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <div style={{ flex: 1 }}>
@@ -558,6 +587,13 @@ const AdminUsers: React.FC = () => {
 
         <IonAlert isOpen={showActionAlert} onDidDismiss={() => setShowActionAlert(false)} header={'User Action'} message={`Are you sure you want to ${userAction} ${selectedUser?.user_firstname} ${selectedUser?.user_lastname}?`} buttons={[{ text: 'Cancel', role: 'cancel' }, { text: 'Confirm', role: 'confirm', handler: () => handleUserAction(userAction) }]} />
         <IonToast isOpen={showToast} onDidDismiss={() => setShowToast(false)} message={toastMessage} duration={3000} position="top" />
+        <IonToast
+          isOpen={showNewNotificationToast}
+          onDidDismiss={() => setShowNewNotificationToast(false)}
+          message="There's new notification/s! Check it out!"
+          duration={3000}
+          position="top"
+        />
       </IonContent>
     </IonPage>
   );
