@@ -136,6 +136,8 @@ const AdminIncidents: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+  const [showNewNotificationToast, setShowNewNotificationToast] = useState(false);
   const [resolvedPhoto, setResolvedPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -147,21 +149,39 @@ const AdminIncidents: React.FC = () => {
         .eq('read', false);
 
       const { data: feedbackFromReports } = await supabase
-        .from('incident_reports')
+        .from('feedback')
         .select('*')
-        .not('feedback_comment', 'is', null)
-        .eq('feedback_read', false);
+        .eq('read', false);
 
       const { data: feedback } = await supabase
         .from('feedback')
         .select('*')
         .eq('read', false);
 
-      setUnreadCount(
-        (reports?.length || 0) +
+      const newCount = (reports?.length || 0) +
         (feedbackFromReports?.length || 0) +
-        (feedback?.length || 0)
-      );
+        (feedback?.length || 0);
+      
+      // Combine all notifications to find last one
+      const allNotifications = [
+        ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
+        ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
+        ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const lastNotification = allNotifications[0];
+      
+      // Show toast when unread count increases
+      if (newCount > prevUnreadCount && prevUnreadCount > 0 && lastNotification) {
+        setToastMessage(
+          lastNotification.type === 'incident_report'
+            ? "A new incident report was submitted. Check it out!"
+            : "A new feedback was submitted. Check it out!"
+        );
+        setShowNewNotificationToast(true);
+      }
+      setPrevUnreadCount(newCount);
+      setUnreadCount(newCount);
     };
 
     fetchUnreadCount();
@@ -180,7 +200,7 @@ const AdminIncidents: React.FC = () => {
       reportsChannel.unsubscribe();
       feedbackChannel.unsubscribe();
     };
-  }, []);
+  }, [prevUnreadCount]); // Added dependency
 
   useEffect(() => {
     const checkDevice = () => {
@@ -190,6 +210,11 @@ const AdminIncidents: React.FC = () => {
     };
 
     checkDevice();
+  }, []);
+
+  useEffect(() => {
+    fetchReports();
+    setupRealtimeSubscription();
   }, []);
 
   useEffect(() => {
@@ -587,19 +612,26 @@ const AdminIncidents: React.FC = () => {
             >
               <IonIcon icon={notificationsOutline} />
               {unreadCount > 0 && (
-                <IonBadge
-                  color="danger"
-                  style={{
-                    position: 'absolute',
-                    top: '0px',
-                    right: '0px',
-                    fontSize: '10px',
-                    transform: 'translate(25%, -25%)'
-                  }}
-                >
-                  {unreadCount}
-                </IonBadge>
-              )}
+            <IonBadge
+              color="danger"
+              style={{
+                position: 'absolute',
+                top: '0px',
+                right: '0px',
+                fontSize: '10px',
+                transform: 'translate(25%, -25%)'
+              }}
+            >
+              {unreadCount}
+            </IonBadge>
+          )}
+          <IonToast
+            isOpen={showNewNotificationToast}
+            onDidDismiss={() => setShowNewNotificationToast(false)}
+            message={toastMessage}
+            duration={3000}
+            position="top"
+          />
             </IonButton>
             <IonButton
               fill="clear"
