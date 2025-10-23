@@ -359,7 +359,8 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
     }
   };
 
-  const getNotificationColor = (type: string) => {
+  const getNotificationColor = (type: string, read: boolean) => {
+    if (read) return '#10b981'; // Resolved/read color
     switch (type) {
       case 'success': return '#10b981';
       case 'warning': return '#f59e0b';
@@ -580,7 +581,7 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
                           position: 'relative',
                           width: '40px',
                           height: '40px',
-                          background: getNotificationColor(notification.type) + '20',
+                          background: getNotificationColor(notification.type, notification.read) + '20',
                           borderRadius: '12px',
                           display: 'flex',
                           alignItems: 'center',
@@ -591,7 +592,7 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
                             icon={getNotificationIcon(notification.type)}
                             style={{
                               fontSize: '20px',
-                              color: getNotificationColor(notification.type)
+                              color: getNotificationColor(notification.type, notification.read)
                             }}
                           />
 
@@ -659,8 +660,8 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <IonChip
                                 style={{
-                                  '--background': getNotificationColor(notification.type) + '20',
-                                  '--color': getNotificationColor(notification.type),
+                                  '--background': getNotificationColor(notification.type, notification.read) + '20',
+                                  '--color': getNotificationColor(notification.type, notification.read),
                                   height: '24px',
                                   fontSize: '10px',
                                   fontWeight: '600'
