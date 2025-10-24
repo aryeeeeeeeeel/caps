@@ -38,6 +38,8 @@ import AdminNotifications from './pages/admin-tabs/AdminNotifications';
 import AdminAnalytics from './pages/admin-tabs/AdminAnalytics';
 import AdminIncidents from './pages/admin-tabs/AdminIncidents';
 import AdminUsers from './pages/admin-tabs/AdminUsers';
+import SystemLogs from './pages/admin-tabs/SystemLogs';
+import ActivityLogs from './pages/user-tabs/ActivityLogs';
 import Home from './pages/Home';
 
 setupIonicReact();
@@ -63,11 +65,13 @@ const App: React.FC = () => (
         <Route exact path="/it35-lab2/app/history" component={Home} />
         <Route exact path="/it35-lab2/app/notifications" component={Home} />
         <Route exact path="/it35-lab2/app/feedback" component={Home} />
+        <Route exact path="/it35-lab2/app/activity-logs" component={ActivityLogs} />
         <Route exact path="/it35-lab2/app/profile" component={Profile} />
         <Route exact path="/it35-lab2/app/reports/:id" component={Home} />
 
         {/* Admin Dashboard Routes */}
         <Route exact path="/it35-lab2/admin-dashboard" component={AdminDashboard} />
+        <Route exact path="/it35-lab2/admin/system-logs" component={SystemLogs} />
         <Route exact path="/it35-lab2/admin/notifications" component={AdminNotifications} />
         <Route exact path="/it35-lab2/admin/analytics" component={AdminAnalytics} />
         <Route exact path="/it35-lab2/admin/incidents" component={AdminIncidents} />
