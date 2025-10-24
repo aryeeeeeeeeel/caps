@@ -24,6 +24,7 @@ import {
     IonSkeletonText
 } from '@ionic/react';
 import { supabase } from '../utils/supabaseClient';
+import { logUserRegistration } from '../utils/activityLogger';
 import bcrypt from 'bcryptjs';
 import { personAddOutline, mailOutline, lockClosedOutline, personOutline, checkmarkCircleOutline, arrowBackOutline, schoolOutline, callOutline, locationOutline } from 'ionicons/icons';
 
@@ -415,6 +416,9 @@ const Register: React.FC = () => {
                 console.error('Insert error:', insertError);
                 throw new Error("Failed to save user data: " + insertError.message);
             }
+
+            // Log user registration activity
+            await logUserRegistration(email, firstName, lastName);
 
             setShowSuccessModal(true);
         } catch (err) {
