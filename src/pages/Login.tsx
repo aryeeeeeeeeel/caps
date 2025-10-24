@@ -42,6 +42,7 @@ import {
   supabase,
   isRememberMeEnabled
 } from '../utils/supabaseClient';
+import { logUserLogin } from '../utils/activityLogger';
 
 // Removed AlertBox - using toast messages instead
 
@@ -738,6 +739,9 @@ const Login: React.FC = () => {
       }
 
       showCustomToast('Welcome back! Redirecting to your dashboard...', 'success');
+
+      // Log user login activity
+      await logUserLogin(userEmail);
 
       const clearInputFocus = async () => {
         if (loginIdentifierInputRef.current) {
