@@ -36,6 +36,7 @@ import {
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '../../utils/supabaseClient';
+import { logUserReportSubmission } from '../../utils/activityLogger';
 import { Capacitor } from '@capacitor/core';
 import ExifReader from 'exifreader';
 
@@ -1295,6 +1296,9 @@ const IncidentReport: React.FC = () => {
       setImagePreview([]);
       setExtractedExifData(null);
       setExtractionLoading(false);
+
+      // Log user report submission activity
+      await logUserReportSubmission(insertData.id, String(formData.title || 'Incident Report'), userProfile?.user_email);
 
       setShowSuccessModal(true);
 
