@@ -30,9 +30,11 @@ import {
   addCircleOutline,
   listOutline,
   mapOutline,
-  addSharp
+  addSharp,
+  documentTextOutline
 } from 'ionicons/icons';
 import { supabase } from '../utils/supabaseClient';
+import { logUserLogout } from '../utils/activityLogger';
 
 // Import all page components
 import Dashboard from './user-tabs/Dashboard';
@@ -41,6 +43,7 @@ import IncidentMap from './user-tabs/IncidentMap';
 import History from './user-tabs/History';
 import Notifications from './Notifications';
 import GiveFeedback from './user-tabs/GiveFeedback';
+import ActivityLogs from './user-tabs/ActivityLogs';
 
 const Home: React.FC = () => {
   const history = useHistory();
@@ -211,6 +214,8 @@ const Home: React.FC = () => {
   };
 
   const handleSignOut = async () => {
+    // Log user logout activity before signing out
+    await logUserLogout(user?.email);
     await supabase.auth.signOut();
     setShowProfilePopover(false);
     history.push('/it35-lab2');
@@ -399,6 +404,18 @@ const Home: React.FC = () => {
 
                   <IonItem
                     button
+                    onClick={() => handlePopoverNavigation('/it35-lab2/app/activity-logs')}
+                    style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
+                  >
+                    <IonIcon icon={documentTextOutline} slot="start" color="primary" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Activity Logs</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>View your account activities</p>
+                    </IonLabel>
+                  </IonItem>
+
+                  <IonItem
+                    button
                     onClick={handleSignOut}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
@@ -424,6 +441,7 @@ const Home: React.FC = () => {
             <Route exact path="/it35-lab2/app/history" component={History} />
             <Route exact path="/it35-lab2/app/notifications" render={() => <Notifications refreshCount={refreshNotificationCount} />} />
             <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
+            <Route exact path="/it35-lab2/app/activity-logs" component={ActivityLogs} />
 
             <Route exact path="/it35-lab2/app">
               <Redirect to="/it35-lab2/app/dashboard" />
