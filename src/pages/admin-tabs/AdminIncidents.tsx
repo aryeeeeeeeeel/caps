@@ -501,7 +501,7 @@ const AdminIncidents: React.FC = () => {
     return (
       <IonPage>
         <IonHeader>
-          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+          <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
             <IonTitle style={{ fontWeight: 'bold' }}>
               <IonSkeletonText animated style={{ width: '200px', height: '20px' }} />
             </IonTitle>
@@ -522,7 +522,7 @@ const AdminIncidents: React.FC = () => {
           </IonToolbar>
         </IonHeader>
 
-        <IonContent style={{ '--background': '#f8fafc' } as any}>
+        <IonContent style={{ '--background': 'var(--bg-secondary)' } as any}>
           <div style={{ padding: '20px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
               <SkeletonStatsCard />
@@ -602,7 +602,7 @@ const AdminIncidents: React.FC = () => {
   return (
     <IonPage>
       <IonHeader>
-        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+        <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Admin Dashboard</IonTitle>
           <IonButtons slot="end">
             <IonButton
@@ -652,7 +652,8 @@ const AdminIncidents: React.FC = () => {
               { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
               { id: 'incidents', label: 'Incidents', icon: alertCircleOutline },
               { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
-              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/it35-lab2/admin/analytics' }
+              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/it35-lab2/admin/analytics' },
+              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
             ].map(menu => (
               <IonButton
                 key={menu.id}
@@ -679,21 +680,21 @@ const AdminIncidents: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      <IonContent style={{ '--background': '#f8fafc' } as any}>
+      <IonContent style={{ '--background': 'var(--bg-secondary)' } as any}>
         <div style={{ padding: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
-              { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, status: 'all' },
-              { label: 'Pending', value: stats.pending, color: '#f59e0b', icon: timeOutline, status: 'pending' },
-              { label: 'Active', value: stats.active, color: '#3b82f6', icon: alertCircleOutline, status: 'active' },
-              { label: 'Resolved', value: stats.resolved, color: '#10b981', icon: checkmarkCircleOutline, status: 'resolved' }
+              { label: 'Total', value: stats.total, color: 'var(--text-secondary)', icon: documentTextOutline, status: 'all' },
+              { label: 'Pending', value: stats.pending, color: 'var(--warning-color)', icon: timeOutline, status: 'pending' },
+              { label: 'Active', value: stats.active, color: 'var(--primary-color)', icon: alertCircleOutline, status: 'active' },
+              { label: 'Resolved', value: stats.resolved, color: 'var(--success-color)', icon: checkmarkCircleOutline, status: 'resolved' }
             ].map((stat, idx) => (
               <div
                 key={idx}
                 onClick={() => handleStatusFilterClick(stat.status as any)}
                 style={{
-                  background: statusFilter === stat.status ? stat.color + '20' : 'white',
-                  border: `1px solid ${statusFilter === stat.status ? stat.color : '#e5e7eb'}`,
+                  background: statusFilter === stat.status ? stat.color + '20' : 'var(--bg-primary)',
+                  border: `1px solid ${statusFilter === stat.status ? stat.color : 'var(--border-color)'}`,
                   borderRadius: '12px',
                   padding: '16px',
                   textAlign: 'center',
@@ -703,7 +704,7 @@ const AdminIncidents: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
                   <IonIcon icon={stat.icon} style={{ color: stat.color, fontSize: '20px' }} />
-                  <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>{stat.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{stat.label}</div>
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
               </div>
@@ -1351,20 +1352,20 @@ const AdminIncidents: React.FC = () => {
 
 const getStatusColor = (status: string): string => {
   switch (status) {
-    case 'pending': return '#f59e0b';
-    case 'active': return '#3b82f6';
-    case 'resolved': return '#10b981';
-    default: return '#6b7280';
+    case 'pending': return 'var(--warning-color)';
+    case 'active': return 'var(--primary-color)';
+    case 'resolved': return 'var(--success-color)';
+    default: return 'var(--text-secondary)';
   }
 };
 
 const getPriorityColor = (priority: string): string => {
   switch (priority) {
-    case 'low': return '#10b981';
-    case 'medium': return '#f59e0b';
-    case 'high': return '#f97316';
-    case 'critical': return '#dc2626';
-    default: return '#6b7280';
+    case 'low': return 'var(--success-color)';
+    case 'medium': return 'var(--warning-color)';
+    case 'high': return 'var(--warning-dark)';
+    case 'critical': return 'var(--danger-color)';
+    default: return 'var(--text-secondary)';
   }
 };
 
