@@ -241,7 +241,7 @@ const Dashboard: React.FC = () => {
 
       // Process user's reports only
       const pending = userReports?.filter(r => r.status === 'pending').length || 0;
-      const active = userReports?.filter(r => r.status === 'investigating').length || 0;
+      const active = userReports?.filter(r => r.status === 'active').length || 0;
       const resolved = userReports?.filter(r => r.status === 'resolved').length || 0;
 
       setStats({
@@ -562,7 +562,7 @@ const Dashboard: React.FC = () => {
                   <div>
                     <p style={{ fontSize: '14px', margin: 0, opacity: 0.8 }}>Welcome back</p>
                     <p style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
-                      {userProfile.user_firstname} {userProfile.user_lastname}
+                      {userProfile.username || 'User'}
                     </p>
                   </div>
                   <IonIcon icon={homeOutline} style={{ fontSize: '24px', opacity: 0.8 }} />
