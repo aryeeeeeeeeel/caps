@@ -26,6 +26,7 @@ import {
     IonSkeletonText
 } from '@ionic/react';
 import { supabase } from '../utils/supabaseClient';
+import { logUserProfileUpdate } from '../utils/activityLogger';
 import { useHistory } from 'react-router-dom';
 import { personOutline, mailOutline, locationOutline, callOutline, cameraOutline, checkmarkCircleOutline, arrowBackOutline, keyOutline } from 'ionicons/icons';
 
@@ -405,6 +406,18 @@ const Profile: React.FC = () => {
             setPendingAvatarUrl('');
             setOtp('');
             setIsOtpSent(false);
+
+            // Log user profile update activity
+            const updatedFields = [];
+            if (firstName !== profile?.user_firstname) updatedFields.push('first_name');
+            if (lastName !== profile?.user_lastname) updatedFields.push('last_name');
+            if (username !== profile?.username) updatedFields.push('username');
+            if (email !== profile?.user_email) updatedFields.push('email');
+            if (address !== profile?.user_address) updatedFields.push('address');
+            if (contactNumber !== profile?.user_contact_number) updatedFields.push('contact_number');
+            if (isAvatarChanged) updatedFields.push('avatar');
+            
+            await logUserProfileUpdate(updatedFields, user.email);
 
             setShowOtpModal(false);
             setShowSuccessModal(true);
