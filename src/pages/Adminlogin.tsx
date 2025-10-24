@@ -20,6 +20,7 @@ import {
 import { shield, lockClosedOutline, mailOutline, keyOutline, checkmarkCircleOutline, arrowBackOutline, desktopOutline } from 'ionicons/icons';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { logAdminLogin } from '../utils/activityLogger';
 
 const AdminLogin: React.FC = () => {
   const [isMobileDevice, setIsMobileDevice] = useState<boolean | null>(null);
@@ -423,6 +424,9 @@ const AdminLogin: React.FC = () => {
       }
 
       showCustomToast('Login successful! Redirecting to dashboard...', 'success');
+      
+      // Log admin login activity
+      await logAdminLogin(email);
       
       // Set success flag BEFORE closing modal to prevent cancelled toast
       setVerificationSuccess(true);
