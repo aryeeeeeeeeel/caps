@@ -1318,33 +1318,7 @@ const AdminIncidents: React.FC = () => {
                     />
                   </IonItem>
 
-                  <IonItem>
-                    <IonLabel position="stacked" color="primary">
-                      Estimated Resolution Time (Optional)
-                    </IonLabel>
-                    <IonDatetime
-                      value={estimatedTime}
-                      onIonChange={e => setEstimatedTime(e.detail.value as string)}
-                      presentation="date-time"
-                      min={new Date().toISOString()}
-                      preferred-columns="date-time"
-                    />
-                  </IonItem>
 
-                  {estimatedTime && (
-                    <div style={{
-                      background: '#f0f9ff',
-                      border: '1px solid #bae6fd',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      marginTop: '12px',
-                      fontSize: '14px',
-                      color: '#0369a1'
-                    }}>
-                      <strong>User will be notified about resolution by:</strong><br />
-                      {new Date(estimatedTime).toLocaleString()}
-                    </div>
-                  )}
                 </IonCardContent>
               </IonCard>
 
