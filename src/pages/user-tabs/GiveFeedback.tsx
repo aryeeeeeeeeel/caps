@@ -40,6 +40,7 @@ import {
   closeOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
+import { logUserFeedbackSubmission } from '../../utils/activityLogger';
 
 interface FeedbackData {
   report_id: string;
@@ -194,6 +195,9 @@ const GiveFeedback: React.FC = () => {
         .eq('id', selectedReport);
 
       if (reportError) throw reportError;
+
+      // Log user feedback submission activity
+      await logUserFeedbackSubmission(selectedReport, feedbackData.overall_rating, user.email);
 
       setShowSuccessModal(true);
       resetForm();
