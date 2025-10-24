@@ -38,6 +38,7 @@ import {
   timeOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
+import { logUserWarning, logUserSuspension, logUserBan, logUserActivation } from '../../utils/activityLogger';
 
 interface User {
   id: string;
@@ -293,6 +294,25 @@ const AdminUsers: React.FC = () => {
 
       if (error) throw error;
 
+      // Log the user action
+      const { data: { user } } = await supabase.auth.getUser();
+      const adminEmail = user?.email;
+
+      switch (action) {
+        case 'warn':
+          await logUserWarning(selectedUser.user_email, 'Admin warning', adminEmail);
+          break;
+        case 'suspend':
+          await logUserSuspension(selectedUser.user_email, 'Admin suspension', adminEmail);
+          break;
+        case 'ban':
+          await logUserBan(selectedUser.user_email, 'Admin ban', adminEmail);
+          break;
+        case 'activate':
+          await logUserActivation(selectedUser.user_email, adminEmail);
+          break;
+      }
+
       const actionMessage = action === 'warn' && updates.warnings >= 3 ? 'User warned and auto-suspended (3 warnings)' : `User ${action}ed successfully`;
       setToastMessage(actionMessage);
       setShowToast(true);
@@ -506,10 +526,6 @@ const AdminUsers: React.FC = () => {
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
                   {statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Users ({filteredUsers.length})
                 </h3>
-                <IonChip color={sortAlphabetical ? 'primary' : 'medium'}>
-                  <IonIcon icon={filterOutline} style={{ marginRight: '4px' }} />
-                  A-Z
-                </IonChip>
               </div>
 
               <IonList style={{ background: 'transparent' }}>
