@@ -1,2 +1,167 @@
 /* For information on how to create your own theme, please see:
 http://ionicframework.com/docs/theming/ */
+
+/* Custom color scheme that remains consistent in both light and dark modes */
+:root {
+  /* Primary colors - consistent across themes */
+  --primary-color: #3b82f6;
+  --primary-light: #60a5fa;
+  --primary-dark: #1d4ed8;
+  
+  /* Secondary colors */
+  --secondary-color: #8b5cf6;
+  --secondary-light: #a78bfa;
+  --secondary-dark: #7c3aed;
+  
+  /* Status colors - consistent across themes */
+  --success-color: #10b981;
+  --success-light: #34d399;
+  --success-dark: #059669;
+  
+  --warning-color: #f59e0b;
+  --warning-light: #fbbf24;
+  --warning-dark: #d97706;
+  
+  --danger-color: #dc2626;
+  --danger-light: #f87171;
+  --danger-dark: #b91c1c;
+  
+  --info-color: #3b82f6;
+  --info-light: #60a5fa;
+  --info-dark: #1d4ed8;
+  
+  /* Neutral colors - consistent across themes */
+  --neutral-50: #f8fafc;
+  --neutral-100: #f1f5f9;
+  --neutral-200: #e2e8f0;
+  --neutral-300: #cbd5e1;
+  --neutral-400: #94a3b8;
+  --neutral-500: #64748b;
+  --neutral-600: #475569;
+  --neutral-700: #334155;
+  --neutral-800: #1e293b;
+  --neutral-900: #0f172a;
+  
+  /* Background colors - consistent across themes */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  
+  /* Text colors - consistent across themes */
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  
+  /* Border colors */
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+  
+  /* Shadow colors */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* Gradient backgrounds */
+  --gradient-primary: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+  --gradient-secondary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  --gradient-danger: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  
+  /* Scroll effects - consistent across themes */
+  --scroll-shade: rgba(0, 0, 0, 0.1);
+  --scroll-edge-fade: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.1) 100%);
+  --scroll-overscroll-glow: rgba(59, 130, 246, 0.3);
+  --scroll-overscroll-glow-hover: rgba(59, 130, 246, 0.5);
+  
+  /* Scrollbar styling */
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  --scrollbar-width: 8px;
+  --scrollbar-border-radius: 4px;
+}
+
+/* Override Ionic's dark mode colors to use our consistent scheme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Keep the same colors in dark mode for consistency */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+    --text-tertiary: #9ca3af;
+    --border-color: #e5e7eb;
+    --border-light: #f3f4f6;
+    
+    /* Keep scroll effects consistent in dark mode */
+    --scroll-shade: rgba(0, 0, 0, 0.1);
+    --scroll-edge-fade: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.1) 100%);
+    --scroll-overscroll-glow: rgba(59, 130, 246, 0.3);
+    --scroll-overscroll-glow-hover: rgba(59, 130, 246, 0.5);
+    --scrollbar-track: #f1f5f9;
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-thumb-hover: #94a3b8;
+  }
+}
+
+/* Global scroll styling to ensure consistent scroll effects */
+* {
+  /* Override system scroll effects */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Webkit scrollbar styling */
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--scrollbar-border-radius);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--scrollbar-border-radius);
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Consistent scroll shade/glow effects */
+.ion-content {
+  /* Override Ionic's default scroll effects */
+  --scroll-shade: var(--scroll-shade);
+  --scroll-edge-fade: var(--scroll-edge-fade);
+  --scroll-overscroll-glow: var(--scroll-overscroll-glow);
+}
+
+/* Ensure scroll effects are consistent on all scrollable elements */
+ion-content,
+.ion-content,
+[scrollable] {
+  /* Override any system-defined scroll effects */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Prevent system from changing scroll effects based on theme */
+@media (prefers-color-scheme: dark) {
+  * {
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+  
+  .ion-content,
+  ion-content,
+  [scrollable] {
+    --scroll-shade: var(--scroll-shade);
+    --scroll-edge-fade: var(--scroll-edge-fade);
+    --scroll-overscroll-glow: var(--scroll-overscroll-glow);
+  }
+}
