@@ -335,7 +335,7 @@ ${Object.entries(reportData.byCategory)
     return (
       <IonPage>
         <IonHeader>
-          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+          <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
             <IonButtons slot="start">
               <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
             </IonButtons>
@@ -436,7 +436,7 @@ ${Object.entries(reportData.byCategory)
   return (
     <IonPage>
       <IonHeader>
-        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+        <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Analytics & Reports</IonTitle>
           <IonButtons slot="end">
             <IonButton
