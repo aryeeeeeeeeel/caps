@@ -1,6 +1,5 @@
 // src/pages/admin-tabs/AdminDashboard.tsx
-import type React from "react"
-import { useState, useEffect, useRef, useMemo } from "react"
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import {
   IonPage,
   IonHeader,
@@ -29,6 +28,8 @@ import {
   IonCol,
   IonSearchbar,
   IonSkeletonText,
+  IonText,
+  IonLabel,
 } from "@ionic/react"
 import {
   logOutOutline,
@@ -56,6 +57,9 @@ import {
   notifications,
 } from "ionicons/icons"
 import { supabase } from "../../utils/supabaseClient"
+import SystemLogs from "./SystemLogs"
+import { logAdminLogout, logReportStatusUpdate, logUserNotification } from "../../utils/activityLogger"
+// Type definitions moved inline since types.ts doesn't exist
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 
@@ -165,70 +169,60 @@ const AdminDashboard: React.FC = () => {
   const [showUserActionModal, setShowUserActionModal] = useState(false)
   const [selectedUserForAction, setSelectedUserForAction] = useState<User | null>(null)
   const [userActionType, setUserActionType] = useState<"warn" | "suspend" | "ban" | "activate">("warn")
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
-  const [sortAlphabetical, setSortAlphabetical] = useState(true)
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [prevUnreadCount, setPrevUnreadCount] = useState<number>(0);
+  const [sortAlphabetical, setSortAlphabetical] = useState<boolean>(true)
+  const [showStatusChangeModal, setShowStatusChangeModal] = useState(false)
+  const [statusChangeType, setStatusChangeType] = useState<"pending-to-active" | "active-to-resolved">("pending-to-active")
+  const [resolvedPhoto, setResolvedPhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
-      const { data: reports } = await supabase
-        .from('incident_reports')
-        .select('*')
-        .eq('read', false);
+      try {
+        const { data: reports } = await supabase
+          .from('incident_reports')
+          .select('*')
+          .eq('read', false);
 
-      const { data: feedbackFromReports } = await supabase
-        .from('feedback')
-        .select('*')
-        .eq('read', false);
+        const { data: feedbackFromReports } = await supabase
+          .from('feedback')
+          .select('*')
+          .eq('read', false);
 
-      const { data: feedback } = await supabase
-        .from('feedback')
-        .select('*')
-        .eq('read', false);
+        const { data: feedback } = await supabase
+          .from('feedback')
+          .select('*')
+          .eq('read', false);
 
-      const newCount = (reports?.length || 0) +
-        (feedbackFromReports?.length || 0) +
-        (feedback?.length || 0);
+        const newCount = (reports?.length || 0) +
+          (feedbackFromReports?.length || 0) +
+          (feedback?.length || 0);
 
-      // Combine all notifications to find last one
-      const allNotifications = [
-        ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
-        ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
-        ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        // Combine all notifications to find last one
+        const allNotifications = [
+          ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
+          ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
+          ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      const lastNotification = allNotifications[0];
-
-      // Show toast when unread count increases
-      if (newCount > prevUnreadCount && prevUnreadCount > 0 && lastNotification) {
-        setToastMessage(
-          lastNotification.type === 'incident_report'
-            ? "A new incident report was submitted. Check it out!"
-            : "A new feedback was submitted. Check it out!"
-        );
+        setUnreadCount(newCount);
+        if (newCount > prevUnreadCount) {
+          setToastMessage(`You have ${newCount} unread notifications`);
+          setShowToast(true);
+        }
+        setPrevUnreadCount(newCount);
+      } catch (error) {
+        console.error('Error fetching unread counts:', error);
+        setToastMessage('Failed to load notifications');
         setShowToast(true);
       }
-      setPrevUnreadCount(newCount);
-      setUnreadCount(newCount);
     };
 
+    const interval = setInterval(fetchUnreadCount, 30000);
     fetchUnreadCount();
-
-    const reportsChannel = supabase
-      .channel('reports_unread_count')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => fetchUnreadCount())
-      .subscribe();
-
-    const feedbackChannel = supabase
-      .channel('feedback_unread_count')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchUnreadCount())
-      .subscribe();
-
-    return () => {
-      reportsChannel.unsubscribe();
-      feedbackChannel.unsubscribe();
-    };
-  }, [prevUnreadCount]); // Added dependency
+    return () => clearInterval(interval);
+  }, [prevUnreadCount]);
 
   useEffect(() => {
     console.log(
@@ -427,6 +421,9 @@ const AdminDashboard: React.FC = () => {
 
       if (error) throw error
       console.log(`✅ Automated notification sent: ${triggerType}`)
+
+      // Log the notification
+      await logUserNotification(userEmail, triggerType, userEmail);
     } catch (error) {
       console.error("Error creating automated notification:", error)
     }
@@ -435,6 +432,10 @@ const AdminDashboard: React.FC = () => {
   // NEW: Update report status with timestamps
   const updateReportStatus = async (reportId: string, newStatus: "pending" | "active" | "resolved") => {
     try {
+      // Get current report to find old status
+      const currentReport = reports.find(r => r.id === reportId);
+      const oldStatus = currentReport?.status || 'unknown';
+
       const updateData: any = { status: newStatus }
 
       if (newStatus === "active") {
@@ -446,6 +447,9 @@ const AdminDashboard: React.FC = () => {
       const { error } = await supabase.from("incident_reports").update(updateData).eq("id", reportId)
 
       if (error) throw error
+
+      // Log the status update
+      await logReportStatusUpdate(reportId, oldStatus, newStatus, userEmail || undefined);
 
       // Update local state
       setReports((prev) => prev.map((report) => (report.id === reportId ? { ...report, ...updateData } : report)))
@@ -1061,30 +1065,86 @@ const AdminDashboard: React.FC = () => {
         const markerIcon = L.divIcon({
           html: `
             <div style="
-              background-color: ${markerColor};
-              width: 24px;
-              height: 24px;
+              width: 28px;
+              height: 36px;
+              position: relative;
+              cursor: pointer;
+            ">
+              <!-- 3D Pin Body -->
+              <div style="
+                width: 20px;
+                height: 20px;
+                background: linear-gradient(135deg, ${markerColor} 0%, ${markerColor}dd 50%, ${markerColor}aa 100%);
               border-radius: 50% 50% 50% 0;
               transform: rotate(-45deg);
               border: 3px solid white;
-              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-              position: relative;
-            ">
+                box-shadow: 
+                  0 4px 12px rgba(0,0,0,0.4),
+                  inset 0 2px 4px rgba(255,255,255,0.3),
+                  inset 0 -2px 4px rgba(0,0,0,0.2);
+                position: absolute;
+                top: 0;
+                left: 4px;
+                z-index: 2;
+              ">
+                <!-- Inner highlight for 3D effect -->
               <div style="
-                transform: rotate(45deg);
-                color: white;
-                font-weight: bold;
-                font-size: 12px;
+                  position: absolute;
+                  top: 2px;
+                  left: 2px;
+                  width: 6px;
+                  height: 6px;
+                  background: rgba(255,255,255,0.4);
+                  border-radius: 50%;
+                  box-shadow: 0 0 2px rgba(255,255,255,0.6);
+                "></div>
+              </div>
+              
+              <!-- 3D Pin Point -->
+              <div style="
+                width: 0;
+                height: 0;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 12px solid ${markerColor};
+                position: absolute;
+                bottom: 0;
+                left: 8px;
+                z-index: 1;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+              "></div>
+              
+              <!-- Pin Shadow -->
+              <div style="
+                width: 20px;
+                height: 20px;
+                background: rgba(0,0,0,0.2);
+                border-radius: 50% 50% 50% 0;
+                transform: rotate(-45deg);
+                position: absolute;
+                top: 2px;
+                left: 6px;
+                z-index: 0;
+                filter: blur(2px);
+              "></div>
+              
+              <!-- Status Icon -->
+              <div style="
                 position: absolute;
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%) rotate(45deg);
+                color: white;
+                font-weight: bold;
+                font-size: 10px;
+                z-index: 3;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.5);
               ">!</div>
             </div>
           `,
-          className: "incident-marker",
-          iconSize: [24, 24],
-          iconAnchor: [12, 24],
+          className: "incident-marker-3d",
+          iconSize: [28, 36],
+          iconAnchor: [14, 36],
         })
 
         try {
@@ -1483,6 +1543,7 @@ const AdminDashboard: React.FC = () => {
       inactiveUsers: users.filter((u) => u.status === 'active' && !(u.has_reports ?? false)).length,
       suspendedUsers: users.filter((u) => u.status === 'suspended').length,
       bannedUsers: users.filter((u) => u.status === 'banned').length,
+      onlineUsers: users.filter((u) => isUserOnline(u)).length,
       totalUsers: users.length,
     }),
     [reports, users],
@@ -1592,6 +1653,165 @@ const AdminDashboard: React.FC = () => {
     }
   }
 
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        setToastMessage('Please upload an image file')
+        setShowToast(true)
+        return
+      }
+
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setToastMessage('Image size must be less than 5MB')
+        setShowToast(true)
+        return
+      }
+
+      setResolvedPhoto(file)
+
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPhotoPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const uploadResolvedPhoto = async (file: File, reportId: string): Promise<string> => {
+    try {
+      const fileName = `resolved-proof-${Date.now()}.png`
+      const filePath = `${reportId}/${fileName}`
+
+      // Upload the file
+      const { data, error } = await supabase.storage
+        .from('resolved-photos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) {
+        if (error.message.includes('Bucket not found')) {
+          console.error('Storage bucket not found. Please create "resolved-photos" bucket in Supabase.')
+          throw new Error('Storage configuration error. Please contact administrator.')
+        }
+        throw error
+      }
+
+      // Get a signed URL for temporary access (if needed for display)
+      const { data: signedUrlData } = await supabase.storage
+        .from('resolved-photos')
+        .createSignedUrl(filePath, 3600) // 1 hour expiry
+
+      return signedUrlData?.signedUrl || data.path
+    } catch (error) {
+      console.error('Error uploading resolved photo:', error)
+      throw new Error('Failed to upload photo')
+    }
+  }
+
+  const handleStatusBadgeClick = (report: IncidentReport, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (report.status === 'pending') {
+      setStatusChangeType('pending-to-active')
+      setSelectedReport(report)
+      setShowStatusChangeModal(true)
+    } else if (report.status === 'active') {
+      setStatusChangeType('active-to-resolved')
+      setSelectedReport(report)
+      setShowStatusChangeModal(true)
+    }
+    // Resolved status is not clickable
+  }
+
+  const handleStatusChange = async () => {
+    if (!selectedReport || !notificationMessage.trim() || !estimatedTime) {
+      setToastMessage('Please fill in all required fields')
+        setShowToast(true)
+      return
+    }
+
+    // Additional validation for resolved status
+    if (statusChangeType === 'active-to-resolved' && !resolvedPhoto) {
+      setToastMessage('Proof of resolution photo is required')
+      setShowToast(true)
+      return
+    }
+
+    try {
+      let newStatus: 'pending' | 'active' | 'resolved' = selectedReport.status
+      let updateData: any = {
+        updated_at: new Date().toISOString()
+      }
+
+      const formattedTime = new Date(estimatedTime).toISOString()
+
+      if (statusChangeType === 'pending-to-active') {
+        newStatus = 'active'
+        updateData.status = 'active'
+        updateData.scheduled_response_time = formattedTime
+        updateData.resolved_at = null
+      } else if (statusChangeType === 'active-to-resolved') {
+        newStatus = 'resolved'
+        updateData.status = 'resolved'
+        updateData.resolved_at = new Date().toISOString()
+
+        // Upload resolved photo
+        if (resolvedPhoto) {
+          const photoUrl = await uploadResolvedPhoto(resolvedPhoto, selectedReport.id)
+          updateData.resolved_photo_url = photoUrl
+        }
+      }
+
+      // Update the incident report
+      const { error: updateError } = await supabase
+        .from('incident_reports')
+        .update(updateData)
+        .eq('id', selectedReport.id)
+
+      if (updateError) throw updateError
+
+      // Send notification
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_email: selectedReport.reporter_email,
+          title: `Status Update: ${selectedReport.title}`,
+          message: `${notificationMessage}\n\n${statusChangeType === 'pending-to-active' ? 'Estimated Response Time' : 'Resolved At'}: ${new Date(estimatedTime).toLocaleString()}`,
+          related_report_id: selectedReport.id,
+          type: 'update'
+        })
+
+      if (notificationError) throw notificationError
+
+      setToastMessage(`Status updated to ${newStatus} successfully`)
+      setShowToast(true)
+
+      // Close the modal and reset state
+      setShowStatusChangeModal(false)
+      setNotificationMessage('')
+      setEstimatedTime('')
+      setResolvedPhoto(null)
+      setPhotoPreview(null)
+      setSelectedReport(null)
+      setStatusChangeType('pending-to-active')
+
+      // Force refresh reports to show updated status
+      await fetchInitialData()
+
+    } catch (error) {
+      console.error('Error updating status:', error)
+      setToastMessage('Error updating status. Please try again.')
+      setShowToast(true)
+      setShowStatusChangeModal(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <IonPage>
@@ -1683,7 +1903,7 @@ const AdminDashboard: React.FC = () => {
                 <IonList style={{ padding: 0 }}>
                   {[1, 2, 3, 4, 5].map((item) => (
                     <IonItem key={item} style={{ "--background": "transparent", "--border-color": "#f3f4f6" } as any}>
-                      <div style={{ width: "100%", padding: "8px 0" }}>
+                      <div style={{ width: "100%", padding: "8px 0", willChange: "transform" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                           <IonSkeletonText animated style={{ width: "60%", height: "14px" }} />
                           <div style={{ display: "flex", gap: "4px" }}>
@@ -1758,7 +1978,7 @@ const AdminDashboard: React.FC = () => {
               <div style={{ padding: "12px", borderBottom: "1px solid #e5e7eb" }}>
                 <IonSkeletonText animated style={{ width: "80px", height: "12px", marginBottom: "8px" }} />
                 <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                  {[1, 2, 3, 4, 5].map((item) => (
+                  {[1, 2, 3, 4, 5, 6].map((item) => (
                     <IonSkeletonText
                       key={item}
                       animated
@@ -1788,18 +2008,217 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </IonContent>
-      </IonPage>
-    )
+        </IonPage>
+      )
   }
 
-  return (
-    <IonPage>
+    return (
+      <IonPage>
+        {/* Status Change Modal */}
+        <IonModal isOpen={showStatusChangeModal} onDidDismiss={() => {
+          setShowStatusChangeModal(false);
+          setNotificationMessage('');
+          setEstimatedTime('');
+          setResolvedPhoto(null);
+          setPhotoPreview(null);
+        }}>
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => {
+                  setShowStatusChangeModal(false);
+                  setNotificationMessage('');
+                  setEstimatedTime('');
+                  setResolvedPhoto(null);
+                  setPhotoPreview(null);
+                }}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Update Status</IonTitle>
+              <IonButtons slot="end">
+              <IonButton 
+                  onClick={handleStatusChange}
+                  strong
+                  disabled={!notificationMessage.trim() || !estimatedTime || (statusChangeType === 'active-to-resolved' && !resolvedPhoto)}
+                  color="primary"
+                >
+                  <IonIcon icon={sendOutline} slot="start" />
+                  Update
+              </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              <IonCard>
+                <IonCardContent>
+                  {/* Status Change Info */}
+                  <div style={{
+                    background: statusChangeType === 'pending-to-active' ? '#eff6ff' : '#ecfdf5',
+                    border: `1px solid ${statusChangeType === 'pending-to-active' ? '#93c5fd' : '#6ee7b7'}`,
+                    borderRadius: '8px',
+                    padding: '16px',
+                    marginBottom: '20px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <strong style={{ color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '16px' }}>
+                        Status Change
+                      </strong>
+                    </div>
+                    <p style={{ margin: 0, color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '14px' }}>
+                      {statusChangeType === 'pending-to-active' ? 'Pending → Active' : 'Active → Resolved'}
+                    </p>
+                  </div>
+
+                  {/* Message Input */}
+                  <IonItem>
+                    <IonLabel position="stacked" color="primary">
+                      Message to User *
+                    </IonLabel>
+                    <IonTextarea
+                      value={notificationMessage}
+                      onIonInput={e => setNotificationMessage(e.detail.value!)}
+                      placeholder={statusChangeType === 'pending-to-active'
+                        ? 'Enter message about response activation...'
+                        : 'Enter message about incident resolution...'}
+                      rows={4}
+                      autoGrow
+                      counter
+                      maxlength={500}
+                    />
+                  </IonItem>
+
+                  {/* Date/Time Input */}
+                  <IonItem>
+                    <IonLabel position="stacked" color="primary">
+                      {statusChangeType === 'pending-to-active'
+                        ? 'Estimated Response Time *'
+                        : 'Resolved Date & Time *'}
+                    </IonLabel>
+                    <IonDatetime
+                      value={estimatedTime}
+                      onIonChange={e => setEstimatedTime(e.detail.value as string)}
+                      presentation="date-time"
+                      min={new Date().toISOString()}
+                    />
+                  </IonItem>
+
+                  {/* Proof of Photo - Only for Active to Resolved */}
+                  {statusChangeType === 'active-to-resolved' && (
+                    <div style={{ marginTop: '16px' }}>
+                      <IonItem>
+                        <IonLabel position="stacked" color="primary">
+                          Proof of Resolution Photo *
+                          <IonText style={{ fontSize: '12px', color: '#6b7280' }}>
+                            {' '}(Required for resolution)
+                          </IonText>
+                        </IonLabel>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handlePhotoUpload}
+                          style={{ marginTop: '8px' }}
+                        />
+                      </IonItem>
+
+                      {photoPreview && (
+                        <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                          <IonText style={{ fontSize: '14px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
+                            Photo Preview:
+                          </IonText>
+                          <IonImg
+                            src={photoPreview}
+                            style={{
+                              maxWidth: '200px',
+                              maxHeight: '200px',
+                              borderRadius: '8px',
+                              margin: '0 auto',
+                              border: '2px solid #e5e7eb'
+                            }}
+                          />
+              <IonButton 
+                            size="small"
+                            color="danger"
+                            fill="clear"
+                            onClick={() => {
+                              setResolvedPhoto(null);
+                              setPhotoPreview(null);
+                            }}
+                            style={{ marginTop: '8px' }}
+                          >
+                            <IonIcon icon={closeOutline} slot="start" />
+                            Remove Photo
+              </IonButton>
+                        </div>
+                      )}
+
+                      {!photoPreview && (
+                        <div style={{
+                          background: '#fef3cd',
+                          border: '1px solid #f59e0b',
+                          borderRadius: '8px',
+                          padding: '12px',
+                          marginTop: '12px',
+                          fontSize: '14px',
+                          color: '#92400e'
+                        }}>
+                          <strong>Photo Requirement:</strong> A photo is required to mark this incident as resolved.
+                          This serves as proof that the issue has been addressed.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {estimatedTime && (
+                    <div style={{
+                      background: '#f0f9ff',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      marginTop: '12px',
+                      fontSize: '14px',
+                      color: '#0369a1'
+                    }}>
+                      <strong>
+                        {statusChangeType === 'pending-to-active'
+                          ? 'Response scheduled for:'
+                          : 'Report will be marked as resolved at:'}
+                      </strong><br />
+                      {new Date(estimatedTime).toLocaleString()}
+                    </div>
+                  )}
+                </IonCardContent>
+              </IonCard>
+
+              {/* Preview */}
+              {selectedReport && (
+                <IonCard style={{ marginTop: '16px' }}>
+                  <IonCardContent>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      <strong>Report:</strong> {selectedReport.title}<br />
+                      <strong>Notifying:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_email})
+                    </div>
+                  </IonCardContent>
+                </IonCard>
+              )}
+            </div>
+          </IonContent>
+        </IonModal>
       <IonHeader>
         <IonToolbar
           style={{ "--background": "linear-gradient(135deg, #1a202c 0%, #2d3748 100%)", "--color": "white" } as any}
         >
           <IonTitle style={{ fontWeight: "bold" }}>iAMUMA ta - Admin Dashboard</IonTitle>
           <IonButtons slot="end">
+            <IonButton
+              fill="clear"
+              onClick={() => navigation.push("/it35-lab2/admin/system-logs", "forward", "push")}
+              style={{ color: 'white' }}
+            >
+              <IonIcon icon={documentTextOutline} />
+            </IonButton>
             <IonButton
               fill="clear"
               onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")}
@@ -1871,10 +2290,11 @@ const AdminDashboard: React.FC = () => {
               width: isIncidentsCollapsed ? "60px" : "360px",
               borderRight: "1px solid #e5e7eb",
               background: "white",
-              transition: "width 0.3s",
+              transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
+              willChange: "width"
             }}
           >
             <div
@@ -2005,6 +2425,7 @@ const AdminDashboard: React.FC = () => {
                             {
                               "--background": selectedReport?.id === report.id ? "#eff6ff" : "transparent",
                               "--border-color": "#f3f4f6",
+                              "--transition": "background 0.2s ease",
                             } as any
                           }
                         >
@@ -2022,11 +2443,14 @@ const AdminDashboard: React.FC = () => {
                               </span>
                               <div style={{ display: "flex", gap: "4px" }}>
                                 <IonBadge
+                                  onClick={(e) => handleStatusBadgeClick(report, e)}
                                   style={
                                     {
                                       fontSize: "10px",
                                       "--background": getStatusColor(report.status),
                                       "--color": "white",
+                                      cursor: report.status !== 'resolved' ? 'pointer' : 'default',
+                                      opacity: report.status !== 'resolved' ? 1 : 0.7
                                     } as any
                                   }
                                 >
@@ -2255,10 +2679,11 @@ const AdminDashboard: React.FC = () => {
               width: isUsersCollapsed ? "60px" : "360px",
               borderLeft: "1px solid #e5e7eb",
               background: "white",
-              transition: "width 0.3s",
+              transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
+              willChange: "width"
             }}
           >
             <div
@@ -2332,6 +2757,7 @@ const AdminDashboard: React.FC = () => {
                       { value: "all", label: "All", count: stats.totalUsers, color: "#6b7280" },
                       { value: "active", label: "Active", count: stats.activeUsers, color: "#10b981" },
                       { value: "inactive", label: "Inactive", count: stats.inactiveUsers, color: "#9ca3af" },
+                      { value: "online", label: "Online", count: stats.onlineUsers, color: "#3b82f6" },
                       { value: "suspended", label: "Suspended", count: stats.suspendedUsers, color: "#f59e0b" },
                       { value: "banned", label: "Banned", count: stats.bannedUsers, color: "#dc2626" },
                     ].map((filter) => (
@@ -2365,7 +2791,7 @@ const AdminDashboard: React.FC = () => {
                       <p>No users found</p>
                     </div>
                   ) : (
-                    <IonList style={{ padding: "8px" }}>
+                    <IonList style={{ padding: "8px", willChange: "contents" }}>
                       {filteredAndSortedUsers.map((user) => (
                         <IonItem
                           key={user.id || `user-${Math.random()}`}
@@ -2418,10 +2844,10 @@ const AdminDashboard: React.FC = () => {
                               Joined: {formatDate(user.date_registered)} • Last Online: {getLastActiveText(user)}
                             </div>
 
-                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
                               <IonButton
                                 size="small"
-                                fill="outline"
+                                fill="solid"
                                 color="warning"
                                 onClick={() => {
                                   setSelectedUserForAction(user);
@@ -2429,14 +2855,14 @@ const AdminDashboard: React.FC = () => {
                                   setShowUserActionModal(true);
                                 }}
                                 disabled={user.status === 'banned'}
-                                style={{ height: "24px", fontSize: "10px" }}
+                                style={{ height: "24px", fontSize: "10px", "--color": "white" } as any}
                               >
-                                <IonIcon icon={warningOutline} slot="start" style={{ fontSize: "10px" }} />
+                                <IonIcon icon={warningOutline} slot="start" style={{ fontSize: "10px", color: "white" }} />
                                 Warn
                               </IonButton>
                               <IonButton
                                 size="small"
-                                fill="outline"
+                                fill="solid"
                                 color="medium"
                                 onClick={() => {
                                   setSelectedUserForAction(user);
@@ -2444,23 +2870,23 @@ const AdminDashboard: React.FC = () => {
                                   setShowUserActionModal(true);
                                 }}
                                 disabled={user.status === 'banned'}
-                                style={{ height: "24px", fontSize: "10px" }}
+                                style={{ height: "24px", fontSize: "10px", "--color": "white" } as any}
                               >
-                                <IonIcon icon={user.status === 'suspended' ? activateOutline : pauseCircleOutline} slot="start" style={{ fontSize: "10px" }} />
+                                <IonIcon icon={user.status === 'suspended' ? activateOutline : pauseCircleOutline} slot="start" style={{ fontSize: "10px", color: "white" }} />
                                 {user.status === 'suspended' ? 'Activate' : 'Suspend'}
                               </IonButton>
                               <IonButton
                                 size="small"
-                                fill="outline"
+                                fill="solid"
                                 color="danger"
                                 onClick={() => {
                                   setSelectedUserForAction(user);
                                   setUserActionType(user.status === 'banned' ? "activate" : "ban");
                                   setShowUserActionModal(true);
                                 }}
-                                style={{ height: "24px", fontSize: "10px" }}
+                                style={{ height: "24px", fontSize: "10px", "--color": "white" } as any}
                               >
-                                <IonIcon icon={banOutline} slot="start" style={{ fontSize: "10px" }} />
+                                <IonIcon icon={banOutline} slot="start" style={{ fontSize: "10px", color: "white" }} />
                                 {user.status === 'banned' ? 'Unban' : 'Ban'}
                               </IonButton>
                             </div>
@@ -2509,7 +2935,14 @@ const AdminDashboard: React.FC = () => {
                     <h2 style={{ marginTop: 0, marginBottom: "16px" }}>{selectedReport.title}</h2>
 
                     <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-                      <IonBadge style={{ "--background": getStatusColor(selectedReport.status) } as any}>
+                      <IonBadge
+                        onClick={(e) => handleStatusBadgeClick(selectedReport, e)}
+                        style={{
+                          "--background": getStatusColor(selectedReport.status),
+                          cursor: selectedReport.status !== 'resolved' ? 'pointer' : 'default',
+                          opacity: selectedReport.status !== 'resolved' ? 1 : 0.7
+                        } as any}
+                      >
                         {selectedReport.status}
                       </IonBadge>
                       <IonBadge style={{ "--background": getPriorityColor(selectedReport.priority) } as any}>
@@ -2937,7 +3370,9 @@ const AdminDashboard: React.FC = () => {
             {
               text: "Logout",
               role: "confirm",
-              handler: () => {
+              handler: async () => {
+                // Log admin logout activity
+                await logAdminLogout(userEmail || undefined);
                 supabase.auth.signOut()
                 navigation.push("/it35-lab2", "root", "replace")
               },
@@ -2955,6 +3390,8 @@ const AdminDashboard: React.FC = () => {
       </IonContent>
     </IonPage>
   )
+
+}
 
   // Helper functions
   function getIncidentStatusColor(status: string): string {
@@ -2974,7 +3411,6 @@ const AdminDashboard: React.FC = () => {
       low: "#84cc16",
     }
     return colors[priority] || "#6b7280"
-  }
 }
 
 export default AdminDashboard
