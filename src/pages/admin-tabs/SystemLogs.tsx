@@ -1,4 +1,4 @@
-// src/pages/admin-tabs/SystemLogs.tsx - Admin System Logs
+// src/pages/admin-tabs/SystemLogs.tsx - Admin System Logs with Header and Navigation
 import React, { useState, useEffect } from 'react';
 import {
   IonPage,
@@ -23,6 +23,7 @@ import {
   IonSearchbar,
   RefresherEventDetail
 } from '@ionic/react';
+import { useHistory, useLocation } from 'react-router-dom';
 import {
   timeOutline,
   logInOutline,
@@ -40,10 +41,14 @@ import {
   documentTextOutline,
   searchOutline,
   banOutline,
-  shieldOutline
+  shieldOutline,
+  statsChartOutline,
+  peopleOutline,
+  homeOutline,
+  addCircleOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
-import { useHistory } from 'react-router-dom';
+import { logAdminLogout } from '../../utils/activityLogger';
 
 interface SystemLog {
   id: string;
@@ -60,16 +65,73 @@ interface SystemLog {
 
 const SystemLogs: React.FC = () => {
   const history = useHistory();
+  const location = useLocation();
+  const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showToast, setShowToast] = useState(false);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [filter, setFilter] = useState<'all' | 'login' | 'logout' | 'notify' | 'update_report' | 'user_action' | 'system'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  const adminMenu = [
+    { id: "dashboard", label: "Dashboard", icon: homeOutline },
+    { id: "incidents", label: "Incidents", icon: addCircleOutline, route: "/it35-lab2/admin/incidents" },
+    { id: "users", label: "Users", icon: peopleOutline, route: "/it35-lab2/admin/users" },
+    { id: "analytics", label: "Analytics", icon: statsChartOutline, route: "/it35-lab2/admin/analytics" },
+    { id: "systemlogs", label: "System Logs", icon: documentTextOutline, route: "/it35-lab2/admin/system-logs" },
+  ];
+
   useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.email) {
+          setUser(user);
+          await fetchNotifications(user.email);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    fetchUser();
     fetchSystemLogs();
   }, []);
+
+  const fetchNotifications = async (email: string) => {
+    try {
+      console.log('Fetching notifications...');
+      // Fetch from notifications table
+      const { data: notificationsData, error: notificationsError } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_email', email)
+        .eq('read', false);
+
+      if (notificationsError) {
+        console.error('Notifications error:', notificationsError);
+      }
+
+      // Calculate total unread count
+      const unreadCount = notificationsData?.length || 0;
+      console.log('New unread count:', unreadCount, 'Previous:', prevUnreadCount);
+      setUnreadNotifications(unreadCount);
+      
+      // Show toast if new notifications arrive
+      if (unreadCount > prevUnreadCount) {
+        console.log('Showing toast for new notifications');
+        setShowToast(true);
+      }
+      setPrevUnreadCount(unreadCount);
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    }
+  };
 
   const fetchSystemLogs = async () => {
     try {
@@ -97,6 +159,13 @@ const SystemLogs: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSignOut = async () => {
+    // Log admin logout activity before signing out
+    await logAdminLogout(user?.email);
+    await supabase.auth.signOut();
+    history.push('/it35-lab2/admin-login');
   };
 
   const handleRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
@@ -175,7 +244,34 @@ const SystemLogs: React.FC = () => {
   if (isLoading) {
     return (
       <IonPage>
-        <IonContent style={{ '--background': '#f8fafc' } as any}>
+        <IonHeader>
+          <IonToolbar
+            style={{ "--background": "linear-gradient(135deg, #1a202c 0%, #2d3748 100%)", "--color": "white" } as any}
+          >
+            <IonTitle style={{ fontWeight: "bold" }}>
+              <IonSkeletonText animated style={{ width: "250px", height: "20px" }} />
+            </IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText
+                animated
+                style={{ width: "32px", height: "32px", borderRadius: "50%", marginRight: "8px" }}
+              />
+              <IonSkeletonText animated style={{ width: "32px", height: "32px", borderRadius: "50%" }} />
+            </IonButtons>
+          </IonToolbar>
+
+          <IonToolbar style={{ "--background": "white" } as any}>
+            <div style={{ display: "flex", gap: "0", borderBottom: "1px solid #e5e7eb" }}>
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} style={{ flex: 1, padding: "12px", textAlign: "center" }}>
+                  <IonSkeletonText animated style={{ width: "80%", height: "16px", margin: "0 auto" }} />
+                </div>
+              ))}
+            </div>
+          </IonToolbar>
+        </IonHeader>
+
+        <IonContent style={{ "--background": "#f8fafc" } as any} fullscreen>
           <div style={{ padding: '20px' }}>
             {/* Header Skeleton */}
             <div style={{
@@ -242,7 +338,81 @@ const SystemLogs: React.FC = () => {
 
   return (
     <IonPage>
-      <IonContent style={{ '--background': '#f8fafc' } as any}>
+      <IonToast
+        isOpen={showToast}
+        onDidDismiss={() => setShowToast(false)}
+        message={unreadNotifications > 0 ? "You have new notifications!" : "System logs updated!"}
+        duration={3000}
+        position="top"
+        color={unreadNotifications > 0 ? 'primary' : 'success'}
+      />
+      <IonHeader>
+        <IonToolbar
+          style={{ "--background": "linear-gradient(135deg, #1a202c 0%, #2d3748 100%)", "--color": "white" } as any}
+        >
+          <IonTitle style={{ fontWeight: "bold" }}>iAMUMA ta - System Logs</IonTitle>
+          <IonButtons slot="end">
+            <IonButton
+              fill="clear"
+              onClick={() => history.push("/it35-lab2/admin/notifications")}
+              style={{ color: 'white' }}
+            >
+              <IonIcon icon={notificationsOutline} />
+              {unreadNotifications > 0 && (
+                <IonBadge
+                  color="danger"
+                  style={{
+                    position: 'absolute',
+                    top: '0',
+                    right: '0',
+                    fontSize: '10px',
+                    transform: 'translate(25%, -25%)'
+                  }}
+                >
+                  {unreadNotifications}
+                </IonBadge>
+              )}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              onClick={handleSignOut}
+              style={{ color: 'white' }}
+            >
+              <IonIcon icon={logOutOutline} />
+            </IonButton>
+          </IonButtons>
+        </IonToolbar>
+
+        <IonToolbar style={{ "--background": "white" } as any}>
+          <div style={{ display: "flex", gap: "0", borderBottom: "1px solid #e5e7eb" }}>
+            {adminMenu.map((menu) => (
+              <IonButton
+                key={menu.id}
+                fill="clear"
+                onClick={() => {
+                  if (menu.route) {
+                    history.push(menu.route);
+                  }
+                }}
+                style={{
+                  "--color": menu.id === "systemlogs" ? "#3b82f6" : "#6b7280",
+                  "--background": "transparent",
+                  "--border-radius": "0",
+                  borderBottom: menu.id === "systemlogs" ? "2px solid #3b82f6" : "2px solid transparent",
+                  margin: 0,
+                  flex: 1,
+                  padding: "12px",
+                  fontSize: "14px"
+                } as any}
+              >
+                <IonIcon icon={menu.icon} style={{ fontSize: "20px" }} />
+              </IonButton>
+            ))}
+          </div>
+        </IonToolbar>
+      </IonHeader>
+
+      <IonContent style={{ "--background": "#f8fafc" } as any} fullscreen>
         <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
           <IonRefresherContent />
         </IonRefresher>
