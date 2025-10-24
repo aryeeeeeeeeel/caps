@@ -639,6 +639,13 @@ if (isLoading) {
           <IonButtons slot="end">
             <IonButton
               fill="clear"
+              onClick={() => navigation.push("/it35-lab2/admin/system-logs", "forward", "push")}
+              style={{ color: 'white' }}
+            >
+              <IonIcon icon={documentTextOutline} />
+            </IonButton>
+            <IonButton
+              fill="clear"
               onClick={() => navigation.push('/it35-lab2/admin/notifications', 'forward', 'push')}
               style={{
                 color: 'white',
