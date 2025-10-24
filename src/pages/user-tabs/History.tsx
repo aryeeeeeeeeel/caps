@@ -42,7 +42,8 @@ import {
   closeCircleOutline,
   mapOutline,
   thumbsUpOutline,
-  thumbsDownOutline
+  thumbsDownOutline,
+  arrowBackOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import L from 'leaflet';
@@ -144,6 +145,9 @@ const History: React.FC = () => {
   const [feedbackCategories, setFeedbackCategories] = useState<string[]>([]);
   const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(null);
   const [contactMethod, setContactMethod] = useState('');
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
   const categoryOptions = [
     'Response Speed',
@@ -311,90 +315,90 @@ const History: React.FC = () => {
 
       try {
         const markerIcon = L.divIcon({
-          className: 'custom-marker-3d',
+          className: 'modern-marker',
           html: `<div style="
-            width: 28px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             position: relative;
             cursor: pointer;
           ">
-            <!-- 3D Pin Body -->
+            <!-- Modern Circular Marker -->
             <div style="
-              width: 20px;
-              height: 20px;
-              background: linear-gradient(135deg, #10b981 0%, #10b981dd 50%, #10b981aa 100%);
-              border-radius: 50% 50% 50% 0;
-              transform: rotate(-45deg);
+              width: 32px;
+              height: 32px;
+              background: #10b981;
+              border-radius: 50%;
               border: 3px solid white;
               box-shadow: 
-                0 4px 12px rgba(0,0,0,0.4),
-                inset 0 2px 4px rgba(255,255,255,0.3),
-                inset 0 -2px 4px rgba(0,0,0,0.2);
-              position: absolute;
-              top: 0;
-              left: 4px;
+                0 4px 12px rgba(0,0,0,0.3),
+                0 2px 4px rgba(0,0,0,0.2);
+              position: relative;
               z-index: 2;
             ">
-              <!-- Inner highlight for 3D effect -->
+              <!-- Inner circle for depth -->
               <div style="
                 position: absolute;
-                top: 2px;
-                left: 2px;
-                width: 6px;
-                height: 6px;
-                background: rgba(255,255,255,0.4);
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 20px;
+                height: 20px;
+                background: rgba(255,255,255,0.2);
                 border-radius: 50%;
-                box-shadow: 0 0 2px rgba(255,255,255,0.6);
               "></div>
+              
+              <!-- Checkmark Icon for Resolved -->
+              <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                z-index: 3;
+                text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+              ">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+              </div>
             </div>
             
-            <!-- 3D Pin Point -->
-            <div style="
-              width: 0;
-              height: 0;
-              border-left: 6px solid transparent;
-              border-right: 6px solid transparent;
-              border-top: 12px solid #10b981;
-              position: absolute;
-              bottom: 0;
-              left: 8px;
-              z-index: 1;
-              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-            "></div>
-            
-            <!-- Pin Shadow -->
-            <div style="
-              width: 20px;
-              height: 20px;
-              background: rgba(0,0,0,0.2);
-              border-radius: 50% 50% 50% 0;
-              transform: rotate(-45deg);
-              position: absolute;
-              top: 2px;
-              left: 6px;
-              z-index: 0;
-              filter: blur(2px);
-            "></div>
-            
-            <!-- Checkmark Icon for Resolved -->
+            <!-- Pulse animation ring -->
             <div style="
               position: absolute;
               top: 50%;
               left: 50%;
-              transform: translate(-50%, -50%) rotate(45deg);
-              color: white;
-              font-weight: bold;
-              font-size: 10px;
-              z-index: 3;
-              text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-            ">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-              </svg>
-            </div>
-          </div>`,
-          iconSize: [28, 36],
-          iconAnchor: [14, 36],
+              transform: translate(-50%, -50%);
+              width: 40px;
+              height: 40px;
+              border: 2px solid #10b981;
+              border-radius: 50%;
+              opacity: 0.6;
+              animation: pulse 2s infinite;
+              z-index: 1;
+            "></div>
+          </div>
+          
+          <style>
+            @keyframes pulse {
+              0% {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0.6;
+              }
+              50% {
+                transform: translate(-50%, -50%) scale(1.2);
+                opacity: 0.3;
+              }
+              100% {
+                transform: translate(-50%, -50%) scale(1.4);
+                opacity: 0;
+              }
+            }
+          </style>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
         });
 
         const marker = L.marker(
@@ -1176,18 +1180,43 @@ const History: React.FC = () => {
                   </IonButton>
                 )}
 
-                <IonButton
-                  expand="block"
-                  fill="outline"
-                  onClick={() => {
-                    centerMapOnReport(selectedReport);
-                    setShowViewModal(false);
-                  }}
-                  style={{ '--border-radius': '10px' } as any}
-                >
-                  <IonIcon icon={locationOutline} slot="start" />
-                  View on Map
-                </IonButton>
+                {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <p style={{ color: '#6b7280', marginBottom: '8px' }}>
+                      <strong>Images:</strong>
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+                      {selectedReport.image_urls.map((url, index) => (
+                        <img
+                          key={index}
+                          src={url}
+                          alt={`Report image ${index + 1}`}
+                          style={{
+                            width: '80px',
+                            height: '80px',
+                            borderRadius: '8px',
+                            objectFit: 'cover',
+                            cursor: 'pointer',
+                            border: '2px solid transparent',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                          onClick={() => {
+                            setSelectedImages(selectedReport.image_urls || []);
+                            setSelectedImageIndex(index);
+                            setShowImageModal(true);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#3b82f6';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'transparent';
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             </IonCard>
           </div>
@@ -1368,6 +1397,165 @@ const History: React.FC = () => {
               )}
             </div>
           </IonCard>
+        </div>
+      </IonModal>
+
+      {/* Image Gallery Modal */}
+      <IonModal
+        isOpen={showImageModal}
+        onDidDismiss={() => setShowImageModal(false)}
+        style={{ '--border-radius': '20px' } as any}
+      >
+        <div style={{
+          padding: '0',
+          height: '100%',
+          background: 'black',
+          borderRadius: '20px',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          {/* Close Button */}
+          <div style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            zIndex: 1000
+          }}>
+            <IonButton
+              fill="clear"
+              onClick={() => setShowImageModal(false)}
+              style={{ 
+                '--padding-start': '8px', 
+                '--padding-end': '8px',
+                '--background': 'rgba(0,0,0,0.5)',
+                '--color': 'white'
+              } as any}
+            >
+              <IonIcon icon={closeCircleOutline} style={{ fontSize: '24px' }} />
+            </IonButton>
+          </div>
+
+          {/* Image Counter */}
+          <div style={{
+            position: 'absolute',
+            top: '20px',
+            left: '20px',
+            zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)',
+            color: 'white',
+            padding: '8px 12px',
+            borderRadius: '20px',
+            fontSize: '14px',
+            fontWeight: '600'
+          }}>
+            {selectedImageIndex + 1} / {selectedImages.length}
+          </div>
+
+          {/* Main Image */}
+          <div style={{
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '60px 20px 100px 20px'
+          }}>
+            <img
+              src={selectedImages[selectedImageIndex]}
+              alt={`Image ${selectedImageIndex + 1}`}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                borderRadius: '8px'
+              }}
+            />
+          </div>
+
+          {/* Navigation Arrows */}
+          {selectedImages.length > 1 && (
+            <>
+              {/* Previous Button */}
+              {selectedImageIndex > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  left: '20px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  zIndex: 1000
+                }}>
+                  <IonButton
+                    fill="clear"
+                    onClick={() => setSelectedImageIndex(selectedImageIndex - 1)}
+                    style={{ 
+                      '--padding-start': '12px', 
+                      '--padding-end': '12px',
+                      '--background': 'rgba(0,0,0,0.5)',
+                      '--color': 'white'
+                    } as any}
+                  >
+                    <IonIcon icon={arrowBackOutline} style={{ fontSize: '24px' }} />
+                  </IonButton>
+                </div>
+              )}
+
+              {/* Next Button */}
+              {selectedImageIndex < selectedImages.length - 1 && (
+                <div style={{
+                  position: 'absolute',
+                  right: '20px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  zIndex: 1000
+                }}>
+                  <IonButton
+                    fill="clear"
+                    onClick={() => setSelectedImageIndex(selectedImageIndex + 1)}
+                    style={{ 
+                      '--padding-start': '12px', 
+                      '--padding-end': '12px',
+                      '--background': 'rgba(0,0,0,0.5)',
+                      '--color': 'white'
+                    } as any}
+                  >
+                    <IonIcon icon={refreshOutline} style={{ fontSize: '24px', transform: 'rotate(180deg)' }} />
+                  </IonButton>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Thumbnail Strip */}
+          {selectedImages.length > 1 && (
+            <div style={{
+              position: 'absolute',
+              bottom: '20px',
+              left: '20px',
+              right: '20px',
+              display: 'flex',
+              gap: '8px',
+              overflowX: 'auto',
+              paddingBottom: '8px'
+            }}>
+              {selectedImages.map((url, index) => (
+                <img
+                  key={index}
+                  src={url}
+                  alt={`Thumbnail ${index + 1}`}
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '6px',
+                    objectFit: 'cover',
+                    cursor: 'pointer',
+                    border: selectedImageIndex === index ? '2px solid #3b82f6' : '2px solid transparent',
+                    opacity: selectedImageIndex === index ? 1 : 0.7,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => setSelectedImageIndex(index)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </IonModal>
 
