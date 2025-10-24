@@ -81,7 +81,7 @@ const AdminUsers: React.FC = () => {
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'banned'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'banned' | 'none'>('all');
   const [activityFilter, setActivityFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showActionAlert, setShowActionAlert] = useState(false);
@@ -243,6 +243,8 @@ const AdminUsers: React.FC = () => {
       let matchesStatus = false;
       if (statusFilter === 'all') {
         matchesStatus = true;
+      } else if (statusFilter === 'none') {
+        matchesStatus = false; // 'none' means no status filter, so no matches
       } else if (statusFilter === 'active') {
         matchesStatus = user.status === 'active' && (user.has_reports ?? false);
       } else if (statusFilter === 'inactive') {
@@ -265,6 +267,21 @@ const AdminUsers: React.FC = () => {
       });
     }
     setFilteredUsers(filtered);
+  };
+
+  const handleStatusFilterClick = (status: 'all' | 'active' | 'inactive' | 'suspended' | 'banned' | 'online' | 'offline' | 'none') => {
+    if (status === 'online' || status === 'offline') {
+      setActivityFilter(status as any);
+      setStatusFilter('none'); // Reset status filter to prevent "All Users" highlighting
+    } else {
+      setStatusFilter(status as any);
+      setActivityFilter('all'); // Reset activity filter
+    }
+  };
+
+  const isBoxHighlighted = (statStatus: string) => {
+    // Simple logic: only highlight if the current filter matches the box status
+    return statusFilter === statStatus || activityFilter === statStatus;
   };
 
   const handleUserAction = async (action: 'warn' | 'suspend' | 'ban' | 'activate') => {
@@ -372,7 +389,7 @@ const AdminUsers: React.FC = () => {
     return (
       <IonPage>
         <IonHeader>
-          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+          <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
             <IonButtons slot="start">
               <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
             </IonButtons>
@@ -397,7 +414,7 @@ const AdminUsers: React.FC = () => {
           </IonToolbar>
         </IonHeader>
 
-        <IonContent style={{ '--background': '#f8fafc' } as any}>
+        <IonContent style={{ '--background': 'var(--bg-secondary)' } as any}>
           <div style={{ padding: '20px' }}>
             {/* Stats Cards Skeleton */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px', marginBottom: '20px' }}>
@@ -453,7 +470,7 @@ const AdminUsers: React.FC = () => {
   return (
     <IonPage>
       <IonHeader>
-        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+        <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - User Management</IonTitle>
           <IonButtons slot="end">
             <IonButton fill="clear" onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")} style={{ color: 'white' }}>
@@ -472,7 +489,8 @@ const AdminUsers: React.FC = () => {
               { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
               { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
               { id: 'users', label: 'Users', icon: peopleOutline },
-              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/it35-lab2/admin/analytics' }
+              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/it35-lab2/admin/analytics' },
+              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
             ].map(menu => (
               <IonButton key={menu.id} fill="clear" onClick={() => { if (menu.route) navigation.push(menu.route, 'forward', 'push'); }} style={{ '--color': menu.id === 'users' ? '#3b82f6' : '#6b7280', '--background': 'transparent', '--border-radius': '0', borderBottom: menu.id === 'users' ? '2px solid #3b82f6' : '2px solid transparent', margin: 0, flex: 1 } as any}>
                 <IonIcon icon={menu.icon} slot="start" />
@@ -483,28 +501,20 @@ const AdminUsers: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      <IonContent style={{ '--background': '#f8fafc' } as any}>
+      <IonContent style={{ '--background': 'var(--bg-secondary)' } as any}>
         <div style={{ padding: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
-              { label: 'All Users', value: stats.total, color: '#6b7280', status: 'all' },
-              { label: 'Active', value: stats.active, color: '#10b981', status: 'active' },
-              { label: 'Inactive', value: stats.inactive, color: '#9ca3af', status: 'inactive' },
-              { label: 'Online', value: stats.online, color: '#3b82f6', status: 'online' },
-              { label: 'Suspended', value: stats.suspended, color: '#f59e0b', status: 'suspended' },
-              { label: 'Banned', value: stats.banned, color: '#dc2626', status: 'banned' }
+              { label: 'All Users', value: stats.total, color: 'var(--text-secondary)', status: 'all' },
+              { label: 'Active', value: stats.active, color: 'var(--success-color)', status: 'active' },
+              { label: 'Inactive', value: stats.inactive, color: 'var(--text-tertiary)', status: 'inactive' },
+              { label: 'Online', value: stats.online, color: 'var(--primary-color)', status: 'online' },
+              { label: 'Suspended', value: stats.suspended, color: 'var(--warning-color)', status: 'suspended' },
+              { label: 'Banned', value: stats.banned, color: 'var(--danger-color)', status: 'banned' }
             ].map((stat, idx) => (
-              <div key={idx} onClick={() => {
-                if (stat.status === 'online' || stat.status === 'offline') {
-                  setActivityFilter(stat.status as any);
-                  setStatusFilter('all');
-                } else {
-                  setStatusFilter(stat.status as any);
-                  setActivityFilter('all');
-                }
-              }} style={{ background: (statusFilter === stat.status || activityFilter === stat.status) ? stat.color + '20' : 'white', border: `1px solid ${(statusFilter === stat.status || activityFilter === stat.status) ? stat.color : '#e5e7eb'}`, borderRadius: '12px', padding: '16px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
+              <div key={idx} onClick={() => handleStatusFilterClick(stat.status as any)} style={{ background: isBoxHighlighted(stat.status) ? stat.color + '20' : 'var(--bg-primary)', border: `1px solid ${isBoxHighlighted(stat.status) ? stat.color : 'var(--border-color)'}`, borderRadius: '12px', padding: '16px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
                 <div style={{ fontSize: '28px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{stat.label}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{stat.label}</div>
               </div>
             ))}
           </div>
@@ -563,17 +573,17 @@ const AdminUsers: React.FC = () => {
                       </div>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <IonButton size="small" fill="outline" color="warning" onClick={() => { setSelectedUser(user); setUserAction('warn'); setShowActionAlert(true); }} disabled={user.status === 'banned'}>
+                        <IonButton size="small" fill="solid" color="warning" onClick={() => { setSelectedUser(user); setUserAction('warn'); setShowActionAlert(true); }} disabled={user.status === 'banned'}>
                           <IonIcon icon={warningOutline} slot="start" />
                           Warn
                         </IonButton>
-                        <IonButton size="small" fill="outline" color="medium" onClick={() => { setSelectedUser(user); setUserAction(user.status === 'suspended' ? 'activate' : 'suspend'); setShowActionAlert(true); }} disabled={user.status === 'banned'}>
+                        <IonButton size="small" fill="solid" color="medium" onClick={() => { setSelectedUser(user); setUserAction(user.status === 'suspended' ? 'activate' : 'suspend'); setShowActionAlert(true); }} disabled={user.status === 'banned'}>
                           <IonIcon icon={user.status === 'suspended' ? checkmarkCircleOutline : pauseCircleOutline} slot="start" />
                           {user.status === 'suspended' ? 'Activate' : 'Suspend'}
                         </IonButton>
                         <IonButton
                           size="small"
-                          fill="outline"
+                          fill="solid"
                           color="danger"
                           onClick={() => {
                             setSelectedUser(user);
