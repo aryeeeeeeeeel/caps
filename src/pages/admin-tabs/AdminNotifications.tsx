@@ -284,10 +284,10 @@ const AdminNotifications: React.FC = () => {
 
   const getNotificationColor = (type: string) => {
     switch (type) {
-      case 'incident_report': return '#dc2626';
-      case 'feedback': return '#8b5cf6'; // Purple color for feedback
-      case 'system': return '#10b981';
-      default: return '#6b7280';
+      case 'incident_report': return 'var(--danger-color)';
+      case 'feedback': return 'var(--secondary-color)'; // Purple color for feedback
+      case 'system': return 'var(--success-color)';
+      default: return 'var(--text-secondary)';
     }
   };
 
@@ -468,7 +468,7 @@ if (isLoading) {
   return (
     <IonPage>
       <IonHeader>
-        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+        <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>
             <IonSkeletonText animated style={{ width: '250px', height: '24px', margin: '0 auto' }} />
           </IonTitle>
@@ -488,7 +488,7 @@ if (isLoading) {
         </IonToolbar>
         
         {/* Skeleton for menu bar */}
-        <IonToolbar style={{ '--background': 'white' } as any}>
+        <IonToolbar style={{ '--background': 'var(--bg-primary)' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[1, 2, 3, 4].map(i => (
               <div key={i} style={{ flex: 1, padding: '8px', display: 'flex', justifyContent: 'center' }}>
@@ -505,7 +505,7 @@ if (isLoading) {
         </IonToolbar>
       </IonHeader>
       
-      <IonContent style={{ '--background': '#f8fafc' } as any}>
+      <IonContent style={{ '--background': 'var(--bg-secondary)' } as any}>
         <div style={{ padding: '20px' }}>
           {/* Skeleton for stats cards - matches the 4-column grid */}
           <div style={{
@@ -516,11 +516,11 @@ if (isLoading) {
           }}>
             {[1, 2, 3, 4].map(i => (
               <div key={i} style={{
-                background: 'white',
+                background: 'var(--bg-primary)',
                 borderRadius: '12px',
                 padding: '16px',
                 textAlign: 'center',
-                border: '1px solid #e5e7eb'
+                border: '1px solid var(--border-color)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
                   <IonSkeletonText animated style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
@@ -545,7 +545,7 @@ if (isLoading) {
           {/* Skeleton for notifications card */}
           <div style={{ padding: '0 20px 20px 20px' }}>
             <div style={{ 
-              background: 'white', 
+              background: 'var(--bg-primary)', 
               borderRadius: '16px',
               padding: '16px',
               boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
@@ -565,11 +565,11 @@ if (isLoading) {
               <div style={{ background: 'transparent' }}>
                 {[1, 2, 3, 4, 5].map(i => (
                   <div key={i} style={{ 
-                    background: i % 2 === 0 ? '#f0f9ff' : 'transparent',
+                    background: i % 2 === 0 ? 'var(--primary-color)20' : 'transparent',
                     borderRadius: '8px',
                     padding: '12px',
                     marginBottom: '12px',
-                    border: '1px solid #e5e7eb'
+                    border: '1px solid var(--border-color)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                       {/* Notification icon skeleton */}
@@ -634,7 +634,7 @@ if (isLoading) {
         position="top"
       />
       <IonHeader>
-        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)', '--color': 'white' } as any}>
+        <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Admin Notifications</IonTitle>
           <IonButtons slot="end">
             <IonButton
@@ -683,7 +683,7 @@ if (isLoading) {
         </IonToolbar>
 
         {/* Menu Bar */}
-        <IonToolbar style={{ '--background': 'white' } as any}>
+        <IonToolbar style={{ '--background': 'var(--bg-primary)' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[
               { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
@@ -716,7 +716,7 @@ if (isLoading) {
         </IonToolbar>
       </IonHeader>
 
-      <IonContent style={{ '--background': '#f8fafc' } as any}>
+      <IonContent style={{ '--background': 'var(--bg-secondary)' } as any}>
         <div style={{ padding: '20px' }}>
           {/* Stats Overview - UPDATED arrangement: Unread, Read, Reports, Feedback */}
           <div style={{
@@ -727,21 +727,21 @@ if (isLoading) {
             position: 'sticky',
             top: '0',
             zIndex: '100',
-            background: '#f8fafc',
+            background: 'var(--bg-secondary)',
             padding: '10px 0'
           }}>
             {[
-              { label: 'Unread', value: stats.unread, color: '#3b82f6', icon: alertCircleOutline, filter: 'unread' },
-              { label: 'Read', value: stats.read, color: '#10b981', icon: checkmarkDoneOutline, filter: 'read' },
-              { label: 'Reports', value: stats.reports, color: '#dc2626', icon: documentTextOutline, filter: 'reports' },
-              { label: 'Feedback', value: stats.feedback, color: '#8b5cf6', icon: chatbubbleOutline, filter: 'feedback' }
+              { label: 'Unread', value: stats.unread, color: 'var(--primary-color)', icon: alertCircleOutline, filter: 'unread' },
+              { label: 'Read', value: stats.read, color: 'var(--success-color)', icon: checkmarkDoneOutline, filter: 'read' },
+              { label: 'Reports', value: stats.reports, color: 'var(--danger-color)', icon: documentTextOutline, filter: 'reports' },
+              { label: 'Feedback', value: stats.feedback, color: 'var(--secondary-color)', icon: chatbubbleOutline, filter: 'feedback' }
             ].map((stat, idx) => (
               <div
                 key={idx}
                 onClick={() => stat.filter && setFilter(stat.filter as any)}
                 style={{
-                  background: filter === stat.filter ? stat.color + '20' : 'white',
-                  border: `1px solid ${filter === stat.filter ? stat.color : '#e5e7eb'}`,
+                  background: filter === stat.filter ? stat.color + '20' : 'var(--bg-primary)',
+                  border: `1px solid ${filter === stat.filter ? stat.color : 'var(--border-color)'}`,
                   borderRadius: '12px',
                   padding: '16px',
                   textAlign: 'center',
@@ -750,7 +750,7 @@ if (isLoading) {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
                   <IonIcon icon={stat.icon} style={{ color: stat.color, fontSize: '20px' }} />
-                  <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>{stat.label}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>{stat.label}</div>
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
               </div>
@@ -765,7 +765,7 @@ if (isLoading) {
                 onIonInput={e => setSearchText(e.detail.value!)}
                 placeholder="Search notifications..."
                 style={{
-                  '--background': '#f8fafc',
+                  '--background': 'var(--bg-secondary)',
                   '--border-radius': '8px',
                   '--box-shadow': 'none'
                 } as any}
@@ -815,7 +815,7 @@ if (isLoading) {
                       button
                       onClick={() => handleNotificationClick(notification)}
                       style={{
-                        '--background': notification.read ? 'transparent' : '#f0f9ff',
+                        '--background': notification.read ? 'transparent' : 'var(--primary-color)20',
                         '--border-radius': '8px',
                         marginBottom: '12px'
                       } as any}
@@ -870,7 +870,7 @@ if (isLoading) {
                                 margin: 0,
                                 fontSize: '16px',
                                 fontWeight: notification.read ? '500' : '600',
-                                color: notification.read ? '#6b7280' : '#1f2937'
+                                color: notification.read ? 'var(--text-secondary)' : 'var(--text-primary)'
                               }}>
                                 {notification.title}
                               </h4>
@@ -895,7 +895,7 @@ if (isLoading) {
                             <p style={{
                               margin: '0 0 8px 0',
                               fontSize: '14px',
-                              color: '#6b7280',
+                              color: 'var(--text-secondary)',
                               lineHeight: '1.4'
                             }}>
                               {notification.message}
@@ -914,7 +914,7 @@ if (isLoading) {
                                 >
                                   {notification.type.replace('_', ' ').toUpperCase()}
                                 </IonChip>
-                                <span style={{ fontSize: '12px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <IonIcon icon={timeOutline} style={{ fontSize: '12px' }} />
                                   {new Date(notification.created_at).toLocaleDateString()}
                                 </span>
@@ -942,7 +942,7 @@ if (isLoading) {
                 </IonList>
 
                 {filteredNotifications.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                  <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                     <IonIcon icon={notificationsOutline} style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }} />
                     <div style={{ fontSize: '16px', fontWeight: '500' }}>No notifications found</div>
                     <div style={{ fontSize: '14px', marginTop: '4px' }}>
