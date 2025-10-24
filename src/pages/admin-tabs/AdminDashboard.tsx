@@ -1065,86 +1065,90 @@ const AdminDashboard: React.FC = () => {
         const markerIcon = L.divIcon({
           html: `
             <div style="
-              width: 28px;
-              height: 36px;
+              width: 32px;
+              height: 32px;
               position: relative;
               cursor: pointer;
             ">
-              <!-- 3D Pin Body -->
+              <!-- Modern Circular Marker -->
               <div style="
-                width: 20px;
-                height: 20px;
-                background: linear-gradient(135deg, ${markerColor} 0%, ${markerColor}dd 50%, ${markerColor}aa 100%);
-              border-radius: 50% 50% 50% 0;
-              transform: rotate(-45deg);
-              border: 3px solid white;
+                width: 32px;
+                height: 32px;
+                background: ${markerColor};
+                border-radius: 50%;
+                border: 3px solid white;
                 box-shadow: 
-                  0 4px 12px rgba(0,0,0,0.4),
-                  inset 0 2px 4px rgba(255,255,255,0.3),
-                  inset 0 -2px 4px rgba(0,0,0,0.2);
-                position: absolute;
-                top: 0;
-                left: 4px;
+                  0 4px 12px rgba(0,0,0,0.3),
+                  0 2px 4px rgba(0,0,0,0.2);
+                position: relative;
                 z-index: 2;
               ">
-                <!-- Inner highlight for 3D effect -->
-              <div style="
+                <!-- Inner circle for depth -->
+                <div style="
                   position: absolute;
-                  top: 2px;
-                  left: 2px;
-                  width: 6px;
-                  height: 6px;
-                  background: rgba(255,255,255,0.4);
+                  top: 50%;
+                  left: 50%;
+                  transform: translate(-50%, -50%);
+                  width: 20px;
+                  height: 20px;
+                  background: rgba(255,255,255,0.2);
                   border-radius: 50%;
-                  box-shadow: 0 0 2px rgba(255,255,255,0.6);
                 "></div>
+                
+                <!-- Status Icon -->
+                <div style="
+                  position: absolute;
+                  top: 50%;
+                  left: 50%;
+                  transform: translate(-50%, -50%);
+                  color: white;
+                  font-weight: bold;
+                  font-size: 14px;
+                  z-index: 3;
+                  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+                ">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                  </svg>
+                </div>
               </div>
               
-              <!-- 3D Pin Point -->
-              <div style="
-                width: 0;
-                height: 0;
-                border-left: 6px solid transparent;
-                border-right: 6px solid transparent;
-                border-top: 12px solid ${markerColor};
-                position: absolute;
-                bottom: 0;
-                left: 8px;
-                z-index: 1;
-                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-              "></div>
-              
-              <!-- Pin Shadow -->
-              <div style="
-                width: 20px;
-                height: 20px;
-                background: rgba(0,0,0,0.2);
-                border-radius: 50% 50% 50% 0;
-                transform: rotate(-45deg);
-                position: absolute;
-                top: 2px;
-                left: 6px;
-                z-index: 0;
-                filter: blur(2px);
-              "></div>
-              
-              <!-- Status Icon -->
+              <!-- Pulse animation ring -->
               <div style="
                 position: absolute;
                 top: 50%;
                 left: 50%;
-                transform: translate(-50%, -50%) rotate(45deg);
-                color: white;
-                font-weight: bold;
-                font-size: 10px;
-                z-index: 3;
-                text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-              ">!</div>
+                transform: translate(-50%, -50%);
+                width: 40px;
+                height: 40px;
+                border: 2px solid ${markerColor};
+                border-radius: 50%;
+                opacity: 0.6;
+                animation: pulse 2s infinite;
+                z-index: 1;
+              "></div>
             </div>
+            
+            <style>
+              @keyframes pulse {
+                0% {
+                  transform: translate(-50%, -50%) scale(0.8);
+                  opacity: 0.6;
+                }
+                50% {
+                  transform: translate(-50%, -50%) scale(1.2);
+                  opacity: 0.3;
+                }
+                100% {
+                  transform: translate(-50%, -50%) scale(1.4);
+                  opacity: 0;
+                }
+              }
+            </style>
           `,
-          className: "incident-marker-3d",
-          iconSize: [28, 36],
-          iconAnchor: [14, 36],
+          className: "modern-marker",
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
         })
 
         try {
@@ -1817,7 +1821,7 @@ const AdminDashboard: React.FC = () => {
       <IonPage>
         <IonHeader>
           <IonToolbar
-            style={{ "--background": "linear-gradient(135deg, #1a202c 0%, #2d3748 100%)", "--color": "white" } as any}
+            style={{ "--background": "var(--gradient-primary)", "--color": "white" } as any}
           >
             <IonTitle style={{ fontWeight: "bold" }}>
               <IonSkeletonText animated style={{ width: "250px", height: "20px" }} />
