@@ -30,7 +30,7 @@ import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
 import AdminLogin from "./pages/AdminLogin";
 import Register from './pages/Register';
-import Profile from './pages/Profile';
+import Profile from './pages/user-tabs/Profile';
 
 /* Admin Pages */
 import AdminDashboard from './pages/admin-tabs/AdminDashboard';
