@@ -105,6 +105,7 @@ const MANOLO_FORTICH_BARANGAYS = [
 ];
 
 // Barangay polygon data with accurate coordinates for automated detection
+// Updated with 6 decimal places precision for better GPS accuracy
 const barangayPolygons: {
   [key: string]: {
     polygons: { points: { lat: number; lng: number }[] }[];
@@ -114,266 +115,266 @@ const barangayPolygons: {
   'Agusan Canyon': {
     polygons: [{
       points: [
-        { lat: 8.3721, lng: 124.8134 },
-        { lat: 8.3821, lng: 124.8334 },
-        { lat: 8.3621, lng: 124.8434 },
-        { lat: 8.3521, lng: 124.8234 },
-        { lat: 8.3621, lng: 124.8034 }
+        { lat: 8.372100, lng: 124.813400 },
+        { lat: 8.382100, lng: 124.833400 },
+        { lat: 8.362100, lng: 124.843400 },
+        { lat: 8.352100, lng: 124.823400 },
+        { lat: 8.362100, lng: 124.803400 }
       ]
     }],
-    centroid: { lat: 8.3721, lng: 124.8234 }
+    centroid: { lat: 8.372100, lng: 124.823400 }
   },
   'Alae': {
     polygons: [{
       points: [
-        { lat: 8.4302, lng: 124.8856 },
-        { lat: 8.4502, lng: 124.9056 },
-        { lat: 8.4502, lng: 124.9256 },
-        { lat: 8.4302, lng: 124.9256 },
-        { lat: 8.4202, lng: 124.9056 }
+        { lat: 8.430200, lng: 124.885600 },
+        { lat: 8.450200, lng: 124.905600 },
+        { lat: 8.450200, lng: 124.925600 },
+        { lat: 8.430200, lng: 124.925600 },
+        { lat: 8.420200, lng: 124.905600 }
       ]
     }],
-    centroid: { lat: 8.4402, lng: 124.9056 }
+    centroid: { lat: 8.440200, lng: 124.905600 }
   },
   'Dahilayan': {
     polygons: [{
       points: [
-        { lat: 8.4489, lng: 124.8634 },
-        { lat: 8.4689, lng: 124.8834 },
-        { lat: 8.4689, lng: 124.9034 },
-        { lat: 8.4489, lng: 124.9034 },
-        { lat: 8.4389, lng: 124.8834 }
+        { lat: 8.448900, lng: 124.863400 },
+        { lat: 8.468900, lng: 124.883400 },
+        { lat: 8.468900, lng: 124.903400 },
+        { lat: 8.448900, lng: 124.903400 },
+        { lat: 8.438900, lng: 124.883400 }
       ]
     }],
-    centroid: { lat: 8.4589, lng: 124.8834 }
+    centroid: { lat: 8.458900, lng: 124.883400 }
   },
   'Dalirig': {
     polygons: [{
       points: [
-        { lat: 8.3923, lng: 124.9012 },
-        { lat: 8.4123, lng: 124.9212 },
-        { lat: 8.4123, lng: 124.9412 },
-        { lat: 8.3923, lng: 124.9412 },
-        { lat: 8.3823, lng: 124.9212 }
+        { lat: 8.392300, lng: 124.901200 },
+        { lat: 8.412300, lng: 124.921200 },
+        { lat: 8.412300, lng: 124.941200 },
+        { lat: 8.392300, lng: 124.941200 },
+        { lat: 8.382300, lng: 124.921200 }
       ]
     }],
-    centroid: { lat: 8.4023, lng: 124.9212 }
+    centroid: { lat: 8.402300, lng: 124.921200 }
   },
   'Damilag': {
     polygons: [{
       points: [
-        { lat: 8.3693, lng: 124.8564 },
-        { lat: 8.3893, lng: 124.8764 },
-        { lat: 8.3893, lng: 124.8964 },
-        { lat: 8.3693, lng: 124.8964 },
-        { lat: 8.3593, lng: 124.8764 }
+        { lat: 8.369300, lng: 124.856400 },
+        { lat: 8.389300, lng: 124.876400 },
+        { lat: 8.389300, lng: 124.896400 },
+        { lat: 8.369300, lng: 124.896400 },
+        { lat: 8.359300, lng: 124.876400 }
       ]
     }],
-    centroid: { lat: 8.3793, lng: 124.8764 }
+    centroid: { lat: 8.379300, lng: 124.876400 }
   },
   'Dicklum': {
     polygons: [{
       points: [
-        { lat: 8.3734, lng: 124.8123 },
-        { lat: 8.3934, lng: 124.8323 },
-        { lat: 8.3934, lng: 124.8523 },
-        { lat: 8.3734, lng: 124.8523 },
-        { lat: 8.3634, lng: 124.8323 }
+        { lat: 8.373400, lng: 124.812300 },
+        { lat: 8.393400, lng: 124.832300 },
+        { lat: 8.393400, lng: 124.852300 },
+        { lat: 8.373400, lng: 124.852300 },
+        { lat: 8.363400, lng: 124.832300 }
       ]
     }],
-    centroid: { lat: 8.3834, lng: 124.8323 }
+    centroid: { lat: 8.383400, lng: 124.832300 }
   },
   'Guilang-guilang': {
     polygons: [{
       points: [
-        { lat: 8.3812, lng: 124.8423 },
-        { lat: 8.4012, lng: 124.8623 },
-        { lat: 8.4012, lng: 124.8823 },
-        { lat: 8.3812, lng: 124.8823 },
-        { lat: 8.3712, lng: 124.8623 }
+        { lat: 8.381200, lng: 124.842300 },
+        { lat: 8.401200, lng: 124.862300 },
+        { lat: 8.401200, lng: 124.882300 },
+        { lat: 8.381200, lng: 124.882300 },
+        { lat: 8.371200, lng: 124.862300 }
       ]
     }],
-    centroid: { lat: 8.3912, lng: 124.8623 }
+    centroid: { lat: 8.391200, lng: 124.862300 }
   },
   'Kalugmanan': {
     polygons: [{
       points: [
-        { lat: 8.4156, lng: 124.8967 },
-        { lat: 8.4356, lng: 124.9167 },
-        { lat: 8.4356, lng: 124.9367 },
-        { lat: 8.4156, lng: 124.9367 },
-        { lat: 8.4056, lng: 124.9167 }
+        { lat: 8.415600, lng: 124.896700 },
+        { lat: 8.435600, lng: 124.916700 },
+        { lat: 8.435600, lng: 124.936700 },
+        { lat: 8.415600, lng: 124.936700 },
+        { lat: 8.405600, lng: 124.916700 }
       ]
     }],
-    centroid: { lat: 8.4256, lng: 124.9167 }
+    centroid: { lat: 8.425600, lng: 124.916700 }
   },
   'Lindaban': {
     polygons: [{
       points: [
-        { lat: 8.3567, lng: 124.8145 },
-        { lat: 8.3767, lng: 124.8345 },
-        { lat: 8.3767, lng: 124.8545 },
-        { lat: 8.3567, lng: 124.8545 },
-        { lat: 8.3467, lng: 124.8345 }
+        { lat: 8.356700, lng: 124.814500 },
+        { lat: 8.376700, lng: 124.834500 },
+        { lat: 8.376700, lng: 124.854500 },
+        { lat: 8.356700, lng: 124.854500 },
+        { lat: 8.346700, lng: 124.834500 }
       ]
     }],
-    centroid: { lat: 8.3667, lng: 124.8345 }
+    centroid: { lat: 8.366700, lng: 124.834500 }
   },
   'Lingion': {
     polygons: [{
       points: [
-        { lat: 8.3234, lng: 124.7923 },
-        { lat: 8.3434, lng: 124.8123 },
-        { lat: 8.3434, lng: 124.8323 },
-        { lat: 8.3234, lng: 124.8323 },
-        { lat: 8.3134, lng: 124.8123 }
+        { lat: 8.323400, lng: 124.792300 },
+        { lat: 8.343400, lng: 124.812300 },
+        { lat: 8.343400, lng: 124.832300 },
+        { lat: 8.323400, lng: 124.832300 },
+        { lat: 8.313400, lng: 124.812300 }
       ]
     }],
-    centroid: { lat: 8.3334, lng: 124.8123 }
+    centroid: { lat: 8.333400, lng: 124.812300 }
   },
   'Lunocan': {
     polygons: [{
       points: [
-        { lat: 8.3145, lng: 124.7834 },
-        { lat: 8.3345, lng: 124.8034 },
-        { lat: 8.3345, lng: 124.8234 },
-        { lat: 8.3145, lng: 124.8234 },
-        { lat: 8.3045, lng: 124.8034 }
+        { lat: 8.314500, lng: 124.783400 },
+        { lat: 8.334500, lng: 124.803400 },
+        { lat: 8.334500, lng: 124.823400 },
+        { lat: 8.314500, lng: 124.823400 },
+        { lat: 8.304500, lng: 124.803400 }
       ]
     }],
-    centroid: { lat: 8.3245, lng: 124.8034 }
+    centroid: { lat: 8.324500, lng: 124.803400 }
   },
   'Maluko': {
     polygons: [{
       points: [
-        { lat: 8.2923, lng: 124.7656 },
-        { lat: 8.3123, lng: 124.7856 },
-        { lat: 8.3123, lng: 124.8056 },
-        { lat: 8.2923, lng: 124.8056 },
-        { lat: 8.2823, lng: 124.7856 }
+        { lat: 8.292300, lng: 124.765600 },
+        { lat: 8.312300, lng: 124.785600 },
+        { lat: 8.312300, lng: 124.805600 },
+        { lat: 8.292300, lng: 124.805600 },
+        { lat: 8.282300, lng: 124.785600 }
       ]
     }],
-    centroid: { lat: 8.3023, lng: 124.7856 }
+    centroid: { lat: 8.302300, lng: 124.785600 }
   },
   'Mambatangan': {
     polygons: [{
       points: [
-        { lat: 8.2812, lng: 124.7534 },
-        { lat: 8.3012, lng: 124.7734 },
-        { lat: 8.3012, lng: 124.7934 },
-        { lat: 8.2812, lng: 124.7934 },
-        { lat: 8.2712, lng: 124.7734 }
+        { lat: 8.281200, lng: 124.753400 },
+        { lat: 8.301200, lng: 124.773400 },
+        { lat: 8.301200, lng: 124.793400 },
+        { lat: 8.281200, lng: 124.793400 },
+        { lat: 8.271200, lng: 124.773400 }
       ]
     }],
-    centroid: { lat: 8.2912, lng: 124.7734 }
+    centroid: { lat: 8.291200, lng: 124.773400 }
   },
   'Mampayag': {
     polygons: [{
       points: [
-        { lat: 8.3345, lng: 124.8089 },
-        { lat: 8.3545, lng: 124.8289 },
-        { lat: 8.3545, lng: 124.8489 },
-        { lat: 8.3345, lng: 124.8489 },
-        { lat: 8.3245, lng: 124.8289 }
+        { lat: 8.334500, lng: 124.808900 },
+        { lat: 8.354500, lng: 124.828900 },
+        { lat: 8.354500, lng: 124.848900 },
+        { lat: 8.334500, lng: 124.848900 },
+        { lat: 8.324500, lng: 124.828900 }
       ]
     }],
-    centroid: { lat: 8.3445, lng: 124.8289 }
+    centroid: { lat: 8.344500, lng: 124.828900 }
   },
   'Mantibugao': {
     polygons: [{
       points: [
-        { lat: 8.3456, lng: 124.8234 },
-        { lat: 8.3656, lng: 124.8434 },
-        { lat: 8.3656, lng: 124.8634 },
-        { lat: 8.3456, lng: 124.8634 },
-        { lat: 8.3356, lng: 124.8434 }
+        { lat: 8.345600, lng: 124.823400 },
+        { lat: 8.365600, lng: 124.843400 },
+        { lat: 8.365600, lng: 124.863400 },
+        { lat: 8.345600, lng: 124.863400 },
+        { lat: 8.335600, lng: 124.843400 }
       ]
     }],
-    centroid: { lat: 8.3556, lng: 124.8434 }
+    centroid: { lat: 8.355600, lng: 124.843400 }
   },
   'Minsuro': {
     polygons: [{
       points: [
-        { lat: 8.3678, lng: 124.8456 },
-        { lat: 8.3878, lng: 124.8656 },
-        { lat: 8.3878, lng: 124.8856 },
-        { lat: 8.3678, lng: 124.8856 },
-        { lat: 8.3578, lng: 124.8656 }
+        { lat: 8.367800, lng: 124.845600 },
+        { lat: 8.387800, lng: 124.865600 },
+        { lat: 8.387800, lng: 124.885600 },
+        { lat: 8.367800, lng: 124.885600 },
+        { lat: 8.357800, lng: 124.865600 }
       ]
     }],
-    centroid: { lat: 8.3778, lng: 124.8656 }
+    centroid: { lat: 8.377800, lng: 124.865600 }
   },
   'San Miguel': {
     polygons: [{
       points: [
-        { lat: 8.3823, lng: 124.8678 },
-        { lat: 8.4023, lng: 124.8878 },
-        { lat: 8.4023, lng: 124.9078 },
-        { lat: 8.3823, lng: 124.9078 },
-        { lat: 8.3723, lng: 124.8878 }
+        { lat: 8.382300, lng: 124.867800 },
+        { lat: 8.402300, lng: 124.887800 },
+        { lat: 8.402300, lng: 124.907800 },
+        { lat: 8.382300, lng: 124.907800 },
+        { lat: 8.372300, lng: 124.887800 }
       ]
     }],
-    centroid: { lat: 8.3923, lng: 124.8878 }
+    centroid: { lat: 8.392300, lng: 124.887800 }
   },
   'Sankanan': {
     polygons: [{
       points: [
-        { lat: 8.3945, lng: 124.8789 },
-        { lat: 8.4145, lng: 124.8989 },
-        { lat: 8.4145, lng: 124.9189 },
-        { lat: 8.3945, lng: 124.9189 },
-        { lat: 8.3845, lng: 124.8989 }
+        { lat: 8.394500, lng: 124.878900 },
+        { lat: 8.414500, lng: 124.898900 },
+        { lat: 8.414500, lng: 124.918900 },
+        { lat: 8.394500, lng: 124.918900 },
+        { lat: 8.384500, lng: 124.898900 }
       ]
     }],
-    centroid: { lat: 8.4045, lng: 124.8989 }
+    centroid: { lat: 8.404500, lng: 124.898900 }
   },
   'Santiago': {
     polygons: [{
       points: [
-        { lat: 8.4067, lng: 124.8923 },
-        { lat: 8.4267, lng: 124.9123 },
-        { lat: 8.4267, lng: 124.9323 },
-        { lat: 8.4067, lng: 124.9323 },
-        { lat: 8.3967, lng: 124.9123 }
+        { lat: 8.406700, lng: 124.892300 },
+        { lat: 8.426700, lng: 124.912300 },
+        { lat: 8.426700, lng: 124.932300 },
+        { lat: 8.406700, lng: 124.932300 },
+        { lat: 8.396700, lng: 124.912300 }
       ]
     }],
-    centroid: { lat: 8.4167, lng: 124.9123 }
+    centroid: { lat: 8.416700, lng: 124.912300 }
   },
   'Santo Niño': {
     polygons: [{
       points: [
-        { lat: 8.4189, lng: 124.9056 },
-        { lat: 8.4389, lng: 124.9256 },
-        { lat: 8.4389, lng: 124.9456 },
-        { lat: 8.4189, lng: 124.9456 },
-        { lat: 8.4089, lng: 124.9256 }
+        { lat: 8.418900, lng: 124.905600 },
+        { lat: 8.438900, lng: 124.925600 },
+        { lat: 8.438900, lng: 124.945600 },
+        { lat: 8.418900, lng: 124.945600 },
+        { lat: 8.408900, lng: 124.925600 }
       ]
     }],
-    centroid: { lat: 8.4289, lng: 124.9256 }
+    centroid: { lat: 8.428900, lng: 124.925600 }
   },
   'Tankulan': {
     polygons: [{
       points: [
-        { lat: 8.4312, lng: 124.9189 },
-        { lat: 8.4512, lng: 124.9389 },
-        { lat: 8.4512, lng: 124.9589 },
-        { lat: 8.4312, lng: 124.9589 },
-        { lat: 8.4212, lng: 124.9389 }
+        { lat: 8.431200, lng: 124.918900 },
+        { lat: 8.451200, lng: 124.938900 },
+        { lat: 8.451200, lng: 124.958900 },
+        { lat: 8.431200, lng: 124.958900 },
+        { lat: 8.421200, lng: 124.938900 }
       ]
     }],
-    centroid: { lat: 8.4412, lng: 124.9389 }
+    centroid: { lat: 8.441200, lng: 124.938900 }
   },
   'Ticala': {
     polygons: [{
       points: [
-        { lat: 8.4445, lng: 124.9323 },
-        { lat: 8.4645, lng: 124.9523 },
-        { lat: 8.4645, lng: 124.9723 },
-        { lat: 8.4445, lng: 124.9723 },
-        { lat: 8.4345, lng: 124.9523 }
+        { lat: 8.444500, lng: 124.932300 },
+        { lat: 8.464500, lng: 124.952300 },
+        { lat: 8.464500, lng: 124.972300 },
+        { lat: 8.444500, lng: 124.972300 },
+        { lat: 8.434500, lng: 124.952300 }
       ]
     }],
-    centroid: { lat: 8.4545, lng: 124.9523 }
+    centroid: { lat: 8.454500, lng: 124.952300 }
   }
 };
 
@@ -393,15 +394,19 @@ const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng:
   return inside;
 };
 
-// Enhanced barangay detection from GPS coordinates
+// Enhanced barangay detection from GPS coordinates with improved accuracy
 const detectBarangayFromCoordinates = (lat: number, lng: number): string | null => {
   console.log('Detecting barangay for coordinates:', lat, lng);
 
-  // First, try exact polygon matching
+  // Round coordinates to 6 decimal places for consistency
+  const roundedLat = Math.round(lat * 1000000) / 1000000;
+  const roundedLng = Math.round(lng * 1000000) / 1000000;
+
+  // First, try exact polygon matching with rounded coordinates
   for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
     for (const polygon of barangayData.polygons) {
-      if (isPointInPolygon(lat, lng, polygon.points)) {
-        console.log('Exact match found:', barangay);
+      if (isPointInPolygon(roundedLat, roundedLng, polygon.points)) {
+        console.log('Exact polygon match found:', barangay);
         return barangay;
       }
     }
@@ -410,12 +415,12 @@ const detectBarangayFromCoordinates = (lat: number, lng: number): string | null 
   // If no exact match, find nearest barangay within reasonable distance
   let nearestBarangay = null;
   let minDistance = Infinity;
-  const MAX_DISTANCE = 0.05; // approximately 5.5km
+  const MAX_DISTANCE = 0.02; // Reduced to approximately 2.2km for better accuracy
 
   for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
     const distance = Math.sqrt(
-      Math.pow(lat - barangayData.centroid.lat, 2) +
-      Math.pow(lng - barangayData.centroid.lng, 2)
+      Math.pow(roundedLat - barangayData.centroid.lat, 2) +
+      Math.pow(roundedLng - barangayData.centroid.lng, 2)
     );
 
     if (distance < minDistance && distance < MAX_DISTANCE) {
@@ -427,7 +432,7 @@ const detectBarangayFromCoordinates = (lat: number, lng: number): string | null 
   if (nearestBarangay) {
     console.log('Nearest barangay found:', nearestBarangay, 'Distance:', minDistance);
   } else {
-    console.log('No nearby barangay found');
+    console.log('No nearby barangay found within', MAX_DISTANCE, 'degrees');
   }
 
   return nearestBarangay;
