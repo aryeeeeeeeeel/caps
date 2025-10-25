@@ -369,7 +369,7 @@ const ActivityLogs: React.FC = () => {
           <IonTitle style={{
             fontWeight: 'bold',
             fontSize: '20px'
-          }}>iAMUMA ta - Activity Logs</IonTitle>
+          }}>iAMUMA ta</IonTitle>
 
           <IonButtons slot="end">
             {/* Notifications Button */}
