@@ -44,6 +44,7 @@ import History from './user-tabs/History';
 import Notifications from './Notifications';
 import GiveFeedback from './user-tabs/GiveFeedback';
 import ActivityLogs from './user-tabs/ActivityLogs';
+import Profile from './user-tabs/Profile';
 
 const Home: React.FC = () => {
   const history = useHistory();
@@ -442,6 +443,7 @@ const Home: React.FC = () => {
             <Route exact path="/it35-lab2/app/notifications" render={() => <Notifications refreshCount={refreshNotificationCount} />} />
             <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
             <Route exact path="/it35-lab2/app/activity-logs" component={ActivityLogs} />
+            <Route exact path="/it35-lab2/app/profile" component={Profile} />
 
             <Route exact path="/it35-lab2/app">
               <Redirect to="/it35-lab2/app/dashboard" />
