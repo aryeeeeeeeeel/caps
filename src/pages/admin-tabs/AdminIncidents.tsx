@@ -513,7 +513,7 @@ const AdminIncidents: React.FC = () => {
 
           <IonToolbar style={{ '--background': 'white' } as any}>
             <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
-              {[1, 2, 3, 4].map((item) => (
+              {[1, 2, 3, 4, 5].map((item) => (
                 <div key={item} style={{ flex: 1, padding: '12px', textAlign: 'center' }}>
                   <IonSkeletonText animated style={{ width: '80%', height: '16px', margin: '0 auto' }} />
                 </div>
@@ -650,7 +650,7 @@ const AdminIncidents: React.FC = () => {
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[
               { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
-              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline },
+              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
               { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
               { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/it35-lab2/admin/analytics' },
               { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
