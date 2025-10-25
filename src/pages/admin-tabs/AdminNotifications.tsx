@@ -490,7 +490,7 @@ if (isLoading) {
         {/* Skeleton for menu bar */}
         <IonToolbar style={{ '--background': 'var(--bg-primary)' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
-            {[1, 2, 3, 4].map(i => (
+            {[1, 2, 3, 4, 5].map(i => (
               <div key={i} style={{ flex: 1, padding: '8px', display: 'flex', justifyContent: 'center' }}>
                 <IonSkeletonText 
                   animated 
@@ -689,7 +689,8 @@ if (isLoading) {
               { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
               { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
               { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
-              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' }
+              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' },
+              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
             ].map(menu => (
               <IonButton
                 key={menu.id}
