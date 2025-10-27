@@ -20,7 +20,14 @@ import {
   IonRow,
   IonCol,
   IonSpinner,
-  IonSkeletonText
+  IonSkeletonText,
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonButtons,
+  IonTabBar,
+  IonTabButton
 } from '@ionic/react';
 import {
   cameraOutline,
@@ -881,64 +888,64 @@ const IncidentReport: React.FC = () => {
   if (isFormLoading) {
     return (
       <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
-        <div style={{ padding: '20px' }}>
-          {/* Header Skeleton */}
-          <IonCard style={{
-            borderRadius: '16px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-            marginBottom: '20px'
-          }}>
-            <IonCardHeader>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <IonSkeletonText animated style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '12px',
-                  marginRight: '16px'
-                }} />
-                <div>
-                  <IonSkeletonText animated style={{ width: '200px', height: '20px', marginBottom: '4px' }} />
-                  <IonSkeletonText animated style={{ width: '250px', height: '14px' }} />
+          <div style={{ padding: '20px' }}>
+            {/* Header Skeleton */}
+            <IonCard style={{
+              borderRadius: '16px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+              marginBottom: '20px'
+            }}>
+              <IonCardHeader>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <IonSkeletonText animated style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    marginRight: '16px'
+                  }} />
+                  <div>
+                    <IonSkeletonText animated style={{ width: '200px', height: '20px', marginBottom: '4px' }} />
+                    <IonSkeletonText animated style={{ width: '250px', height: '14px' }} />
+                  </div>
                 </div>
-              </div>
-            </IonCardHeader>
-          </IonCard>
+              </IonCardHeader>
+            </IonCard>
 
-          {/* Timestamp Skeleton */}
-          <IonCard style={{
-            borderRadius: '16px',
-            marginBottom: '20px',
-            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-            border: '1px solid #7dd3fc'
-          }}>
-            <IonCardContent>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <IonSkeletonText animated style={{ width: '20px', height: '20px', marginRight: '12px' }} />
-                <div>
-                  <IonSkeletonText animated style={{ width: '100px', height: '12px', marginBottom: '4px' }} />
-                  <IonSkeletonText animated style={{ width: '180px', height: '14px' }} />
+            {/* Timestamp Skeleton */}
+            <IonCard style={{
+              borderRadius: '16px',
+              marginBottom: '20px',
+              background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+              border: '1px solid #7dd3fc'
+            }}>
+              <IonCardContent>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <IonSkeletonText animated style={{ width: '20px', height: '20px', marginRight: '12px' }} />
+                  <div>
+                    <IonSkeletonText animated style={{ width: '100px', height: '12px', marginBottom: '4px' }} />
+                    <IonSkeletonText animated style={{ width: '180px', height: '14px' }} />
+                  </div>
                 </div>
-              </div>
-            </IonCardContent>
-          </IonCard>
+              </IonCardContent>
+            </IonCard>
 
-          {/* Photo Section Skeleton */}
-          <SkeletonPhotoCard />
+            {/* Photo Section Skeleton */}
+            <SkeletonPhotoCard />
 
-          {/* Information Section Skeleton */}
-          <SkeletonInfoCard />
+            {/* Information Section Skeleton */}
+            <SkeletonInfoCard />
 
-          {/* Incident Details Skeleton */}
-          <SkeletonFormCard title="Incident Details" />
+            {/* Incident Details Skeleton */}
+            <SkeletonFormCard title="Incident Details" />
 
-          {/* Submit Button Skeleton */}
-          <IonCard style={{ borderRadius: '16px' }}>
-            <IonCardContent>
-              <IonSkeletonText animated style={{ width: '100%', height: '52px', borderRadius: '12px' }} />
-            </IonCardContent>
-          </IonCard>
-        </div>
-      </IonContent>
+            {/* Submit Button Skeleton */}
+            <IonCard style={{ borderRadius: '16px' }}>
+              <IonCardContent>
+                <IonSkeletonText animated style={{ width: '100%', height: '52px', borderRadius: '12px' }} />
+              </IonCardContent>
+            </IonCard>
+          </div>
+        </IonContent>
     );
   }
 
