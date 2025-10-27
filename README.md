@@ -2,6 +2,8 @@
 
 A comprehensive incident reporting and management system built with Ionic React and Supabase.
 
+> **Latest Update**: Fixed TypeScript compilation issues for Vercel deployment.
+
 ## Features
 
 - 🚨 **Incident Reporting**: Report incidents with photos, location, and detailed descriptions
