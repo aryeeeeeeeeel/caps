@@ -97,6 +97,9 @@ const ActivityLogs: React.FC = () => {
     { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: listOutline },
   ];
 
+  // Check if we're on the activity logs page specifically
+  const isActivityLogsPage = location.pathname === '/it35-lab2/app/activity-logs';
+
   useEffect(() => {
     let notificationsChannel: any;
     let reportsChannel: any;
@@ -228,13 +231,15 @@ const ActivityLogs: React.FC = () => {
       // Calculate total unread count
       const unreadCount = (notificationsData?.length || 0) + (incidentUpdates?.length || 0);
       console.log('New unread count:', unreadCount, 'Previous:', prevUnreadCount);
-      setUnreadNotifications(unreadCount);
       
       // Show toast if new notifications arrive
-      if (unreadCount > prevUnreadCount) {
+      if (unreadCount > prevUnreadCount && prevUnreadCount > 0) {
         console.log('Showing toast for new notifications');
+        setToastMessage(`You have ${unreadCount} unread notifications`);
         setShowToast(true);
       }
+      
+      setUnreadNotifications(unreadCount);
       setPrevUnreadCount(unreadCount);
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -349,14 +354,6 @@ const ActivityLogs: React.FC = () => {
 
   return (
     <IonPage>
-      <IonToast
-        isOpen={showToast}
-        onDidDismiss={() => setShowToast(false)}
-        message={unreadNotifications > 0 ? "Your pending report has been updated to active. Check it out for more info!" : "Your report has been resolved. Check it out to review and rate it!"}
-        duration={3000}
-        position="top"
-        color={unreadNotifications > 0 ? 'primary' : 'success'}
-      />
       <IonHeader>
         <IonToolbar style={{
           '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -546,255 +543,258 @@ const ActivityLogs: React.FC = () => {
         </IonContent>
       </IonPopover>
 
-      <IonContent>
-        <IonTabs>
-          <IonRouterOutlet>
-            <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
-            <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
-            <Route exact path="/it35-lab2/app/map" component={IncidentMap} />
-            <Route exact path="/it35-lab2/app/history" component={History} />
-            <Route exact path="/it35-lab2/app/notifications" render={() => <Notifications refreshCount={() => {}} />} />
-            <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
-            <Route exact path="/it35-lab2/app/activity-logs" render={() => (
-              <div>
-                <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
-                  <IonRefresherContent />
-                </IonRefresher>
+      <IonContent fullscreen>
+        {isActivityLogsPage ? (
+          // Activity Logs Content
+          <div>
+            <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
+              <IonRefresherContent />
+            </IonRefresher>
 
-                {/* Header Container */}
-                <div style={{ padding: '20px 20px 0 20px' }}>
-                  <div style={{
-                    background: 'white',
-                    borderRadius: '16px',
-                    padding: '20px',
-                    marginBottom: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '16px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-                  }}>
-                    <div style={{
-                      width: '56px',
-                      height: '56px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      borderRadius: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <IonIcon icon={documentTextOutline} style={{ fontSize: '28px', color: 'white' }} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
-                        Activity Logs
-                      </h2>
-                      <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
-                        Track your account activities
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats Overview */}
+            {/* Header Container */}
+            <div style={{ padding: '20px 20px 0 20px' }}>
+              <div style={{
+                background: 'white',
+                borderRadius: '16px',
+                padding: '20px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+              }}>
                 <div style={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 10,
-                  background: '#f8fafc',
-                  padding: '0 20px 20px 20px'
+                  width: '56px',
+                  height: '56px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                    {[
-                      { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, filter: 'all' },
-                      { label: 'Logins', value: stats.login, color: '#10b981', icon: logInOutline, filter: 'login' },
-                      { label: 'Reports', value: stats.report, color: '#3b82f6', icon: addCircleOutline, filter: 'report' },
-                      { label: 'Feedback', value: stats.feedback, color: '#8b5cf6', icon: chatbubbleOutline, filter: 'feedback' }
-                    ].map((stat, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => setFilter(stat.filter as any)}
-                        style={{
-                          background: filter === stat.filter ? stat.color + '20' : 'white',
-                          border: `1px solid ${filter === stat.filter ? stat.color : '#e5e7eb'}`,
-                          borderRadius: '12px',
-                          padding: '16px',
-                          textAlign: 'center',
-                          cursor: 'pointer',
-                          transition: 'all 0.3s ease'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <IonIcon icon={stat.icon} style={{ color: stat.color, fontSize: '20px' }} />
-                          <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>{stat.label}</div>
-                        </div>
-                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
-                      </div>
-                    ))}
-                  </div>
+                  <IonIcon icon={documentTextOutline} style={{ fontSize: '28px', color: 'white' }} />
                 </div>
+                <div style={{ flex: 1 }}>
+                  <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
+                    Activity Logs
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                    Track your account activities
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                {/* Activity Logs List */}
-                <div style={{ padding: '0 20px 20px 20px' }}>
-                  <IonCard style={{ borderRadius: '16px' }}>
-                    <IonCardContent style={{ padding: '16px' }}>
-                      <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 'bold' }}>
-                        {filter === 'all' ? 'All Activities' : filter.charAt(0).toUpperCase() + filter.slice(1) + ' Activities'} ({filteredLogs.length})
-                      </h3>
+            {/* Stats Overview */}
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
+              background: '#f8fafc',
+              padding: '0 20px 20px 20px'
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                {[
+                  { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, filter: 'all' },
+                  { label: 'Logins', value: stats.login, color: '#10b981', icon: logInOutline, filter: 'login' },
+                  { label: 'Reports', value: stats.report, color: '#3b82f6', icon: addCircleOutline, filter: 'report' },
+                  { label: 'Feedback', value: stats.feedback, color: '#8b5cf6', icon: chatbubbleOutline, filter: 'feedback' }
+                ].map((stat, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setFilter(stat.filter as any)}
+                    style={{
+                      background: filter === stat.filter ? stat.color + '20' : 'white',
+                      border: `1px solid ${filter === stat.filter ? stat.color : '#e5e7eb'}`,
+                      borderRadius: '12px',
+                      padding: '16px',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <IonIcon icon={stat.icon} style={{ color: stat.color, fontSize: '20px' }} />
+                      <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>{stat.label}</div>
+                    </div>
+                    <div style={{ fontSize: '28px', fontWeight: 'bold', color: stat.color }}>{stat.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-                      <IonList style={{ background: 'transparent' }}>
-                        {filteredLogs.map(log => (
-                          <IonItem
-                            key={log.id}
-                            style={{
-                              '--background': 'transparent',
-                              '--border-radius': '8px',
-                              marginBottom: '12px'
-                            } as any}
-                          >
-                            <div style={{ width: '100%', padding: '12px 0' }}>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                                <div style={{
-                                  width: '40px',
-                                  height: '40px',
-                                  background: getActivityColor(log.activity_type) + '20',
-                                  borderRadius: '12px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0
+            {/* Activity Logs List */}
+            <div style={{ padding: '0 20px 20px 20px' }}>
+              <IonCard style={{ borderRadius: '16px' }}>
+                <IonCardContent style={{ padding: '16px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 'bold' }}>
+                    {filter === 'all' ? 'All Activities' : filter.charAt(0).toUpperCase() + filter.slice(1) + ' Activities'} ({filteredLogs.length})
+                  </h3>
+
+                  <IonList style={{ background: 'transparent' }}>
+                    {filteredLogs.map(log => (
+                      <IonItem
+                        key={log.id}
+                        style={{
+                          '--background': 'transparent',
+                          '--border-radius': '8px',
+                          marginBottom: '12px'
+                        } as any}
+                      >
+                        <div style={{ width: '100%', padding: '12px 0' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                            <div style={{
+                              width: '40px',
+                              height: '40px',
+                              background: getActivityColor(log.activity_type) + '20',
+                              borderRadius: '12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <IonIcon
+                                icon={getActivityIcon(log.activity_type)}
+                                style={{
+                                  fontSize: '20px',
+                                  color: getActivityColor(log.activity_type)
+                                }}
+                              />
+                            </div>
+
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                <h4 style={{
+                                  margin: 0,
+                                  fontSize: '16px',
+                                  fontWeight: '600',
+                                  color: '#1f2937'
                                 }}>
-                                  <IonIcon
-                                    icon={getActivityIcon(log.activity_type)}
-                                    style={{
-                                      fontSize: '20px',
-                                      color: getActivityColor(log.activity_type)
-                                    }}
-                                  />
+                                  {log.activity_description}
+                                </h4>
+                                <IonChip
+                                  style={{
+                                    '--background': getActivityColor(log.activity_type) + '20',
+                                    '--color': getActivityColor(log.activity_type),
+                                    height: '24px',
+                                    fontSize: '10px',
+                                    fontWeight: '600'
+                                  } as any}
+                                >
+                                  {log.activity_type.toUpperCase()}
+                                </IonChip>
+                              </div>
+
+                              {log.details && Object.keys(log.details).length > 0 && (
+                                <div style={{ marginBottom: '8px' }}>
+                                  {Object.entries(log.details).map(([key, value]) => (
+                                    <div key={key} style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
+                                      <strong>{key}:</strong> {String(value)}
+                                    </div>
+                                  ))}
                                 </div>
+                              )}
 
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                    <h4 style={{
-                                      margin: 0,
-                                      fontSize: '16px',
-                                      fontWeight: '600',
-                                      color: '#1f2937'
-                                    }}>
-                                      {log.activity_description}
-                                    </h4>
-                                    <IonChip
-                                      style={{
-                                        '--background': getActivityColor(log.activity_type) + '20',
-                                        '--color': getActivityColor(log.activity_type),
-                                        height: '24px',
-                                        fontSize: '10px',
-                                        fontWeight: '600'
-                                      } as any}
-                                    >
-                                      {log.activity_type.toUpperCase()}
-                                    </IonChip>
-                                  </div>
-
-                                  {log.details && Object.keys(log.details).length > 0 && (
-                                    <div style={{ marginBottom: '8px' }}>
-                                      {Object.entries(log.details).map(([key, value]) => (
-                                        <div key={key} style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
-                                          <strong>{key}:</strong> {String(value)}
-                                        </div>
-                                      ))}
-                                    </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '12px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <IonIcon icon={timeOutline} style={{ fontSize: '12px' }} />
+                                    {getTimeAgo(log.created_at)}
+                                  </span>
+                                  {log.ip_address && (
+                                    <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                                      IP: {log.ip_address}
+                                    </span>
                                   )}
-
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <span style={{ fontSize: '12px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <IonIcon icon={timeOutline} style={{ fontSize: '12px' }} />
-                                        {getTimeAgo(log.created_at)}
-                                      </span>
-                                      {log.ip_address && (
-                                        <span style={{ fontSize: '11px', color: '#9ca3af' }}>
-                                          IP: {log.ip_address}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                                      {formatDate(log.created_at)}
-                                    </div>
-                                  </div>
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                                  {formatDate(log.created_at)}
                                 </div>
                               </div>
                             </div>
-                          </IonItem>
-                        ))}
-                      </IonList>
-
-                      {filteredLogs.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
-                          <IonIcon icon={documentTextOutline} style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }} />
-                          <div style={{ fontSize: '16px', fontWeight: '500' }}>No activities found</div>
-                          <div style={{ fontSize: '14px', marginTop: '4px' }}>
-                            {filter === 'all' ? 'You have no activity logs yet' : `No ${filter} activities found`}
                           </div>
                         </div>
-                      )}
-                    </IonCardContent>
-                  </IonCard>
-                </div>
+                      </IonItem>
+                    ))}
+                  </IonList>
 
-                <IonToast
-                  isOpen={showToast}
-                  onDidDismiss={() => setShowToast(false)}
-                  message={toastMessage}
-                  duration={3000}
-                  position="top"
-                />
-              </div>
-            )} />
+                  {filteredLogs.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                      <IonIcon icon={documentTextOutline} style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }} />
+                      <div style={{ fontSize: '16px', fontWeight: '500' }}>No activities found</div>
+                      <div style={{ fontSize: '14px', marginTop: '4px' }}>
+                        {filter === 'all' ? 'You have no activity logs yet' : `No ${filter} activities found`}
+                      </div>
+                    </div>
+                  )}
+                </IonCardContent>
+              </IonCard>
+            </div>
+          </div>
+        ) : (
+          // Tabbed Content
+          <IonTabs>
+            <IonRouterOutlet>
+              <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
+              <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
+              <Route exact path="/it35-lab2/app/map" component={IncidentMap} />
+              <Route exact path="/it35-lab2/app/history" component={History} />
+              <Route exact path="/it35-lab2/app/notifications" render={() => <Notifications refreshCount={() => {}} />} />
+              <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
+              <Route exact path="/it35-lab2/app">
+                <Redirect to="/it35-lab2/app/dashboard" />
+              </Route>
+            </IonRouterOutlet>
 
-            <Route exact path="/it35-lab2/app">
-              <Redirect to="/it35-lab2/app/dashboard" />
-            </Route>
-          </IonRouterOutlet>
-
-          {/* Bottom Tab Bar */}
-          <IonTabBar
-            slot="bottom"
-            style={{
-              '--background': 'white',
-              '--border': '1px solid #e2e8f0',
-              height: '70px',
-              paddingTop: '8px',
-              paddingBottom: '8px'
-            } as any}
-          >
-            {tabs.map((item, index) => (
-              <IonTabButton
-                key={index}
-                tab={item.tab}
-                href={item.url}
-                style={{
-                  '--color': '#94a3b8',
-                  '--color-selected': '#667eea'
-                } as any}
-              >
-                <IonIcon
-                  icon={item.icon}
+            {/* Bottom Tab Bar */}
+            <IonTabBar
+              slot="bottom"
+              style={{
+                '--background': 'white',
+                '--border': '1px solid #e2e8f0',
+                height: '70px',
+                paddingTop: '8px',
+                paddingBottom: '8px'
+              } as any}
+            >
+              {tabs.map((item, index) => (
+                <IonTabButton
+                  key={index}
+                  tab={item.tab}
+                  href={item.url}
                   style={{
-                    marginBottom: '4px',
-                    fontSize: '22px'
-                  }}
-                />
-                <IonLabel style={{
-                  fontSize: '11px',
-                  fontWeight: '600'
-                }}>
-                  {item.name}
-                </IonLabel>
-              </IonTabButton>
-            ))}
-          </IonTabBar>
-        </IonTabs>
+                    '--color': '#94a3b8',
+                    '--color-selected': '#667eea'
+                  } as any}
+                >
+                  <IonIcon
+                    icon={item.icon}
+                    style={{
+                      marginBottom: '4px',
+                      fontSize: '22px'
+                    }}
+                  />
+                  <IonLabel style={{
+                    fontSize: '11px',
+                    fontWeight: '600'
+                  }}>
+                    {item.name}
+                  </IonLabel>
+                </IonTabButton>
+              ))}
+            </IonTabBar>
+          </IonTabs>
+        )}
+
+        {/* Global Toast */}
+        <IonToast
+          isOpen={showToast}
+          onDidDismiss={() => setShowToast(false)}
+          message={toastMessage}
+          duration={3000}
+          position="top"
+        />
       </IonContent>
     </IonPage>
   );
