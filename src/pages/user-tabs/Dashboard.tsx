@@ -21,7 +21,13 @@ import {
   IonSkeletonText,
   IonProgressBar,
   IonPage,
-  IonToast
+  IonToast,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonButtons,
+  IonTabBar,
+  IonTabButton
 } from '@ionic/react';
 import {
   homeOutline,
@@ -304,8 +310,7 @@ const Dashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <IonPage>
-        <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
           <div style={{ padding: '20px' }}>
             {/* Welcome Header Skeleton */}
             <IonCard style={{
@@ -465,7 +470,6 @@ const Dashboard: React.FC = () => {
             </IonCard>
           </div>
         </IonContent>
-      </IonPage>
     );
   }
 
