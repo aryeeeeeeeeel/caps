@@ -28,7 +28,7 @@ import './theme/variables.css';
 /* Main Pages */
 import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
-import { AdminLogin } from "./pages";
+// import AdminLogin from "./pages/AdminLoginPage";
 import Register from './pages/Register';
 import Profile from './pages/user-tabs/Profile';
 
@@ -52,7 +52,7 @@ const App: React.FC = () => (
         {/* Landing and Auth Routes */}
         <Route exact path="/it35-lab2" component={LandingPage} />
         <Route exact path="/it35-lab2/user-login" component={Login} />
-        <Route exact path="/it35-lab2/admin-login" component={AdminLogin} />
+        {/* <Route exact path="/it35-lab2/admin-login" component={AdminLogin} /> */}
         <Route exact path="/it35-lab2/register" component={Register} />
 
         {/* User App Routes - Using Home component with bottom tabs */}
