@@ -23,7 +23,14 @@ import {
   IonGrid,
   IonRow,
   IonCol,
-  IonSkeletonText
+  IonSkeletonText,
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonButtons,
+  IonTabBar,
+  IonTabButton
 } from '@ionic/react';
 import {
   mapOutline,
@@ -193,17 +200,124 @@ const IncidentMap: React.FC = () => {
     }
   }, [location.search]);
 
+  // Real-time subscription for new reports
+  const [realtimeChannel, setRealtimeChannel] = useState<any>(null);
+
   useEffect(() => {
     const initializeData = async () => {
       try {
         await fetchActiveReports();
+        setupRealtimeSubscription();
       } catch (error) {
         console.error('Error initializing data:', error);
         setIsLoading(false);
       }
     };
     initializeData();
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (realtimeChannel) {
+        realtimeChannel.unsubscribe();
+      }
+    };
   }, []);
+
+  const setupRealtimeSubscription = () => {
+    const channel = supabase
+      .channel('incident_map_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'incident_reports',
+        },
+        async (payload) => {
+          console.log('New incident report detected:', payload.new);
+          const newReport = payload.new as UserReport;
+          
+          // Only add if it's not resolved and has coordinates
+          if (newReport.status !== 'resolved' && newReport.coordinates) {
+            // Parse coordinates if they're stored as string
+            let coordinates = newReport.coordinates;
+            if (typeof coordinates === 'string') {
+              try {
+                coordinates = JSON.parse(coordinates);
+              } catch (e) {
+                console.warn('Failed to parse coordinates for new report:', e);
+                return;
+              }
+            }
+
+            const reportWithCoords = {
+              ...newReport,
+              coordinates
+            };
+
+            // Add to reports list
+            setReports(prev => {
+              // Check if report already exists to avoid duplicates
+              const exists = prev.find(r => r.id === newReport.id);
+              if (exists) {
+                return prev;
+              }
+              return [reportWithCoords, ...prev];
+            });
+
+            // Show notification
+            setToastMessage(`🆕 New incident reported: ${newReport.title} in ${newReport.barangay}`);
+            setShowToast(true);
+
+            // If this is the target report from URL, auto-select it
+            if (targetReportId === newReport.id) {
+              setSelectedReport(reportWithCoords);
+              setShowViewModal(true);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'incident_reports',
+        },
+        async (payload) => {
+          console.log('Incident report updated:', payload.new);
+          const updatedReport = payload.new as UserReport;
+          
+          // Parse coordinates if needed
+          let coordinates = updatedReport.coordinates;
+          if (coordinates && typeof coordinates === 'string') {
+            try {
+              coordinates = JSON.parse(coordinates);
+            } catch (e) {
+              console.warn('Failed to parse coordinates for updated report:', e);
+            }
+          }
+
+          const reportWithCoords = {
+            ...updatedReport,
+            coordinates
+          };
+
+          // Update in reports list
+          setReports(prev => prev.map(r => r.id === updatedReport.id ? reportWithCoords : r));
+
+          // If this report was resolved, remove it from the map
+          if (updatedReport.status === 'resolved') {
+            setReports(prev => prev.filter(r => r.id !== updatedReport.id));
+            setToastMessage(`✅ Incident resolved: ${updatedReport.title}`);
+            setShowToast(true);
+          }
+        }
+      )
+      .subscribe();
+
+    setRealtimeChannel(channel);
+  };
 
   useEffect(() => {
     if (isLoading) return;
@@ -588,51 +702,51 @@ const IncidentMap: React.FC = () => {
   if (isLoading) {
     return (
       <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
-        <div style={{ padding: '20px 20px 0' }}>
-          <IonCard style={{
-            borderRadius: '16px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-            marginBottom: '20px'
-          }}>
-            <IonCardHeader>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <IonSkeletonText animated style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    marginRight: '16px'
-                  }} />
-                  <div>
-                    <IonSkeletonText animated style={{ width: '180px', height: '20px', marginBottom: '4px' }} />
-                    <IonSkeletonText animated style={{ width: '120px', height: '14px' }} />
-                  </div>
-                </div>
-                <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
-              </div>
-            </IonCardHeader>
-          </IonCard>
-
-          <SkeletonIncidentMap />
-
-          <div style={{ padding: '0 0px 0px' }}>
-            <IonCard style={{ borderRadius: '16px' }}>
+          <div style={{ padding: '20px 20px 0' }}>
+            <IonCard style={{
+              borderRadius: '16px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+              marginBottom: '20px'
+            }}>
               <IonCardHeader>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <IonSkeletonText animated style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      marginRight: '16px'
+                    }} />
+                    <div>
+                      <IonSkeletonText animated style={{ width: '180px', height: '20px', marginBottom: '4px' }} />
+                      <IonSkeletonText animated style={{ width: '120px', height: '14px' }} />
+                    </div>
+                  </div>
+                  <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
                 </div>
               </IonCardHeader>
-              <IonCardContent style={{ padding: 0 }}>
-                <IonList style={{ background: 'transparent' }}>
-                  {[1, 2, 3, 4].map((item) => (
-                    <SkeletonReportItem key={item} />
-                  ))}
-                </IonList>
-              </IonCardContent>
             </IonCard>
+
+            <SkeletonIncidentMap />
+
+            <div style={{ padding: '0 0px 0px' }}>
+              <IonCard style={{ borderRadius: '16px' }}>
+                <IonCardHeader>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+                  </div>
+                </IonCardHeader>
+                <IonCardContent style={{ padding: 0 }}>
+                  <IonList style={{ background: 'transparent' }}>
+                    {[1, 2, 3, 4].map((item) => (
+                      <SkeletonReportItem key={item} />
+                    ))}
+                  </IonList>
+                </IonCardContent>
+              </IonCard>
+            </div>
           </div>
-        </div>
-      </IonContent>
+        </IonContent>
     );
   }
 
