@@ -1,4 +1,4 @@
-// src/pages/user-tabs/Profile.tsx - WITH SKELETON LOADING
+// src/pages/user-tabs/Profile.tsx - FIXED VERSION
 import React, { useState, useEffect, useRef } from 'react';
 import {
     IonPage,
@@ -25,12 +25,16 @@ import {
     IonAlert,
     IonSkeletonText,
     IonPopover,
-    IonBadge
+    IonBadge,
+    IonTabBar,
+    IonTabButton,
+    IonTabs,
+    IonRouterOutlet
 } from '@ionic/react';
 import { supabase } from '../../utils/supabaseClient';
 import { logUserProfileUpdate, logUserLogout } from '../../utils/activityLogger';
 import { useHistory } from 'react-router-dom';
-import { personOutline, mailOutline, locationOutline, callOutline, cameraOutline, checkmarkCircleOutline, arrowBackOutline, keyOutline, personCircle, notificationsOutline, logOutOutline, chatbubbleOutline, documentTextOutline } from 'ionicons/icons';
+import { personOutline, mailOutline, locationOutline, callOutline, cameraOutline, checkmarkCircleOutline, arrowBackOutline, keyOutline, personCircle, notificationsOutline, logOutOutline, chatbubbleOutline, documentTextOutline, homeOutline, addCircleOutline, listOutline, mapOutline } from 'ionicons/icons';
 
 const Profile: React.FC = () => {
     const history = useHistory();
@@ -55,7 +59,7 @@ const Profile: React.FC = () => {
     const [isOtpSent, setIsOtpSent] = useState(false);
     const [isPageLoading, setIsPageLoading] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    
+
     // Header-related state variables
     const [userProfile, setUserProfile] = useState<any>(null);
     const [showProfilePopover, setShowProfilePopover] = useState(false);
@@ -63,6 +67,15 @@ const Profile: React.FC = () => {
     const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [prevUnreadCount, setPrevUnreadCount] = useState(0);
     const [userReports, setUserReports] = useState<any[]>([]);
+    const [latestNotificationType, setLatestNotificationType] = useState<'pending' | 'resolved' | null>(null);
+
+    // Tab configuration
+    const tabs = [
+        { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
+        { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
+        { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
+        { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: listOutline },
+    ];
 
     // Default avatar as an icon (like Facebook)
     const DefaultAvatarIcon = () => (
@@ -433,7 +446,7 @@ const Profile: React.FC = () => {
             if (address !== profile?.user_address) updatedFields.push('address');
             if (contactNumber !== profile?.user_contact_number) updatedFields.push('contact_number');
             if (isAvatarChanged) updatedFields.push('avatar');
-            
+
             await logUserProfileUpdate(updatedFields, user.email);
 
             setShowOtpModal(false);
@@ -458,7 +471,7 @@ const Profile: React.FC = () => {
                 .select('*')
                 .eq('user_email', userEmail)
                 .single();
-                
+
             if (!error && data) {
                 setUserProfile(data);
             } else if (error) {
@@ -476,7 +489,7 @@ const Profile: React.FC = () => {
                 .select('*')
                 .eq('reporter_email', email)
                 .order('created_at', { ascending: false });
-                
+
             if (!error && data) {
                 setUserReports(data);
             }
@@ -499,13 +512,14 @@ const Profile: React.FC = () => {
                 console.error('Notifications error:', notificationsError);
             }
 
-            // Fetch from incident_reports table
+            // Fetch from incident_reports table with status information
             const { data: incidentUpdates, error: reportsError } = await supabase
                 .from('incident_reports')
-                .select('id, title, admin_response, updated_at, read')
+                .select('id, title, admin_response, updated_at, read, status')
                 .eq('reporter_email', email)
                 .not('admin_response', 'is', null)
-                .eq('read', false);
+                .eq('read', false)
+                .order('updated_at', { ascending: false });
 
             if (reportsError) {
                 console.error('Reports error:', reportsError);
@@ -515,10 +529,33 @@ const Profile: React.FC = () => {
             const unreadCount = (notificationsData?.length || 0) + (incidentUpdates?.length || 0);
             console.log('New unread count:', unreadCount, 'Previous:', prevUnreadCount);
             setUnreadNotifications(unreadCount);
-            
-            // Show toast if new notifications arrive
+
+            // Show toast if new notifications arrive and determine the type
             if (unreadCount > prevUnreadCount) {
                 console.log('Showing toast for new notifications');
+
+                // Determine the type of latest notification
+                let notificationType: 'pending' | 'resolved' | null = null;
+
+                // Check if there are new incident updates
+                if (incidentUpdates && incidentUpdates.length > 0) {
+                    // Get the most recent update
+                    const latestUpdate = incidentUpdates[0];
+                    if (latestUpdate.status === 'resolved') {
+                        notificationType = 'resolved';
+                    } else if (latestUpdate.status === 'active') {
+                        notificationType = 'pending';
+                    }
+                }
+
+                // If no incident updates, check notifications table
+                if (!notificationType && notificationsData && notificationsData.length > 0) {
+                    // For general notifications, we'll assume they're about pending reports
+                    // unless we can determine otherwise from the notification content
+                    notificationType = 'pending';
+                }
+
+                setLatestNotificationType(notificationType);
                 setShowToast(true);
             }
             setPrevUnreadCount(unreadCount);
@@ -553,7 +590,13 @@ const Profile: React.FC = () => {
         }, 100);
     };
 
-    // Skeleton Loading Component
+    const handleOtpChange = (e: CustomEvent) => {
+        const value = e.detail.value!;
+        const numericValue = value.replace(/\D/g, '').slice(0, 6);
+        setOtp(numericValue);
+    };
+
+    // Skeleton Loading Component - UPDATED TO MATCH CONTENT
     const SkeletonLoader = () => (
         <div style={{
             minHeight: '100vh',
@@ -570,7 +613,7 @@ const Profile: React.FC = () => {
                 border: '1px solid rgba(226,232,240,0.8)',
                 overflow: 'hidden'
             }}>
-                {/* Header Skeleton */}
+                {/* Header Skeleton - Updated to match actual header */}
                 <div style={{
                     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     padding: '40px 32px 30px',
@@ -578,24 +621,39 @@ const Profile: React.FC = () => {
                     position: 'relative'
                 }}>
                     <div style={{ position: 'relative', zIndex: 1 }}>
-                        <IonSkeletonText
-                            animated
-                            style={{
-                                width: '100px',
-                                height: '100px',
-                                borderRadius: '50%',
-                                margin: '0 auto 20px'
-                            }}
-                        />
+                        {/* Avatar Skeleton */}
+                        <div style={{
+                            width: '100px',
+                            height: '100px',
+                            borderRadius: '50%',
+                            margin: '0 auto 20px',
+                            background: 'rgba(255,255,255,0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '50%'
+                                }}
+                            />
+                        </div>
+
+                        {/* Title Skeleton */}
                         <IonSkeletonText
                             animated
                             style={{
                                 width: '60%',
                                 height: '28px',
                                 borderRadius: '4px',
-                                margin: '0 auto 8px'
+                                margin: '0 auto 12px'
                             }}
                         />
+
+                        {/* Subtitle Skeleton */}
                         <IonSkeletonText
                             animated
                             style={{
@@ -651,28 +709,89 @@ const Profile: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Other Fields Skeleton */}
-                    {[1, 2, 3, 4].map((item) => (
-                        <div key={item} style={{ marginBottom: '20px' }}>
-                            <IonSkeletonText
-                                animated
-                                style={{
-                                    width: '30%',
-                                    height: '14px',
-                                    borderRadius: '4px',
-                                    marginBottom: '8px'
-                                }}
-                            />
-                            <IonSkeletonText
-                                animated
-                                style={{
-                                    width: '100%',
-                                    height: '48px',
-                                    borderRadius: '10px'
-                                }}
-                            />
-                        </div>
-                    ))}
+                    {/* Username Field Skeleton */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '30%',
+                                height: '14px',
+                                borderRadius: '4px',
+                                marginBottom: '8px'
+                            }}
+                        />
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '100%',
+                                height: '48px',
+                                borderRadius: '10px'
+                            }}
+                        />
+                    </div>
+
+                    {/* Email Field Skeleton */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '35%',
+                                height: '14px',
+                                borderRadius: '4px',
+                                marginBottom: '8px'
+                            }}
+                        />
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '100%',
+                                height: '48px',
+                                borderRadius: '10px'
+                            }}
+                        />
+                    </div>
+
+                    {/* Address Field Skeleton */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '25%',
+                                height: '14px',
+                                borderRadius: '4px',
+                                marginBottom: '8px'
+                            }}
+                        />
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '100%',
+                                height: '48px',
+                                borderRadius: '10px'
+                            }}
+                        />
+                    </div>
+
+                    {/* Contact Number Field Skeleton */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '40%',
+                                height: '14px',
+                                borderRadius: '4px',
+                                marginBottom: '8px'
+                            }}
+                        />
+                        <IonSkeletonText
+                            animated
+                            style={{
+                                width: '100%',
+                                height: '48px',
+                                borderRadius: '10px'
+                            }}
+                        />
+                    </div>
 
                     {/* Button Skeleton */}
                     <IonSkeletonText
@@ -689,17 +808,6 @@ const Profile: React.FC = () => {
         </div>
     );
 
-    const handleOtpChange = (e: CustomEvent) => {
-        const value = e.detail.value!;
-        const numericValue = value.replace(/\D/g, '').slice(0, 6);
-        setOtp(numericValue);
-
-        // Auto-verify when 6 digits are entered
-        if (numericValue.length === 6) {
-            handleVerifyOtp();
-        }
-    };
-
     if (isPageLoading) {
         return (
             <IonPage>
@@ -708,30 +816,45 @@ const Profile: React.FC = () => {
                         '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                         '--color': 'white'
                     } as any}>
-                        <IonSkeletonText
-                            animated
-                            style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '8px',
-                                marginLeft: '16px'
-                            }}
-                        />
-                        <IonSkeletonText
-                            animated
-                            style={{
-                                width: '150px',
-                                height: '20px',
-                                borderRadius: '4px',
-                                margin: '0 auto'
-                            }}
-                        />
+                        <IonButtons slot="start">
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '8px',
+                                    marginLeft: '16px'
+                                }}
+                            />
+                        </IonButtons>
+                        <IonTitle style={{ textAlign: 'center' }}>
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '150px',
+                                    height: '20px',
+                                    borderRadius: '4px',
+                                    margin: '0 auto'
+                                }}
+                            />
+                        </IonTitle>
+                        <IonButtons slot="end">
+                            <IonSkeletonText
+                                animated
+                                style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '8px',
+                                    marginRight: '16px'
+                                }}
+                            />
+                        </IonButtons>
                     </IonToolbar>
                 </IonHeader>
 
                 <IonContent style={{
                     '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
-                } as any}>
+                } as any} scrollY={true}>
                     <SkeletonLoader />
                 </IonContent>
             </IonPage>
@@ -928,11 +1051,12 @@ const Profile: React.FC = () => {
                 </IonContent>
             </IonPopover>
 
-            <IonContent style={{
+            {/* MAIN CONTENT - FIXED SCROLLING ISSUE */}
+            <IonContent scrollY={true} style={{
                 '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
             } as any}>
                 <div style={{
-                    minHeight: '100vh',
+                    minHeight: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1595,7 +1719,6 @@ const Profile: React.FC = () => {
                                         type="submit"
                                         expand="block"
                                         size="large"
-                                        onClick={handleVerifyOtp}
                                         disabled={isLoading || otp.length < 6}
                                         style={{
                                             '--border-radius': '10px',
@@ -1655,7 +1778,16 @@ const Profile: React.FC = () => {
                 </IonModal>
 
                 {/* Success Modal */}
-                <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
+                <IonModal
+                    isOpen={showSuccessModal}
+                    onDidDismiss={() => setShowSuccessModal(false)}
+                    style={{
+                        '--height': 'auto',
+                        '--width': '90%',
+                        '--max-width': '400px',
+                        '--border-radius': '20px'
+                    }}
+                >
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1666,10 +1798,10 @@ const Profile: React.FC = () => {
                         <div style={{
                             textAlign: 'center',
                             maxWidth: '400px',
-                            width: '90%',
+                            width: '100%',
                             background: 'white',
                             borderRadius: '20px',
-                            padding: '40px 32px',
+                            padding: '30px 24px',
                             boxShadow: '0 20px 64px rgba(0,0,0,0.3)'
                         }}>
                             <div style={{
@@ -1729,13 +1861,53 @@ const Profile: React.FC = () => {
                 <IonToast
                     isOpen={showToast}
                     onDidDismiss={() => setShowToast(false)}
-                    message={toastMessage}
+                    message={`You have ${unreadNotifications} unread notifications`}
                     duration={3000}
+                    position="top"
+                    color="primary"
                 />
 
                 <IonLoading isOpen={isLoading} message="Please wait..." />
-            </IonContent >
-        </IonPage >
+            </IonContent>
+
+            {/* Bottom Tab Bar */}
+            <IonTabBar
+                slot="bottom"
+                style={{
+                    '--background': 'white',
+                    '--border': '1px solid #e2e8f0',
+                    height: '70px',
+                    paddingTop: '8px',
+                    paddingBottom: '8px'
+                } as any}
+            >
+                {tabs.map((item, index) => (
+                    <IonTabButton
+                        key={index}
+                        tab={item.tab}
+                        onClick={() => history.push(item.url)}
+                        style={{
+                            '--color': '#94a3b8',
+                            '--color-selected': '#667eea'
+                        } as any}
+                    >
+                        <IonIcon
+                            icon={item.icon}
+                            style={{
+                                marginBottom: '4px',
+                                fontSize: '22px'
+                            }}
+                        />
+                        <IonLabel style={{
+                            fontSize: '11px',
+                            fontWeight: '600'
+                        }}>
+                            {item.name}
+                        </IonLabel>
+                    </IonTabButton>
+                ))}
+            </IonTabBar>
+        </IonPage>
     );
 };
 
