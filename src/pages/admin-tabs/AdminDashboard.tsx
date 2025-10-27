@@ -177,6 +177,9 @@ const AdminDashboard: React.FC = () => {
   const [statusChangeType, setStatusChangeType] = useState<"pending-to-active" | "active-to-resolved">("pending-to-active")
   const [resolvedPhoto, setResolvedPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [showImageModal, setShowImageModal] = useState(false)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [selectedImages, setSelectedImages] = useState<string[]>([])
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -424,7 +427,8 @@ const AdminDashboard: React.FC = () => {
       console.log(`✅ Automated notification sent: ${triggerType}`)
 
       // Log the notification
-      await logUserNotification(userEmail, triggerType, userEmail);
+      const { data: { user } } = await supabase.auth.getUser();
+      await logUserNotification(userEmail, triggerType, user?.email);
     } catch (error) {
       console.error("Error creating automated notification:", error)
     }
@@ -450,7 +454,8 @@ const AdminDashboard: React.FC = () => {
       if (error) throw error
 
       // Log the status update
-      await logReportStatusUpdate(reportId, oldStatus, newStatus, userEmail || undefined);
+      const { data: { user } } = await supabase.auth.getUser();
+      await logReportStatusUpdate(reportId, oldStatus, newStatus, user?.email);
 
       // Update local state
       setReports((prev) => prev.map((report) => (report.id === reportId ? { ...report, ...updateData } : report)))
@@ -824,6 +829,28 @@ const AdminDashboard: React.FC = () => {
   }
 
   // NEW: Handle new incident insertion
+  // Helper function to mark report as read when admin views it
+  const markReportAsRead = async (report: IncidentReport) => {
+    if (!report.read) {
+      try {
+        await supabase
+          .from('incident_reports')
+          .update({ read: true })
+          .eq('id', report.id)
+        
+        // Update local state
+        setReports(prev => prev.map(r => 
+          r.id === report.id ? { ...r, read: true } : r
+        ))
+        
+        // Update unread count
+        setUnreadCount(prev => Math.max(0, prev - 1))
+      } catch (error) {
+        console.error('Error marking report as read:', error)
+      }
+    }
+  }
+
   const handleNewIncident = async (newReport: IncidentReport) => {
     try {
       console.log("🆕 Processing new incident:", newReport.id)
@@ -863,9 +890,20 @@ const AdminDashboard: React.FC = () => {
               // Zoom to the new incident
               mapInstanceRef.current?.setView([validatedCoords.lat, validatedCoords.lng], 15)
 
-              // Show toast notification
-              setToastMessage(`🎉 New incident reported: ${newReport.title} in ${newReport.barangay}`)
+              // Show toast notification with priority indicator
+              const priorityEmojis = {
+                'critical': '🚨',
+                'high': '⚠️',
+                'medium': '📋',
+                'low': 'ℹ️'
+              } as const;
+              const priorityEmoji = priorityEmojis[newReport.priority as keyof typeof priorityEmojis] || '📋';
+              
+              setToastMessage(`${priorityEmoji} New ${newReport.priority} priority incident: ${newReport.title} in ${newReport.barangay}`)
               setShowToast(true)
+              
+              // Update unread count
+              setUnreadCount(prev => prev + 1)
             }
           }
         }, 100)
@@ -1804,6 +1842,7 @@ const AdminDashboard: React.FC = () => {
 
       // Close the modal and reset state
       setShowStatusChangeModal(false)
+      setShowReportModal(false) // Also close the incident details modal
       setNotificationMessage('')
       setEstimatedTime('')
       setResolvedPhoto(null)
@@ -1821,6 +1860,54 @@ const AdminDashboard: React.FC = () => {
       setShowStatusChangeModal(false)
     }
   }
+
+  // NEW: Notify User function copied from AdminIncidents.tsx
+  const handleNotifyUser = async () => {
+    if (!selectedReport || !notificationMessage.trim()) return;
+
+    try {
+      // Store the estimated time in the incident report if provided
+      if (estimatedTime) {
+        await supabase
+          .from('incident_reports')
+          .update({
+            estimated_arrival_time: estimatedTime,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedReport.id);
+      }
+
+      // Send notification
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          user_email: selectedReport.reporter_email,
+          title: `Update: ${selectedReport.title}`,
+          message: estimatedTime
+            ? `${notificationMessage}\n\nEstimated resolution: ${new Date(estimatedTime).toLocaleString()}`
+            : notificationMessage,
+          related_report_id: selectedReport.id,
+          type: 'update'
+        });
+
+      if (error) throw error;
+
+      setToastMessage('User notified successfully');
+      setShowToast(true);
+      setShowNotifyModal(false);
+      setShowReportModal(false); // Also close the incident details modal
+      setNotificationMessage('');
+      setEstimatedTime('');
+
+      // Refresh reports to show updated estimated time
+      await fetchInitialData();
+
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      setToastMessage('Error sending notification. Please check RLS policies.');
+      setShowToast(true);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -3072,12 +3159,32 @@ const AdminDashboard: React.FC = () => {
                     {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
                       <div style={{ marginTop: "16px" }}>
                         <strong>Attached Images:</strong>
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
                           {selectedReport.image_urls.map((url, index) => (
-                            <IonImg
+                            <img
                               key={index}
                               src={url}
-                              style={{ width: "100px", height: "100px", objectFit: "cover", borderRadius: "8px" }}
+                              alt={`Report image ${index + 1}`}
+                              style={{
+                                width: '80px',
+                                height: '80px',
+                                borderRadius: '8px',
+                                objectFit: 'cover',
+                                cursor: 'pointer',
+                                border: '2px solid transparent',
+                                transition: 'border-color 0.2s ease'
+                              }}
+                              onClick={() => {
+                                setSelectedImages(selectedReport.image_urls || []);
+                                setSelectedImageIndex(index);
+                                setShowImageModal(true);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = 'transparent';
+                              }}
                             />
                           ))}
                         </div>
@@ -3094,13 +3201,6 @@ const AdminDashboard: React.FC = () => {
 
                     {/* NEW: Enhanced Action Buttons */}
                     <div style={{ display: "flex", gap: "8px", marginTop: "24px", flexWrap: "wrap" }}>
-                      {selectedReport.status === "pending" && (
-                        <IonButton expand="block" color="warning" onClick={() => setShowScheduleModal(true)}>
-                          <IonIcon icon={calendarOutline} slot="start" />
-                          Schedule Response
-                        </IonButton>
-                      )}
-
                       {selectedReport.status === "active" && (
                         <IonButton
                           expand="block"
@@ -3121,7 +3221,7 @@ const AdminDashboard: React.FC = () => {
                         }}
                       >
                         <IonIcon icon={sendOutline} slot="start" />
-                        Notify Reporter
+                        Notify User
                       </IonButton>
                     </div>
                   </IonCardContent>
@@ -3177,7 +3277,7 @@ const AdminDashboard: React.FC = () => {
           </IonContent>
         </IonModal>
 
-        {/* Notify Reporter Modal */}
+        {/* Notify User Modal */}
         <IonModal isOpen={showNotifyModal} onDidDismiss={() => setShowNotifyModal(false)}>
           <IonHeader>
             <IonToolbar>
@@ -3186,41 +3286,51 @@ const AdminDashboard: React.FC = () => {
                   <IonIcon icon={closeOutline} />
                 </IonButton>
               </IonButtons>
-              <IonTitle>Notify Reporter</IonTitle>
+              <IonTitle>Notify User</IonTitle>
             </IonToolbar>
           </IonHeader>
           <IonContent>
             <div style={{ padding: "16px" }}>
               <IonCard>
                 <IonCardContent>
-                  <p>Send notification to {selectedReport?.reporter_name}</p>
-
-                  <div style={{ marginBottom: "16px" }}>
+                  <IonItem>
+                    <IonLabel position="stacked" color="primary">
+                      Message to User *
+                    </IonLabel>
                     <IonTextarea
-                      label="Message"
-                      labelPlacement="floating"
-                      placeholder="Enter your message..."
                       value={notificationMessage}
-                      onIonInput={(e) => setNotificationMessage(e.detail.value!)}
-                      rows={6}
+                      onIonInput={e => setNotificationMessage(e.detail.value!)}
+                      placeholder="Enter update about their report..."
+                      rows={4}
+                      autoGrow
+                      counter
+                      maxlength={500}
                     />
-                  </div>
-
-                  <IonButton
-                    expand="block"
-                    onClick={() => {
-                      // Handle notification sending
-                      setToastMessage("Notification sent to reporter")
-                      setShowToast(true)
-                      setShowNotifyModal(false)
-                      setNotificationMessage("")
-                    }}
-                  >
-                    <IonIcon icon={sendOutline} slot="start" />
-                    Send Notification
-                  </IonButton>
+                  </IonItem>
                 </IonCardContent>
               </IonCard>
+
+              {/* Preview of who we're notifying */}
+              {selectedReport && (
+                <IonCard style={{ marginTop: '16px' }}>
+                  <IonCardContent>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      <strong>Notifying:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_email})<br />
+                      <strong>Report:</strong> {selectedReport.title}
+                    </div>
+                  </IonCardContent>
+                </IonCard>
+              )}
+
+              <IonButton
+                expand="block"
+                onClick={handleNotifyUser}
+                disabled={!notificationMessage.trim()}
+                style={{ marginTop: '16px' }}
+              >
+                <IonIcon icon={sendOutline} slot="start" />
+                Send Notification
+              </IonButton>
             </div>
           </IonContent>
         </IonModal>
@@ -3371,13 +3481,155 @@ const AdminDashboard: React.FC = () => {
               role: "confirm",
               handler: async () => {
                 // Log admin logout activity
-                await logAdminLogout(userEmail || undefined);
+                const { data: { user } } = await supabase.auth.getUser();
+                await logAdminLogout(user?.email);
                 supabase.auth.signOut()
                 navigation.push("/it35-lab2", "root", "replace")
               },
             },
           ]}
         />
+
+        {/* Image Gallery Modal */}
+        <IonModal
+          isOpen={showImageModal}
+          onDidDismiss={() => setShowImageModal(false)}
+        >
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => setShowImageModal(false)}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Image Gallery</IonTitle>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              {selectedImages.length > 0 && (
+                <IonCard>
+                  <IonCardContent>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '400px',
+                      position: 'relative',
+                      background: '#f8fafc',
+                      borderRadius: '8px',
+                      marginBottom: '16px'
+                    }}>
+                      <img
+                        src={selectedImages[selectedImageIndex]}
+                        alt={`Gallery image ${selectedImageIndex + 1}`}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'contain',
+                          borderRadius: '8px'
+                        }}
+                      />
+
+                      {/* Navigation arrows */}
+                      {selectedImages.length > 1 && (
+                        <>
+                          <IonButton
+                            fill="clear"
+                            onClick={() => setSelectedImageIndex(prev => 
+                              prev === 0 ? selectedImages.length - 1 : prev - 1
+                            )}
+                            style={{
+                              position: 'absolute',
+                              left: '10px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              '--color': '#374151',
+                              '--background': 'rgba(255,255,255,0.9)',
+                              '--border-radius': '50%',
+                              width: '40px',
+                              height: '40px',
+                              '--box-shadow': '0 2px 8px rgba(0,0,0,0.1)'
+                            } as any}
+                          >
+                            <IonIcon icon={chevronBackOutline} />
+                          </IonButton>
+
+                          <IonButton
+                            fill="clear"
+                            onClick={() => setSelectedImageIndex(prev => 
+                              prev === selectedImages.length - 1 ? 0 : prev + 1
+                            )}
+                            style={{
+                              position: 'absolute',
+                              right: '10px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              '--color': '#374151',
+                              '--background': 'rgba(255,255,255,0.9)',
+                              '--border-radius': '50%',
+                              width: '40px',
+                              height: '40px',
+                              '--box-shadow': '0 2px 8px rgba(0,0,0,0.1)'
+                            } as any}
+                          >
+                            <IonIcon icon={chevronForwardOutline} />
+                          </IonButton>
+                        </>
+                      )}
+
+                      {/* Image counter */}
+                      {selectedImages.length > 1 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          right: '10px',
+                          background: 'rgba(0,0,0,0.7)',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px'
+                        }}>
+                          {selectedImageIndex + 1} / {selectedImages.length}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Thumbnail Strip */}
+                    {selectedImages.length > 1 && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        overflowX: 'auto',
+                        paddingBottom: '8px',
+                        justifyContent: 'center'
+                      }}>
+                        {selectedImages.map((url, index) => (
+                          <img
+                            key={index}
+                            src={url}
+                            alt={`Thumbnail ${index + 1}`}
+                            style={{
+                              width: '60px',
+                              height: '60px',
+                              borderRadius: '6px',
+                              objectFit: 'cover',
+                              cursor: 'pointer',
+                              border: selectedImageIndex === index ? '2px solid #3b82f6' : '2px solid transparent',
+                              opacity: selectedImageIndex === index ? 1 : 0.7,
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => setSelectedImageIndex(index)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </IonCardContent>
+                </IonCard>
+              )}
+            </div>
+          </IonContent>
+        </IonModal>
 
         <IonToast
           isOpen={showToast}
