@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/it35-lab2/(.*)",
+      "dest": "/it35-lab2/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/it35-lab2/index.html"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/it35-lab2/index.html"
+    }
+  ]
+}

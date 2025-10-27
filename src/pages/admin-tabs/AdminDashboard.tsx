@@ -88,6 +88,7 @@ interface IncidentReport {
   reporter_email: string
   reporter_address: string
   reporter_contact: string
+  read?: boolean
   created_at: string
   barangay: string
   coordinates?: { lat: number; lng: number }
