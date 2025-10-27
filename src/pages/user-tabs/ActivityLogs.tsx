@@ -90,6 +90,7 @@ const ActivityLogs: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
+  // Import tabs from Home.tsx for consistency
   const tabs = [
     { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
     { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
@@ -351,6 +352,194 @@ const ActivityLogs: React.FC = () => {
     report: activityLogs.filter(log => log.activity_type === 'report').length,
     feedback: activityLogs.filter(log => log.activity_type === 'feedback').length
   };
+
+  // Skeleton Loading Component
+  if (isLoading) {
+    return (
+      <IonPage>
+        <IonHeader>
+          <IonToolbar style={{
+            '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            '--color': 'white'
+          } as any}>
+            <IonButtons slot="start">
+              {/* Remove menu button since we're using bottom tabs */}
+            </IonButtons>
+
+            <IonTitle style={{
+              fontWeight: 'bold',
+              fontSize: '20px'
+            }}>iAMUMA ta</IonTitle>
+
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ 
+                width: '32px', 
+                height: '32px', 
+                borderRadius: '50%', 
+                marginRight: '8px' 
+              }} />
+              <IonSkeletonText animated style={{ 
+                width: '32px', 
+                height: '32px', 
+                borderRadius: '50%' 
+              }} />
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+
+        <IonContent fullscreen>
+          <div>
+            {/* Header Container Skeleton */}
+            <div style={{ padding: '20px 20px 0 20px' }}>
+              <div style={{
+                background: 'white',
+                borderRadius: '16px',
+                padding: '20px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+              }}>
+                <IonSkeletonText animated style={{ width: '56px', height: '56px', borderRadius: '16px' }} />
+                <div style={{ flex: 1 }}>
+                  <IonSkeletonText animated style={{ width: '60%', height: '20px', marginBottom: '8px' }} />
+                  <IonSkeletonText animated style={{ width: '40%', height: '16px' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Overview Skeleton */}
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
+              background: '#f8fafc',
+              padding: '0 20px 20px 20px'
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} style={{
+                    background: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <IonSkeletonText animated style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                      <IonSkeletonText animated style={{ width: '40px', height: '12px' }} />
+                    </div>
+                    <IonSkeletonText animated style={{ width: '60%', height: '28px', margin: '0 auto' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Activity Logs List Skeleton */}
+            <div style={{ padding: '0 20px 20px 20px' }}>
+              <IonCard style={{ borderRadius: '16px' }}>
+                <IonCardContent style={{ padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <IonSkeletonText animated style={{ width: '180px', height: '18px' }} />
+                  </div>
+
+                  <IonList style={{ background: 'transparent' }}>
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <IonItem
+                        key={i}
+                        style={{
+                          '--background': 'transparent',
+                          '--border-radius': '8px',
+                          marginBottom: '12px'
+                        } as any}
+                      >
+                        <div style={{ width: '100%', padding: '12px 0' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                            <IonSkeletonText 
+                              animated 
+                              style={{ 
+                                width: '40px', 
+                                height: '40px', 
+                                borderRadius: '12px',
+                                flexShrink: 0
+                              }} 
+                            />
+                            
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                <IonSkeletonText animated style={{ width: '70%', height: '16px' }} />
+                                <IonSkeletonText animated style={{ width: '40px', height: '20px', borderRadius: '10px' }} />
+                              </div>
+                              
+                              <IonSkeletonText animated style={{ width: '90%', height: '14px', marginBottom: '8px' }} />
+                              <IonSkeletonText animated style={{ width: '80%', height: '14px', marginBottom: '8px' }} />
+                              
+                              <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'space-between' 
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <IonSkeletonText animated style={{ width: '60px', height: '24px', borderRadius: '12px' }} />
+                                  <IonSkeletonText animated style={{ width: '80px', height: '12px' }} />
+                                </div>
+                                <IonSkeletonText animated style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </IonItem>
+                    ))}
+                  </IonList>
+                </IonCardContent>
+              </IonCard>
+            </div>
+          </div>
+        </IonContent>
+
+        {/* Bottom Tab Bar Skeleton */}
+        <IonTabBar
+          slot="bottom"
+          style={{
+            '--background': 'white',
+            '--border': '1px solid #e2e8f0',
+            height: '70px',
+            paddingTop: '8px',
+            paddingBottom: '8px'
+          } as any}
+        >
+          {[1, 2, 3, 4].map((item, index) => (
+            <IonTabButton
+              key={index}
+              style={{
+                '--color': '#94a3b8',
+                '--color-selected': '#667eea'
+              } as any}
+            >
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  marginBottom: '4px'
+                }}
+              />
+              <IonSkeletonText
+                animated
+                style={{
+                  width: '60px',
+                  height: '11px',
+                  borderRadius: '4px'
+                }}
+              />
+            </IonTabButton>
+          ))}
+        </IonTabBar>
+      </IonPage>
+    );
+  }
 
   return (
     <IonPage>
@@ -747,43 +936,6 @@ const ActivityLogs: React.FC = () => {
               </Route>
             </IonRouterOutlet>
 
-            {/* Bottom Tab Bar */}
-            <IonTabBar
-              slot="bottom"
-              style={{
-                '--background': 'white',
-                '--border': '1px solid #e2e8f0',
-                height: '70px',
-                paddingTop: '8px',
-                paddingBottom: '8px'
-              } as any}
-            >
-              {tabs.map((item, index) => (
-                <IonTabButton
-                  key={index}
-                  tab={item.tab}
-                  href={item.url}
-                  style={{
-                    '--color': '#94a3b8',
-                    '--color-selected': '#667eea'
-                  } as any}
-                >
-                  <IonIcon
-                    icon={item.icon}
-                    style={{
-                      marginBottom: '4px',
-                      fontSize: '22px'
-                    }}
-                  />
-                  <IonLabel style={{
-                    fontSize: '11px',
-                    fontWeight: '600'
-                  }}>
-                    {item.name}
-                  </IonLabel>
-                </IonTabButton>
-              ))}
-            </IonTabBar>
           </IonTabs>
         )}
 
@@ -796,6 +948,44 @@ const ActivityLogs: React.FC = () => {
           position="top"
         />
       </IonContent>
+
+      {/* Bottom Tab Bar */}
+      <IonTabBar
+        slot="bottom"
+        style={{
+          '--background': 'white',
+          '--border': '1px solid #e2e8f0',
+          height: '70px',
+          paddingTop: '8px',
+          paddingBottom: '8px'
+        } as any}
+      >
+        {tabs.map((item, index) => (
+          <IonTabButton
+            key={index}
+            tab={item.tab}
+            onClick={() => history.push(item.url)}
+            style={{
+              '--color': '#94a3b8',
+              '--color-selected': '#667eea'
+            } as any}
+          >
+            <IonIcon
+              icon={item.icon}
+              style={{
+                marginBottom: '4px',
+                fontSize: '22px'
+              }}
+            />
+            <IonLabel style={{
+              fontSize: '11px',
+              fontWeight: '600'
+            }}>
+              {item.name}
+            </IonLabel>
+          </IonTabButton>
+        ))}
+      </IonTabBar>
     </IonPage>
   );
 };
