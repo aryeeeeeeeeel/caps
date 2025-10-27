@@ -57,8 +57,58 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     persistSession: true,
     detectSessionInUrl: true,
     storage: createCustomStorage(),
-    flowType: 'pkce',
-  },
+    flowType: 'pkce'
+  }
+});
+
+// Add periodic session refresh with proper cleanup
+// Check session every 60 seconds (less frequent to avoid issues)
+const refreshInterval = setInterval(async () => {
+  try {
+    // Only refresh if user is on a protected page
+    const currentPath = window.location.pathname;
+    const isProtectedPage = currentPath.includes('/app');
+    
+    if (!isProtectedPage) {
+      return;
+    }
+    
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.debug('Session check failed:', sessionError.message);
+      return;
+    }
+    
+    if (!session) {
+      console.debug('No active session');
+      return;
+    }
+    
+    // Check if session is about to expire (within 5 minutes)
+    const expiresAt = session.expires_at ? session.expires_at * 1000 : Date.now();
+    const timeUntilExpiry = expiresAt - Date.now();
+    const fiveMinutesInMs = 5 * 60 * 1000;
+    
+    if (timeUntilExpiry < fiveMinutesInMs) {
+      console.debug('Session expiring soon, refreshing...');
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError) {
+        // Only log, don't sign out - let the natural flow handle it
+        console.debug('Session refresh failed:', refreshError.message);
+      } else {
+        console.debug('Session refreshed successfully');
+      }
+    }
+  } catch (error) {
+    console.debug('Session refresh error:', error);
+  }
+}, 60000); // Check every 60 seconds instead of 30
+
+// Clean up interval when needed
+window.addEventListener('beforeunload', () => {
+  clearInterval(refreshInterval);
 });
 
 // Save user credentials securely
@@ -122,4 +172,77 @@ export const clearAuthData = () => {
   clearUserCredentials();
   localStorage.removeItem('supabase.auth.token');
   sessionStorage.removeItem('supabase.auth.token');
+};
+
+// Handle authentication errors consistently
+export const handleAuthError = (error: any): boolean => {
+    console.debug('Auth error details:', {
+      message: error?.message,
+      status: error?.status,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Only auto-logout for serious auth errors
+    const seriousErrors = [
+      'refresh_token',
+      'Invalid refresh token',
+      'Invalid authentication'
+    ];
+    
+    const isSeriousError = error?.message && seriousErrors.some(err => 
+      error.message.includes(err)
+    );
+    
+    if (isSeriousError || error?.status === 401) {
+      console.warn('Serious authentication error detected, clearing session:', error?.message || 'unknown');
+      supabase.auth.signOut();
+      clearAuthData();
+      
+      // Redirect to login page
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        // Only redirect if not already on login page
+        if (!currentPath.includes('/login') && !currentPath.includes('/register')) {
+          setTimeout(() => {
+            window.location.href = '/it35-lab2/user-login';
+          }, 100);
+        }
+      }
+      
+      return true; // Indicates session was cleared
+    }
+    
+    // For other auth errors (like missing session), just return without logout
+    return false;
+  };
+
+// Safe authentication check with error handling
+export const safeAuthCheck = async () => {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      // Check if it's a serious error that should trigger logout
+      const seriousErrors = ['refresh_token', 'Invalid refresh token', 'Invalid authentication'];
+      const isSeriousError = error.message && seriousErrors.some(err => 
+        error.message.includes(err)
+      );
+      
+      // Only handle serious errors with auto-logout
+      if (isSeriousError || error.status === 401) {
+        const wasCleared = handleAuthError(error);
+        if (wasCleared) {
+          return { user: null, error: 'Session expired' };
+        }
+      }
+      
+      // For other errors (like missing session), return without logging out
+      return { user: null, error: error.message || 'Authentication error' };
+    }
+    
+    return { user, error: null };
+  } catch (error: any) {
+    console.debug('Auth check failed:', error?.message);
+    return { user: null, error: error?.message || 'Authentication check failed' };
+  }
 };
