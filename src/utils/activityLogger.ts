@@ -103,9 +103,46 @@ export const logUserLogin = async (userEmail?: string) => {
     { timestamp: new Date().toISOString() },
     userEmail
   );
+  
+  // Update user status to 'active' and set online status
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    const email = userEmail || user?.email;
+    
+    if (email) {
+      await supabase
+        .from('users')
+        .update({ 
+          status: 'active',
+          is_online: true,
+          last_active_at: new Date().toISOString() 
+        })
+        .eq('user_email', email);
+    }
+  } catch (error) {
+    console.error('Error updating user status on login:', error);
+  }
 };
 
 export const logUserLogout = async (userEmail?: string) => {
+  // Update user status to 'inactive' and set offline status
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    const email = userEmail || user?.email;
+    
+    if (email) {
+      await supabase
+        .from('users')
+        .update({ 
+          status: 'inactive',
+          is_online: false
+        })
+        .eq('user_email', email);
+    }
+  } catch (error) {
+    console.error('Error updating user status on logout:', error);
+  }
+  
   await logUserActivity(
     'logout',
     'User logged out',
