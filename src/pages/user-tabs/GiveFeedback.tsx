@@ -61,6 +61,12 @@ interface UserReport {
   created_at: string;
   category: string;
   description: string;
+  has_feedback?: boolean;
+  existing_feedback?: {
+    overall_rating: number;
+    comments: string;
+    created_at: string;
+  } | null;
 }
 
 const GiveFeedback: React.FC = () => {
@@ -86,6 +92,7 @@ const GiveFeedback: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isReportsLoading, setIsReportsLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
+  const [showExistingFeedback, setShowExistingFeedback] = useState(false);
 
   const feedbackCategories = [
     'Response Speed',
@@ -122,7 +129,39 @@ const GiveFeedback: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setUserReports(data || []);
+
+      // Check for existing feedback for each report
+      const reportsWithFeedback = await Promise.all(
+        (data || []).map(async (report) => {
+          try {
+            const { data: feedbackData } = await supabase
+              .from('feedback')
+              .select('overall_rating, comments, created_at')
+              .eq('report_id', report.id)
+              .eq('user_email', user.email)
+              .single();
+
+            return {
+              ...report,
+              has_feedback: !!feedbackData,
+              existing_feedback: feedbackData ? {
+                overall_rating: feedbackData.overall_rating as number,
+                comments: feedbackData.comments as string,
+                created_at: feedbackData.created_at as string
+              } : null
+            };
+          } catch (feedbackError) {
+            // If no feedback found, that's fine
+            return {
+              ...report,
+              has_feedback: false,
+              existing_feedback: null
+            };
+          }
+        })
+      );
+
+      setUserReports(reportsWithFeedback);
     } catch (error) {
       console.error('Error fetching user reports:', error);
       setToastMessage('Failed to load your reports');
@@ -150,6 +189,14 @@ const GiveFeedback: React.FC = () => {
     if (!selectedReport) {
       setAlertMessage('Please select a report to provide feedback for.');
       setShowAlert(true);
+      return;
+    }
+
+    // Check if report already has feedback
+    const selectedReportData = userReports.find(r => r.id === selectedReport);
+    if (selectedReportData?.has_feedback) {
+      setToastMessage('This report already has feedback submitted. You cannot submit feedback twice for the same report.');
+      setShowToast(true);
       return;
     }
 
@@ -183,18 +230,6 @@ const GiveFeedback: React.FC = () => {
         });
 
       if (feedbackError) throw feedbackError;
-
-      // Also update incident_reports table for backward compatibility
-      const { error: reportError } = await supabase
-        .from('incident_reports')
-        .update({
-          feedback_rating: feedbackData.overall_rating,
-          feedback_comment: feedbackData.comments,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', selectedReport);
-
-      if (reportError) throw reportError;
 
       // Log user feedback submission activity
       await logUserFeedbackSubmission(selectedReport, feedbackData.overall_rating, user.email);
@@ -435,12 +470,14 @@ const GiveFeedback: React.FC = () => {
                     <IonItem
                       key={report.id}
                       button
-                      onClick={() => setSelectedReport(report.id)}
+                      onClick={() => !report.has_feedback && setSelectedReport(report.id)}
+                      disabled={report.has_feedback}
                       style={{
-                        '--background': selectedReport === report.id ? '#f3f4f6' : 'transparent',
+                        '--background': selectedReport === report.id ? '#f3f4f6' : report.has_feedback ? '#f9fafb' : 'transparent',
                         '--border-color': '#f1f5f9',
                         '--border-radius': '12px',
-                        marginBottom: '8px'
+                        marginBottom: '8px',
+                        opacity: report.has_feedback ? 0.6 : 1
                       } as any}
                     >
                       <div style={{
@@ -450,7 +487,7 @@ const GiveFeedback: React.FC = () => {
                         padding: '12px 0',
                         justifyContent: 'space-between'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: 'calc(100% - 100px)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
                           <div style={{
                             width: '10px',
                             height: '10px',
@@ -494,6 +531,19 @@ const GiveFeedback: React.FC = () => {
                               >
                                 RESOLVED
                               </IonChip>
+                              {report.has_feedback && (
+                                <IonChip
+                                  style={{
+                                    '--background': '#8b5cf620',
+                                    '--color': '#8b5cf6',
+                                    height: '20px',
+                                    fontSize: '10px',
+                                    fontWeight: '600'
+                                  } as any}
+                                >
+                                  FEEDBACK GIVEN
+                                </IonChip>
+                              )}
                               <span style={{
                                 fontSize: '10px',
                                 color: '#9ca3af'
@@ -507,14 +557,16 @@ const GiveFeedback: React.FC = () => {
                         <IonRadio
                           value={report.id}
                           aria-checked={selectedReport === report.id}
+                          disabled={report.has_feedback}
                           style={{
                             marginLeft: '16px',
+                            flexShrink: 0,
                             '--inner-border-radius': '50%',
                             '--border-radius': '50%',
                             '--border-width': '2px',
-                            '--border-color': '#d1d5db',
-                            '--color': '#10b981',
-                            '--color-checked': '#10b981'
+                            '--border-color': report.has_feedback ? '#d1d5db' : '#d1d5db',
+                            '--color': report.has_feedback ? '#9ca3af' : '#10b981',
+                            '--color-checked': report.has_feedback ? '#9ca3af' : '#10b981'
                           } as any}
                         />
                       </div>
@@ -732,6 +784,118 @@ const GiveFeedback: React.FC = () => {
                       </>
                     )}
                   </IonButton>
+
+                  {/* Existing Feedback Section */}
+                  {selectedReport && (() => {
+                    const selectedReportData = userReports.find(r => r.id === selectedReport);
+                    if (selectedReportData?.has_feedback && selectedReportData.existing_feedback) {
+                      return (
+                        <div style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #e5e7eb' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <h3 style={{
+                              fontSize: '16px',
+                              fontWeight: '600',
+                              color: '#1f2937',
+                              margin: 0
+                            }}>
+                              Your Feedback
+                            </h3>
+                            <IonButton
+                              fill="clear"
+                              size="small"
+                              onClick={() => setShowExistingFeedback(!showExistingFeedback)}
+                              style={{
+                                '--padding-start': '8px',
+                                '--padding-end': '8px',
+                                fontSize: '12px',
+                                color: '#6b7280'
+                              } as any}
+                            >
+                              {showExistingFeedback ? 'Hide' : 'Show'}
+                            </IonButton>
+                          </div>
+                          
+                          {showExistingFeedback && (
+                            <div style={{
+                              background: '#f8fafc',
+                              borderRadius: '12px',
+                              padding: '16px',
+                              border: '1px solid #e5e7eb'
+                            }}>
+                              {/* Overall Rating Display */}
+                              <div style={{ marginBottom: '16px' }}>
+                                <p style={{
+                                  fontSize: '14px',
+                                  fontWeight: '600',
+                                  color: '#374151',
+                                  marginBottom: '8px'
+                                }}>
+                                  Overall Rating
+                                </p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {[1, 2, 3, 4, 5].map((starNumber) => (
+                                    <span
+                                      key={starNumber}
+                                      style={{
+                                        fontSize: '24px',
+                                        color: starNumber <= selectedReportData.existing_feedback!.overall_rating ? '#fbbf24' : '#d1d5db'
+                                      }}
+                                    >
+                                      ★
+                                    </span>
+                                  ))}
+                                  <span style={{
+                                    fontSize: '14px',
+                                    color: '#6b7280',
+                                    marginLeft: '8px',
+                                    fontWeight: '500'
+                                  }}>
+                                    {selectedReportData.existing_feedback!.overall_rating}/5
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Comments Display */}
+                              {selectedReportData.existing_feedback!.comments && (
+                                <div style={{ marginBottom: '12px' }}>
+                                  <p style={{
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    color: '#374151',
+                                    marginBottom: '8px'
+                                  }}>
+                                    Additional Comments
+                                  </p>
+                                  <p style={{
+                                    fontSize: '14px',
+                                    color: '#4b5563',
+                                    lineHeight: '1.5',
+                                    background: 'white',
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e5e7eb'
+                                  }}>
+                                    {selectedReportData.existing_feedback!.comments}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Submission Date */}
+                              <p style={{
+                                fontSize: '12px',
+                                color: '#9ca3af',
+                                margin: 0,
+                                textAlign: 'right'
+                              }}>
+                                Submitted on {new Date(selectedReportData.existing_feedback!.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               )}
             </IonCardContent>
