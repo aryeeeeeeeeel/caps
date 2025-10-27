@@ -28,7 +28,14 @@ import {
   IonRadio,
   IonSelect,
   IonSelectOption,
-  IonSkeletonText
+  IonSkeletonText,
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonButtons,
+  IonTabBar,
+  IonTabButton
 } from '@ionic/react';
 import {
   listOutline,
@@ -182,24 +189,41 @@ const History: React.FC = () => {
 
       if (error) throw error;
 
-      const processedReports = data?.map(report => {
-        let coordinates = null;
-        if (report.coordinates) {
-          try {
-            if (typeof report.coordinates === 'string') {
-              coordinates = JSON.parse(report.coordinates);
-            } else if (typeof report.coordinates === 'object' &&
-              report.coordinates.lat && report.coordinates.lng) {
-              coordinates = report.coordinates;
+      // Fetch feedback data for each report
+      const reportsWithFeedback = await Promise.all(
+        (data || []).map(async (report) => {
+          let coordinates = null;
+          if (report.coordinates) {
+            try {
+              if (typeof report.coordinates === 'string') {
+                coordinates = JSON.parse(report.coordinates);
+              } else if (typeof report.coordinates === 'object' &&
+                report.coordinates.lat && report.coordinates.lng) {
+                coordinates = report.coordinates;
+              }
+            } catch (e) {
+              console.warn(`Failed to parse coordinates for report ${report.id}:`, e);
             }
-          } catch (e) {
-            console.warn(`Failed to parse coordinates for report ${report.id}:`, e);
           }
-        }
-        return { ...report, coordinates };
-      }) || [];
 
-      setReports(processedReports);
+          // Fetch feedback for this report
+          const { data: feedbackData } = await supabase
+            .from('feedback')
+            .select('overall_rating, comments')
+            .eq('report_id', report.id)
+            .eq('user_email', user.email)
+            .single();
+
+          return { 
+            ...report, 
+            coordinates,
+            feedback_rating: feedbackData?.overall_rating || null,
+            feedback_comment: feedbackData?.comments || null
+          };
+        })
+      );
+
+      setReports(reportsWithFeedback);
     } catch (error) {
       console.error('Error fetching resolved reports:', error);
       setToastMessage('Failed to load resolved reports');
@@ -521,58 +545,57 @@ const History: React.FC = () => {
   };
 
   const submitFeedback = async () => {
-  if (!selectedReport) return;
+    if (!selectedReport) return;
 
-  if (feedbackRating === 0) {
-    setToastMessage('Please provide an overall rating');
-    setShowToast(true);
-    return;
-  }
+    if (feedbackRating === 0) {
+      setToastMessage('Please provide an overall rating');
+      setShowToast(true);
+      return;
+    }
 
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-  
-    // Insert into feedback table with timestamp
-    const { error: feedbackError } = await supabase
-      .from('feedback')
-      .insert({
-        report_id: selectedReport.id,
-        user_email: user.email,
-        overall_rating: feedbackRating,
-        response_time_rating: responseTimeRating,
-        communication_rating: communicationRating,
-        resolution_satisfaction: resolutionSatisfaction,
-        categories: feedbackCategories,
-        comments: feedbackComment,
-        would_recommend: wouldRecommend,
-        created_at: new Date().toISOString()
-      });
-
-    if (feedbackError) throw feedbackError;
-
-    // Only store feedback in feedback table
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
     
-    setToastMessage('Feedback submitted successfully');
-    setShowToast(true);
-    setShowFeedbackModal(false);
-    
-    // Reset form
-    setFeedbackRating(0);
-    setFeedbackComment('');
-    setResponseTimeRating(0);
-    setCommunicationRating(0);
-    setResolutionSatisfaction(0);
-    setFeedbackCategories([]);
-    setWouldRecommend(null);
-    
-    fetchResolvedReports();
-  } catch (error) {
-    console.error('Error submitting feedback:', error);
-    setToastMessage('Failed to submit feedback');
-    setShowToast(true);
-  }
-};
+      // Insert into feedback table with timestamp
+      const { error: feedbackError } = await supabase
+        .from('feedback')
+        .insert({
+          report_id: selectedReport.id,
+          user_email: user.email,
+          overall_rating: feedbackRating,
+          response_time_rating: responseTimeRating,
+          communication_rating: communicationRating,
+          resolution_satisfaction: resolutionSatisfaction,
+          categories: feedbackCategories,
+          comments: feedbackComment,
+          would_recommend: wouldRecommend,
+          created_at: new Date().toISOString()
+        });
+
+      if (feedbackError) throw feedbackError;
+
+      setToastMessage('Feedback submitted successfully');
+      setShowToast(true);
+      setShowFeedbackModal(false);
+      
+      // Reset form
+      setFeedbackRating(0);
+      setFeedbackComment('');
+      setResponseTimeRating(0);
+      setCommunicationRating(0);
+      setResolutionSatisfaction(0);
+      setFeedbackCategories([]);
+      setWouldRecommend(null);
+      
+      // Refresh the reports to show updated feedback
+      await fetchResolvedReports();
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      setToastMessage('Failed to submit feedback');
+      setShowToast(true);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -660,51 +683,51 @@ const History: React.FC = () => {
   if (isLoading) {
     return (
       <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
-        <div style={{ padding: '20px 20px 0' }}>
-          <IonCard style={{
-            borderRadius: '16px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-            marginBottom: '20px'
-          }}>
-            <IonCardHeader>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <IonSkeletonText animated style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    marginRight: '16px'
-                  }} />
-                  <div>
-                    <IonSkeletonText animated style={{ width: '180px', height: '20px', marginBottom: '4px' }} />
-                    <IonSkeletonText animated style={{ width: '120px', height: '14px' }} />
-                  </div>
-                </div>
-                <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
-              </div>
-            </IonCardHeader>
-          </IonCard>
-
-          <SkeletonHistoryMap />
-
-          <div style={{ padding: '0 0px 0px' }}>
-            <IonCard style={{ borderRadius: '16px' }}>
+          <div style={{ padding: '20px 20px 0' }}>
+            <IonCard style={{
+              borderRadius: '16px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+              marginBottom: '20px'
+            }}>
               <IonCardHeader>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <IonSkeletonText animated style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      marginRight: '16px'
+                    }} />
+                    <div>
+                      <IonSkeletonText animated style={{ width: '180px', height: '20px', marginBottom: '4px' }} />
+                      <IonSkeletonText animated style={{ width: '120px', height: '14px' }} />
+                    </div>
+                  </div>
+                  <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
                 </div>
               </IonCardHeader>
-              <IonCardContent style={{ padding: 0 }}>
-                <IonList style={{ background: 'transparent' }}>
-                  {[1, 2, 3, 4].map((item) => (
-                    <SkeletonHistoryItem key={item} />
-                  ))}
-                </IonList>
-              </IonCardContent>
             </IonCard>
+
+            <SkeletonHistoryMap />
+
+            <div style={{ padding: '0 0px 0px' }}>
+              <IonCard style={{ borderRadius: '16px' }}>
+                <IonCardHeader>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+                  </div>
+                </IonCardHeader>
+                <IonCardContent style={{ padding: 0 }}>
+                  <IonList style={{ background: 'transparent' }}>
+                    {[1, 2, 3, 4].map((item) => (
+                      <SkeletonHistoryItem key={item} />
+                    ))}
+                  </IonList>
+                </IonCardContent>
+              </IonCard>
+            </div>
           </div>
-        </div>
-      </IonContent>
+        </IonContent>
     );
   }
 
