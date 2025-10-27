@@ -39,6 +39,7 @@ import {
   arrowBackOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
+import { useLocation } from 'react-router-dom';
 import L from 'leaflet';
 
 interface UserReport {
@@ -116,6 +117,7 @@ const SkeletonReportItem: React.FC = () => (
 );
 
 const IncidentMap: React.FC = () => {
+  const location = useLocation();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -130,6 +132,7 @@ const IncidentMap: React.FC = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [targetReportId, setTargetReportId] = useState<string | null>(null);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active'>('all');
@@ -177,6 +180,18 @@ const IncidentMap: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Extract reportId from URL query params
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const reportId = searchParams.get('reportId');
+    if (reportId) {
+      console.log('Report ID detected in URL:', reportId);
+      setTargetReportId(reportId);
+      // Force refresh to ensure we have the latest data including the new report
+      fetchActiveReports();
+    }
+  }, [location.search]);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -261,6 +276,21 @@ const IncidentMap: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [reports, mapLoaded, statusFilter, priorityFilter]);
+
+  // Handle zooming to target report after markers are created
+  useEffect(() => {
+    if (mapLoaded && reports.length > 0 && targetReportId && markersRef.current.length > 0) {
+      const targetReport = reports.find(r => r.id === targetReportId);
+      if (targetReport && targetReport.coordinates) {
+        console.log('Zooming to target report:', targetReport.id);
+        setTimeout(() => {
+          centerMapOnReport(targetReport);
+          viewReport(targetReport);
+          setTargetReportId(null); // Clear the target after handling
+        }, 500);
+      }
+    }
+  }, [mapLoaded, reports, targetReportId]);
 
   const updateMapMarkers = () => {
     console.log('Updating incident map markers with', reports.length, 'reports');
@@ -391,22 +421,36 @@ const IncidentMap: React.FC = () => {
           { icon: markerIcon }
         ).addTo(mapInstanceRef.current!);
 
+        // Truncate description if too long
+        const maxDescLength = 80;
+        const truncatedDesc = report.description.length > maxDescLength 
+          ? report.description.substring(0, maxDescLength) + '...' 
+          : report.description;
+
         const popupContent = `
-        <div style="padding: 12px; max-width: 250px;">
-          <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 16px; line-height: 1.3; font-weight: 700;">${report.title}</h4>
-          <p style="margin: 0 0 6px 0; color: #6b7280; font-size: 13px;">
-            <strong>Description:</strong> ${report.description}
+        <div style="padding: 14px; max-width: 280px;">
+          <!-- Title -->
+          <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 15px; line-height: 1.3; font-weight: 700;">${report.title}</h4>
+          
+          <!-- Category/Barangay -->
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+            <span style="color: #9ca3af; font-size: 12px;">📍</span>
+            <span style="color: #6b7280; font-size: 12px; font-weight: 600;">${report.barangay}</span>
+          </div>
+          
+          <!-- Description -->
+          <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 13px; line-height: 1.4;">
+            ${truncatedDesc}
           </p>
-          <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px;">
-            <strong>Barangay:</strong> ${report.barangay}
-          </p>
-          <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+          
+          <!-- Status & Priority Badges -->
+          <div style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
             <span style="
               background: ${getStatusColor(report.status)};
               color: white;
-              padding: 3px 8px;
+              padding: 4px 10px;
               border-radius: 6px;
-              font-size: 11px;
+              font-size: 10px;
               font-weight: bold;
             ">
               ${report.status.toUpperCase()}
@@ -414,30 +458,36 @@ const IncidentMap: React.FC = () => {
             <span style="
               background: ${getMarkerColor()};
               color: white;
-              padding: 3px 8px;
+              padding: 4px 10px;
               border-radius: 6px;
-              font-size: 11px;
+              font-size: 10px;
               font-weight: bold;
             ">
               ${report.priority.toUpperCase()}
             </span>
           </div>
-          <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 12px;">
-            Reported: ${new Date(report.created_at).toLocaleString()}
+          
+          <!-- Timestamp -->
+          <p style="margin: 0 0 12px 0; color: #9ca3af; font-size: 11px;">
+            🕐 ${new Date(report.created_at).toLocaleString()}
           </p>
+          
+          <!-- View Details Button -->
           <button id="viewDetails-${report.id}" style="
             margin: 0;
-            background: #3b82f6;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
+            padding: 10px 16px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 13px;
             width: 100%;
             font-weight: 600;
-          ">
-            View Details
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+            transition: all 0.2s;
+          " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+            View Full Details →
           </button>
         </div>
       `;
@@ -487,12 +537,14 @@ const IncidentMap: React.FC = () => {
 
   const centerMapOnReport = (report: UserReport) => {
     if (mapInstanceRef.current && report.coordinates) {
+      console.log('Centering map on report:', report.id, 'at', report.coordinates);
       mapInstanceRef.current.setView([report.coordinates.lat, report.coordinates.lng], 18);
       
       // Find and open the marker's popup
       const marker = markersRef.current.find(m => {
         const latLng = m.getLatLng();
-        return latLng.lat === report.coordinates.lat && latLng.lng === report.coordinates.lng;
+        return Math.abs(latLng.lat - report.coordinates!.lat) < 0.0001 && 
+               Math.abs(latLng.lng - report.coordinates!.lng) < 0.0001;
       });
       
       if (marker) {
