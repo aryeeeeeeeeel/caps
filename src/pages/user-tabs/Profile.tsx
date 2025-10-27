@@ -810,54 +810,11 @@ const Profile: React.FC = () => {
 
     if (isPageLoading) {
         return (
-            <IonPage>
-                <IonHeader>
-                    <IonToolbar style={{
-                        '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        '--color': 'white'
-                    } as any}>
-                        <IonButtons slot="start">
-                            <IonSkeletonText
-                                animated
-                                style={{
-                                    width: '40px',
-                                    height: '40px',
-                                    borderRadius: '8px',
-                                    marginLeft: '16px'
-                                }}
-                            />
-                        </IonButtons>
-                        <IonTitle style={{ textAlign: 'center' }}>
-                            <IonSkeletonText
-                                animated
-                                style={{
-                                    width: '150px',
-                                    height: '20px',
-                                    borderRadius: '4px',
-                                    margin: '0 auto'
-                                }}
-                            />
-                        </IonTitle>
-                        <IonButtons slot="end">
-                            <IonSkeletonText
-                                animated
-                                style={{
-                                    width: '40px',
-                                    height: '40px',
-                                    borderRadius: '8px',
-                                    marginRight: '16px'
-                                }}
-                            />
-                        </IonButtons>
-                    </IonToolbar>
-                </IonHeader>
-
-                <IonContent style={{
-                    '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
-                } as any} scrollY={true}>
-                    <SkeletonLoader />
-                </IonContent>
-            </IonPage>
+            <IonContent style={{
+                '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)',
+            } as any} scrollY={true}>
+                <SkeletonLoader />
+            </IonContent>
         );
     }
 
