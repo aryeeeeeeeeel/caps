@@ -19,7 +19,9 @@ import {
   IonToast,
   IonRefresher,
   IonRefresherContent,
-  RefresherEventDetail
+  RefresherEventDetail,
+  IonTabBar,
+  IonTabButton
 } from '@ionic/react';
 import {
   notificationsOutline,
@@ -387,8 +389,7 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
 
   if (isLoading) {
     return (
-      <IonPage>
-        <IonContent style={{ '--background': '#f8fafc' } as any}>
+      <IonContent style={{ '--background': '#f8fafc' } as any}>
           <div style={{ padding: '20px' }}>
             {/* Header Container Skeleton */}
             <div style={{
@@ -449,7 +450,6 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
             </IonCard>
           </div>
         </IonContent>
-      </IonPage>
     );
   }
 
