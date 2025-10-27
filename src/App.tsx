@@ -41,6 +41,7 @@ import AdminUsers from './pages/admin-tabs/AdminUsers';
 import SystemLogs from './pages/admin-tabs/SystemLogs';
 import ActivityLogs from './pages/user-tabs/ActivityLogs';
 import Home from './pages/Home';
+import AdminLogin from './pages/AdminLogin';
 
 setupIonicReact();
 defineCustomElements(window);
@@ -52,7 +53,7 @@ const App: React.FC = () => (
         {/* Landing and Auth Routes */}
         <Route exact path="/it35-lab2" component={LandingPage} />
         <Route exact path="/it35-lab2/user-login" component={Login} />
-        {/* <Route exact path="/it35-lab2/admin-login" component={AdminLogin} /> */}
+        <Route exact path="/it35-lab2/admin-login" component={AdminLogin} />
         <Route exact path="/it35-lab2/register" component={Register} />
 
         {/* User App Routes - Using Home component with bottom tabs */}
