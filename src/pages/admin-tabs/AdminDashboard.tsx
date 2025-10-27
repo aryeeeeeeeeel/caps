@@ -110,7 +110,7 @@ interface User {
   user_firstname: string
   user_lastname: string
   user_email: string
-  status: "active" | "suspended" | "banned"
+  status: "active" | "inactive" | "suspended" | "banned"
   warnings: number
   last_warning_date?: string
   date_registered: string
@@ -118,6 +118,7 @@ interface User {
   user_contact_number?: string
   user_address?: string
   has_reports?: boolean
+  is_online: boolean
 }
 
 interface IncidentResponseRoute {
@@ -144,7 +145,7 @@ const AdminDashboard: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null)
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "active" | "resolved">("all")
   const [priorityFilter, setPriorityFilter] = useState<"all" | "low" | "medium" | "high" | "critical">("all")
-  const [userFilter, setUserFilter] = useState<"all" | "active" | "inactive" | "suspended" | "banned">("all")
+  const [userFilter, setUserFilter] = useState<"all" | "active" | "inactive" | "suspended" | "banned" | "online" | "offline">("all")
   const [userSort, setUserSort] = useState<"alphabetical">("alphabetical")
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -1499,10 +1500,7 @@ const AdminDashboard: React.FC = () => {
 
   // User Management Helper Functions
   const isUserOnline = (user: User): boolean => {
-    if (!user.last_active_at) return false;
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-    return new Date(user.last_active_at) > oneDayAgo;
+    return user.is_online;
   };
 
   const formatDate = (dateString: string | undefined): string => {
@@ -1531,6 +1529,7 @@ const AdminDashboard: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return '#10b981';
+      case 'inactive': return '#6b7280';
       case 'suspended': return '#f59e0b';
       case 'banned': return '#dc2626';
       default: return '#6b7280';
@@ -1543,11 +1542,12 @@ const AdminDashboard: React.FC = () => {
       active: reports.filter((r) => r.status === "active").length,
       resolved: reports.filter((r) => r.status === "resolved").length,
       total: reports.length,
-      activeUsers: users.filter((u) => u.status === 'active' && (u.has_reports ?? false)).length,
-      inactiveUsers: users.filter((u) => u.status === 'active' && !(u.has_reports ?? false)).length,
+      activeUsers: users.filter((u) => u.status === 'active').length,
+      inactiveUsers: users.filter((u) => u.status === 'inactive').length,
       suspendedUsers: users.filter((u) => u.status === 'suspended').length,
       bannedUsers: users.filter((u) => u.status === 'banned').length,
-      onlineUsers: users.filter((u) => isUserOnline(u)).length,
+      onlineUsers: users.filter((u) => u.is_online).length,
+      offlineUsers: users.filter((u) => !u.is_online).length,
       totalUsers: users.length,
     }),
     [reports, users],
@@ -1581,11 +1581,17 @@ const AdminDashboard: React.FC = () => {
       if (userFilter === 'all') {
         matchesStatus = true;
       } else if (userFilter === 'active') {
-        matchesStatus = user.status === 'active' && (user.has_reports ?? false);
+        matchesStatus = user.status === 'active';
       } else if (userFilter === 'inactive') {
-        matchesStatus = user.status === 'active' && !(user.has_reports ?? false);
-      } else {
+        matchesStatus = user.status === 'inactive';
+      } else if (userFilter === 'online') {
+        matchesStatus = user.is_online;
+      } else if (userFilter === 'offline') {
+        matchesStatus = !user.is_online;
+      } else if (userFilter === 'suspended' || userFilter === 'banned') {
         matchesStatus = user.status === userFilter;
+      } else {
+        matchesStatus = false;
       }
 
       // Apply search filter
@@ -1638,7 +1644,7 @@ const AdminDashboard: React.FC = () => {
       const { error } = await supabase
         .from("users")
         .update(updates)
-        .eq("id", selectedUserForAction.id)
+        .eq("user_id", selectedUserForAction.user_id)
 
       if (error) throw error
 
@@ -2756,6 +2762,7 @@ const AdminDashboard: React.FC = () => {
                       { value: "active", label: "Active", count: stats.activeUsers, color: "#10b981" },
                       { value: "inactive", label: "Inactive", count: stats.inactiveUsers, color: "#9ca3af" },
                       { value: "online", label: "Online", count: stats.onlineUsers, color: "#3b82f6" },
+                      { value: "offline", label: "Offline", count: stats.offlineUsers, color: "#6b7280" },
                       { value: "suspended", label: "Suspended", count: stats.suspendedUsers, color: "#f59e0b" },
                       { value: "banned", label: "Banned", count: stats.bannedUsers, color: "#dc2626" },
                     ].map((filter) => (
@@ -2824,15 +2831,12 @@ const AdminDashboard: React.FC = () => {
                                   style={
                                     {
                                       fontSize: "9px",
-                                      "--background": user.status !== 'active' ? getStatusColor(user.status) : ((user.has_reports ?? false) ? '#10b981' : '#9ca3af'),
+                                      "--background": getStatusColor(user.status),
                                       "--color": "white",
                                     } as any
                                   }
                                 >
-                                  {user.status !== 'active'
-                                    ? user.status.toUpperCase()
-                                    : ((user.has_reports ?? false) ? 'ACTIVE' : 'INACTIVE')
-                                  }
+                                  {user.status.toUpperCase()}
                                 </IonBadge>
                                 {user.warnings > 0 && <IonBadge color="warning" style={{ fontSize: "9px" }}>{user.warnings} ⚠️</IonBadge>}
                               </div>
@@ -3284,10 +3288,7 @@ const AdminDashboard: React.FC = () => {
                           <IonCol size="12">
                             <p>
                               <strong>Activity Status:</strong>{" "}
-                              {selectedUserForAction.status === 'active'
-                                ? ((selectedUserForAction.has_reports ?? false) ? 'ACTIVE (Has reports)' : 'INACTIVE (No reports)')
-                                : selectedUserForAction.status.toUpperCase()
-                              }
+                              {selectedUserForAction.status.toUpperCase()}
                             </p>
                           </IonCol>
                         </IonRow>
