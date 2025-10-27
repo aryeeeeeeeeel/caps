@@ -199,9 +199,29 @@ const AdminNotifications: React.FC = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'incident_reports' },
-        () => {
-          fetchUnreadCount();
-          fetchAdminNotifications();
+        async (payload) => {
+          console.log('Real-time report update in notifications:', payload);
+          
+          // Handle new incident reports
+          if (payload.eventType === 'INSERT') {
+            const newReport = payload.new;
+            console.log('New incident reported:', newReport.title);
+            
+            // Show immediate notification
+            const priorityEmojis = {
+              'critical': '🚨',
+              'high': '⚠️',
+              'medium': '📋',
+              'low': 'ℹ️'
+            } as const;
+            const priorityEmoji = priorityEmojis[newReport.priority as keyof typeof priorityEmojis] || '📋';
+            
+            setToastMessage(`${priorityEmoji} New ${newReport.priority} priority incident: ${newReport.title} in ${newReport.barangay}`);
+            setShowToast(true);
+          }
+          
+          await fetchAdminNotifications();
+          await fetchUnreadCount();
         }
       )
       .subscribe();
@@ -211,9 +231,20 @@ const AdminNotifications: React.FC = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'feedback' },
-        () => {
-          fetchUnreadCount();
-          fetchAdminNotifications();
+        async (payload) => {
+          console.log('Real-time feedback update:', payload);
+          
+          // Handle new feedback
+          if (payload.eventType === 'INSERT') {
+            const newFeedback = payload.new;
+            console.log('New feedback submitted:', newFeedback.overall_rating);
+            
+            setToastMessage(`💬 New feedback received: ${newFeedback.overall_rating}/5 rating`);
+            setShowToast(true);
+          }
+          
+          await fetchAdminNotifications();
+          await fetchUnreadCount();
         }
       )
       .subscribe();
@@ -247,19 +278,11 @@ const AdminNotifications: React.FC = () => {
         .update({ read: true })
         .eq('id', notification.related_id);
     } else if (notification.type === 'feedback') {
-      // Handle feedback from incident_reports table (feedback_comment field)
-      if (notification.id.startsWith('report-feedback-')) {
-        await supabase
-          .from('incident_reports')
-          .update({ feedback_read: true })
-          .eq('id', notification.related_id);
-      } else {
-        // Handle feedback from feedback table
-        await supabase
-          .from('feedback')
-          .update({ read: true })
-          .eq('id', notification.related_id);
-      }
+      // Handle feedback from feedback table
+      await supabase
+        .from('feedback')
+        .update({ read: true })
+        .eq('id', notification.related_id);
     }
 
     // Update unread count
@@ -310,12 +333,8 @@ const AdminNotifications: React.FC = () => {
         .filter(n => n.type === 'incident_report' && !n.read)
         .map(n => n.related_id);
 
-      const unreadFeedbackFromReports = notifications
-        .filter(n => n.type === 'feedback' && n.id.startsWith('report-feedback-') && !n.read)
-        .map(n => n.related_id);
-
       const unreadFeedback = notifications
-        .filter(n => n.type === 'feedback' && !n.id.startsWith('report-feedback-') && !n.read)
+        .filter(n => n.type === 'feedback' && !n.read)
         .map(n => n.related_id);
 
       // Update incident reports
@@ -326,13 +345,7 @@ const AdminNotifications: React.FC = () => {
           .in('id', unreadReports);
       }
 
-      // Update feedback from incident_reports
-      if (unreadFeedbackFromReports.length > 0) {
-        await supabase
-          .from('incident_reports')
-          .update({ feedback_read: true })
-          .in('id', unreadFeedbackFromReports);
-      }
+      // Note: Feedback is only stored in the feedback table, not in incident_reports
 
       // Update feedback table
       if (unreadFeedback.length > 0) {
@@ -363,12 +376,8 @@ const AdminNotifications: React.FC = () => {
       .filter(n => n.type === 'incident_report' && n.read)
       .map(n => n.related_id);
 
-    const readFeedbackFromReports = notifications
-      .filter(n => n.type === 'feedback' && n.id.startsWith('report-feedback-') && n.read)
-      .map(n => n.related_id);
-
     const readFeedback = notifications
-      .filter(n => n.type === 'feedback' && !n.id.startsWith('report-feedback-') && n.read)
+      .filter(n => n.type === 'feedback' && n.read)
       .map(n => n.related_id);
 
     // Update incident reports
@@ -379,13 +388,7 @@ const AdminNotifications: React.FC = () => {
         .in('id', readReports);
     }
 
-    // Update feedback from incident_reports (feedback_comment field)
-    if (readFeedbackFromReports.length > 0) {
-      await supabase
-        .from('incident_reports')
-        .update({ feedback_read: false })
-        .in('id', readFeedbackFromReports);
-    }
+    // Note: Feedback is only stored in the feedback table, not in incident_reports
 
     // Update feedback table
     if (readFeedback.length > 0) {
@@ -417,18 +420,11 @@ const AdminNotifications: React.FC = () => {
         .update({ read: false })
         .eq('id', notification.related_id);
     } else if (notification.type === 'feedback') {
-      // Handle both feedback from incident_reports and feedback table
-      if (notification.id.startsWith('report-feedback-')) {
-        await supabase
-          .from('incident_reports')
-          .update({ feedback_read: false })
-          .eq('id', notification.related_id);
-      } else {
-        await supabase
-          .from('feedback')
-          .update({ read: false })
-          .eq('id', notification.related_id);
-      }
+      // Handle feedback from feedback table
+      await supabase
+        .from('feedback')
+        .update({ read: false })
+        .eq('id', notification.related_id);
     }
 
     // Update unread count
@@ -639,13 +635,6 @@ if (isLoading) {
           <IonButtons slot="end">
             <IonButton
               fill="clear"
-              onClick={() => navigation.push("/it35-lab2/admin/system-logs", "forward", "push")}
-              style={{ color: 'white' }}
-            >
-              <IonIcon icon={documentTextOutline} />
-            </IonButton>
-            <IonButton
-              fill="clear"
               onClick={() => navigation.push('/it35-lab2/admin/notifications', 'forward', 'push')}
               style={{
                 color: 'white',
@@ -689,8 +678,7 @@ if (isLoading) {
               { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
               { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
               { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
-              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' },
-              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
+              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' }
             ].map(menu => (
               <IonButton
                 key={menu.id}
