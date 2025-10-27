@@ -28,7 +28,6 @@ import './theme/variables.css';
 /* Main Pages */
 import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
-// import AdminLogin from "./pages/AdminLoginPage";
 import Register from './pages/Register';
 import Profile from './pages/user-tabs/Profile';
 
@@ -41,7 +40,7 @@ import AdminUsers from './pages/admin-tabs/AdminUsers';
 import SystemLogs from './pages/admin-tabs/SystemLogs';
 import ActivityLogs from './pages/user-tabs/ActivityLogs';
 import Home from './pages/Home';
-import AdminLogin from './pages/AdminLogin';
+import AdminLogin from './pages/admin-tabs/AdminLogin';
 
 setupIonicReact();
 defineCustomElements(window);

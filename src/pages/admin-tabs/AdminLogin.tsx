@@ -19,8 +19,8 @@ import {
 } from '@ionic/react';
 import { shield, lockClosedOutline, mailOutline, keyOutline, checkmarkCircleOutline, arrowBackOutline, desktopOutline } from 'ionicons/icons';
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../utils/supabaseClient';
-import { logAdminLogin } from '../utils/activityLogger';
+import { supabase } from '../../utils/supabaseClient';
+import { logAdminLogin } from '../../utils/activityLogger';
 
 const AdminLogin: React.FC = () => {
   const [isMobileDevice, setIsMobileDevice] = useState<boolean | null>(null);
@@ -943,3 +943,4 @@ const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
 };
 
 export default AdminLogin;
+
