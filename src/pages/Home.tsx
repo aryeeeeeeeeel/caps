@@ -35,6 +35,7 @@ import {
 } from 'ionicons/icons';
 import { supabase } from '../utils/supabaseClient';
 import { logUserLogout } from '../utils/activityLogger';
+import { safeAuthCheck } from '../utils/supabaseClient';
 
 // Import all page components
 import Dashboard from './user-tabs/Dashboard';
@@ -71,7 +72,21 @@ const Home: React.FC = () => {
 
     const fetchUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        // Use safeAuthCheck for proper error handling
+        const { user, error } = await safeAuthCheck();
+        
+        if (error) {
+          console.error('Authentication error:', error);
+          // safeAuthCheck already handles signOut and redirect
+          return;
+        }
+        
+        if (!user) {
+          console.error('No authenticated user');
+          history.push('/it35-lab2');
+          return;
+        }
+
         if (user && user.email) {
           setUser(user);
           
@@ -116,13 +131,31 @@ const Home: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
+        // Redirect to login on any unhandled error
+        history.push('/it35-lab2');
       }
     };
 
     fetchUser();
 
+    // Update last_active_at periodically while user is active
+    const updateActivityInterval = setInterval(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.email) {
+          await supabase
+            .from('users')
+            .update({ last_active_at: new Date().toISOString() })
+            .eq('user_email', user.email);
+        }
+      } catch (error) {
+        console.debug('Error updating last_active_at:', error);
+      }
+    }, 5 * 60 * 1000); // Update every 5 minutes
+
     // Cleanup function
     return () => {
+      clearInterval(updateActivityInterval);
       if (notificationsChannel) {
         supabase.removeChannel(notificationsChannel);
       }
@@ -239,10 +272,10 @@ const Home: React.FC = () => {
       <IonToast
         isOpen={showToast}
         onDidDismiss={() => setShowToast(false)}
-        message={unreadNotifications > 0 ? "Your pending report has been updated to active. Check it out for more info!" : "Your report has been resolved. Check it out to review and rate it!"}
+        message={`You have ${unreadNotifications} unread notifications`}
         duration={3000}
         position="top"
-        color={unreadNotifications > 0 ? 'primary' : 'success'}
+        color="primary"
       />
       <IonHeader>
         <IonToolbar style={{
