@@ -46,7 +46,7 @@ interface User {
   user_firstname: string;
   user_lastname: string;
   user_email: string;
-  status: 'active' | 'suspended' | 'banned';
+  status: 'active' | 'inactive' | 'suspended' | 'banned';
   warnings: number;
   last_warning_date?: string;
   date_registered: string;
@@ -54,6 +54,7 @@ interface User {
   user_contact_number?: string;
   user_address?: string;
   has_reports?: boolean;
+  is_online: boolean;
 }
 
 const SkeletonStatsCard: React.FC = () => (
@@ -81,7 +82,7 @@ const AdminUsers: React.FC = () => {
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'banned' | 'none'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended' | 'banned'>('all');
   const [activityFilter, setActivityFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showActionAlert, setShowActionAlert] = useState(false);
@@ -174,32 +175,45 @@ const AdminUsers: React.FC = () => {
   }, [users, searchText, statusFilter, activityFilter, sortAlphabetical]);
 
   useEffect(() => {
+    console.log('🔍 AdminUsers component mounted - starting user fetch');
     fetchUsers();
     setupRealtimeSubscription();
   }, []);
 
-  useEffect(() => {
-    filterAndSortUsers();
-  }, [users, searchText, statusFilter, activityFilter, sortAlphabetical]);
-
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      console.log('🔄 Starting to fetch users from Supabase...');
+
+      const { data, error, status } = await supabase
         .from('users')
         .select('*')
         .neq('role', 'admin');
 
-      if (error) throw error;
+      console.log('📊 Supabase response:', { data, error, status });
+
+      if (error) {
+        console.error('❌ Error fetching users:', error);
+        throw error;
+      }
+
       if (data) {
+        console.log(`✅ Successfully fetched ${data.length} users`);
+
         // Fetch reports for each user to determine if they're truly "active"
         const usersWithReports = await Promise.all(
           data.map(async (user) => {
-            const { data: reports } = await supabase
+            const { data: reports, error: reportsError } = await supabase
               .from('incident_reports')
               .select('id')
               .eq('reporter_email', user.user_email)
               .limit(1);
+
+            if (reportsError) {
+              console.error(`❌ Error fetching reports for user ${user.user_email}:`, reportsError);
+            }
+
+            console.log(`👤 User ${user.user_email} has ${reports?.length || 0} reports`);
 
             return {
               ...user,
@@ -209,30 +223,46 @@ const AdminUsers: React.FC = () => {
             };
           })
         );
+
+        console.log('🎯 Final users with reports data:', usersWithReports);
         setUsers(usersWithReports);
+      } else {
+        console.log('⚠️ No data returned from users query');
+        setUsers([]);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
-      setToastMessage('Error loading users');
+      console.error('❌ Error in fetchUsers:', error);
+      setToastMessage('Error loading users: ' + (error as any).message);
       setShowToast(true);
     } finally {
       setIsLoading(false);
+      console.log('🏁 User fetch completed');
     }
   };
 
   const setupRealtimeSubscription = () => {
+    console.log('📡 Setting up realtime subscription for users');
     const channel = supabase
       .channel('users_channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchUsers())
-      .subscribe();
-    return () => { channel.unsubscribe(); };
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          console.log('🔄 Realtime update received:', payload);
+          fetchUsers();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Realtime subscription status:', status);
+      });
+
+    return () => {
+      console.log('🧹 Cleaning up realtime subscription');
+      channel.unsubscribe();
+    };
   };
 
   const isUserOnline = (user: User): boolean => {
-    if (!user.last_active_at) return false;
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-    return new Date(user.last_active_at) > oneDayAgo;
+    return user.is_online;
   };
 
   const filterAndSortUsers = () => {
@@ -243,19 +273,22 @@ const AdminUsers: React.FC = () => {
       let matchesStatus = false;
       if (statusFilter === 'all') {
         matchesStatus = true;
-      } else if (statusFilter === 'none') {
-        matchesStatus = false; // 'none' means no status filter, so no matches
       } else if (statusFilter === 'active') {
-        matchesStatus = user.status === 'active' && (user.has_reports ?? false);
+        matchesStatus = user.status === 'active';
       } else if (statusFilter === 'inactive') {
-        matchesStatus = user.status === 'active' && !(user.has_reports ?? false);
+        matchesStatus = user.status === 'inactive';
+      } else if (statusFilter === 'suspended') {
+        matchesStatus = user.status === 'suspended';
+      } else if (statusFilter === 'banned') {
+        matchesStatus = user.status === 'banned';
       } else {
-        matchesStatus = user.status === statusFilter;
+        matchesStatus = true; // Default to true for other filters
       }
 
       const matchesActivity = activityFilter === 'all' ||
         (activityFilter === 'online' && isUserOnline(user)) ||
         (activityFilter === 'offline' && !isUserOnline(user));
+
       return matchesSearch && matchesStatus && matchesActivity;
     });
 
@@ -269,13 +302,13 @@ const AdminUsers: React.FC = () => {
     setFilteredUsers(filtered);
   };
 
-  const handleStatusFilterClick = (status: 'all' | 'active' | 'inactive' | 'suspended' | 'banned' | 'online' | 'offline' | 'none') => {
+  const handleStatusFilterClick = (status: 'all' | 'active' | 'inactive' | 'online' | 'offline' | 'suspended' | 'banned') => {
     if (status === 'online' || status === 'offline') {
       setActivityFilter(status as any);
-      setStatusFilter('none'); // Reset status filter to prevent "All Users" highlighting
+      setStatusFilter('all');
     } else {
       setStatusFilter(status as any);
-      setActivityFilter('all'); // Reset activity filter
+      setActivityFilter('all');
     }
   };
 
@@ -344,17 +377,18 @@ const AdminUsers: React.FC = () => {
 
   const stats = {
     total: users.length,
-    active: users.filter(u => u.status === 'active' && u.has_reports).length,
-    inactive: users.filter(u => u.status === 'active' && !u.has_reports).length,
+    active: users.filter(u => u.status === 'active').length,
+    inactive: users.filter(u => u.status === 'inactive').length,
+    online: users.filter(u => u.is_online).length,
+    offline: users.filter(u => !u.is_online).length,
     suspended: users.filter(u => u.status === 'suspended').length,
-    banned: users.filter(u => u.status === 'banned').length,
-    online: users.filter(u => isUserOnline(u)).length,
-    offline: users.filter(u => !isUserOnline(u)).length
+    banned: users.filter(u => u.status === 'banned').length
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return '#10b981';
+      case 'inactive': return '#6b7280';
       case 'suspended': return '#f59e0b';
       case 'banned': return '#dc2626';
       default: return '#6b7280';
@@ -503,12 +537,13 @@ const AdminUsers: React.FC = () => {
 
       <IonContent style={{ '--background': 'var(--bg-secondary)' } as any}>
         <div style={{ padding: '20px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
               { label: 'All Users', value: stats.total, color: 'var(--text-secondary)', status: 'all' },
               { label: 'Active', value: stats.active, color: 'var(--success-color)', status: 'active' },
               { label: 'Inactive', value: stats.inactive, color: 'var(--text-tertiary)', status: 'inactive' },
               { label: 'Online', value: stats.online, color: 'var(--primary-color)', status: 'online' },
+              { label: 'Offline', value: stats.offline, color: 'var(--text-secondary)', status: 'offline' },
               { label: 'Suspended', value: stats.suspended, color: 'var(--warning-color)', status: 'suspended' },
               { label: 'Banned', value: stats.banned, color: 'var(--danger-color)', status: 'banned' }
             ].map((stat, idx) => (
@@ -546,7 +581,16 @@ const AdminUsers: React.FC = () => {
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                             <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937' }}>{user.user_firstname} {user.user_lastname}</div>
-                            {isUserOnline(user) && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 0 2px #d1fae5' }} />}
+                            <div
+                              title={isUserOnline(user) ? 'Online' : 'Offline'}
+                              style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                background: isUserOnline(user) ? '#10b981' : '#9ca3af',
+                                boxShadow: isUserOnline(user) ? '0 0 0 2px #d1fae5' : '0 0 0 2px #e5e7eb'
+                              }}
+                            />
                           </div>
                           <div style={{ fontSize: '14px', color: '#6b7280' }}>{user.user_email}</div>
                         </div>
@@ -554,14 +598,11 @@ const AdminUsers: React.FC = () => {
                           <IonBadge
                             style={{
                               fontSize: '10px',
-                              '--background': user.status !== 'active' ? getStatusColor(user.status) : ((user.has_reports ?? false) ? '#10b981' : '#9ca3af'),
+                              '--background': getStatusColor(user.status),
                               '--color': 'white'
                             } as any}
                           >
-                            {user.status !== 'active'
-                              ? user.status.toUpperCase()
-                              : ((user.has_reports ?? false) ? 'ACTIVE' : 'INACTIVE')
-                            }
+                            {user.status.toUpperCase()}
                           </IonBadge>
                           {user.warnings > 0 && <IonBadge color="warning" style={{ fontSize: '10px' }}>{user.warnings} âš ï¸</IonBadge>}
                         </div>
