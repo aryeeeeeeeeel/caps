@@ -1,8 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/it35-lab2/index.html"
+      "source": "/it35-lab2",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/it35-lab2/((?!assets/).*)",
+      "destination": "/index.html"
     }
   ]
 }

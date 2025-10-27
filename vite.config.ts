@@ -10,7 +10,7 @@ export default defineConfig({
     react(),
     legacy()
   ],
-  base: process.env.NODE_ENV === 'production' ? '/it35-lab2' : '/',
+  base: '/',
   test: {
     globals: true,
     environment: 'jsdom',
