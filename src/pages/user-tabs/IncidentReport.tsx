@@ -19,7 +19,6 @@ import {
   IonGrid,
   IonRow,
   IonCol,
-  IonModal,
   IonSpinner,
   IonSkeletonText
 } from '@ionic/react';
@@ -27,7 +26,6 @@ import {
   cameraOutline,
   locationOutline,
   warningOutline,
-  checkmarkCircleOutline,
   closeCircle,
   addOutline,
   timeOutline,
@@ -35,7 +33,7 @@ import {
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
-import { supabase } from '../../utils/supabaseClient';
+import { supabase, safeAuthCheck } from '../../utils/supabaseClient';
 import { logUserReportSubmission } from '../../utils/activityLogger';
 import { Capacitor } from '@capacitor/core';
 import ExifReader from 'exifreader';
@@ -394,45 +392,66 @@ const isPointInPolygon = (lat: number, lng: number, polygon: { lat: number, lng:
   return inside;
 };
 
+// Calculate distance between two GPS points in kilometers using Haversine formula
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 // Enhanced barangay detection from GPS coordinates with improved accuracy
 const detectBarangayFromCoordinates = (lat: number, lng: number): string | null => {
   console.log('Detecting barangay for coordinates:', lat, lng);
 
-  // Round coordinates to 6 decimal places for consistency
-  const roundedLat = Math.round(lat * 1000000) / 1000000;
-  const roundedLng = Math.round(lng * 1000000) / 1000000;
+  // Ensure coordinates are within Manolo Fortich area (approximate bounds)
+  const MF_BOUNDS = {
+    minLat: 8.25,
+    maxLat: 8.5,
+    minLng: 124.75,
+    maxLng: 125.0
+  };
 
-  // First, try exact polygon matching with rounded coordinates
+  if (lat < MF_BOUNDS.minLat || lat > MF_BOUNDS.maxLat ||
+      lng < MF_BOUNDS.minLng || lng > MF_BOUNDS.maxLng) {
+    console.warn('Coordinates outside Manolo Fortich bounds');
+    return null;
+  }
+
+  // First, try exact polygon matching
   for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
     for (const polygon of barangayData.polygons) {
-      if (isPointInPolygon(roundedLat, roundedLng, polygon.points)) {
+      if (isPointInPolygon(lat, lng, polygon.points)) {
         console.log('Exact polygon match found:', barangay);
         return barangay;
       }
     }
   }
 
-  // If no exact match, find nearest barangay within reasonable distance
+  // If no exact match, find nearest barangay using actual distance
   let nearestBarangay = null;
   let minDistance = Infinity;
-  const MAX_DISTANCE = 0.02; // Reduced to approximately 2.2km for better accuracy
+  const MAX_DISTANCE_KM = 5; // Maximum 5 kilometers from centroid
 
   for (const [barangay, barangayData] of Object.entries(barangayPolygons)) {
-    const distance = Math.sqrt(
-      Math.pow(roundedLat - barangayData.centroid.lat, 2) +
-      Math.pow(roundedLng - barangayData.centroid.lng, 2)
-    );
+    const distanceKm = calculateDistance(lat, lng, barangayData.centroid.lat, barangayData.centroid.lng);
 
-    if (distance < minDistance && distance < MAX_DISTANCE) {
-      minDistance = distance;
+    if (distanceKm < minDistance && distanceKm < MAX_DISTANCE_KM) {
+      minDistance = distanceKm;
       nearestBarangay = barangay;
     }
   }
 
   if (nearestBarangay) {
-    console.log('Nearest barangay found:', nearestBarangay, 'Distance:', minDistance);
+    console.log(`Nearest barangay: ${nearestBarangay} (${minDistance.toFixed(2)}km away)`);
+    return nearestBarangay;
   } else {
-    console.log('No nearby barangay found within', MAX_DISTANCE, 'degrees');
+    console.log(`No nearby barangay found within ${MAX_DISTANCE_KM}km`);
   }
 
   return nearestBarangay;
@@ -470,49 +489,79 @@ const optimizeImage = (blob: Blob, maxSize: number = 1024, quality: number = 0.8
   });
 };
 
-// Enhanced GPS coordinate conversion
+// Enhanced GPS coordinate conversion with better accuracy
 const convertExifGpsToDecimal = (coord: any, ref: string): number => {
   console.log('Converting coordinate:', coord, 'Ref:', ref);
 
   let decimal = 0;
 
-  if (Array.isArray(coord)) {
-    if (coord.length >= 3) {
-      const degrees = parseFloat(coord[0]) || 0;
-      const minutes = parseFloat(coord[1]) || 0;
-      const seconds = parseFloat(coord[2]) || 0;
-      decimal = degrees + (minutes / 60) + (seconds / 3600);
+  try {
+    // Handle ExifReader's specific format
+    if (coord?.description) {
+      // Try to parse from description string (e.g., "8° 22' 9.3600\" N")
+      const descStr = coord.description.toString();
+      const match = descStr.match(/(\d+)°\s*(\d+)'\s*([\d.]+)"/);
+      if (match) {
+        const degrees = parseFloat(match[1]);
+        const minutes = parseFloat(match[2]);
+        const seconds = parseFloat(match[3]);
+        decimal = degrees + (minutes / 60) + (seconds / 3600);
+        console.log(`Parsed from description: ${degrees}° ${minutes}' ${seconds}"`);
+      }
     }
-    else if (coord.length === 2) {
-      const degrees = parseFloat(coord[0]) || 0;
-      const minutesWithSeconds = parseFloat(coord[1]) || 0;
-      decimal = degrees + (minutesWithSeconds / 60);
+    
+    // Handle array format [degrees, minutes, seconds]
+    if (decimal === 0 && Array.isArray(coord)) {
+      if (coord.length >= 3) {
+        const degrees = typeof coord[0] === 'number' ? coord[0] : parseFloat(coord[0]) || 0;
+        const minutes = typeof coord[1] === 'number' ? coord[1] : parseFloat(coord[1]) || 0;
+        const seconds = typeof coord[2] === 'number' ? coord[2] : parseFloat(coord[2]) || 0;
+        decimal = degrees + (minutes / 60) + (seconds / 3600);
+        console.log(`Parsed from array: ${degrees}° ${minutes}' ${seconds}"`);
+      }
+      else if (coord.length === 2) {
+        const degrees = typeof coord[0] === 'number' ? coord[0] : parseFloat(coord[0]) || 0;
+        const minutes = typeof coord[1] === 'number' ? coord[1] : parseFloat(coord[1]) || 0;
+        decimal = degrees + (minutes / 60);
+        console.log(`Parsed from 2-element array: ${degrees}° ${minutes}'`);
+      }
     }
-  }
-  else if (typeof coord === 'number') {
-    decimal = coord;
-  }
-  else if (coord?.value !== undefined) {
-    decimal = parseFloat(coord.value) || 0;
-  }
-  else if (typeof coord === 'string') {
-    const match = coord.match(/(\d+)°\s*(\d+)'\s*([\d.]+)"/);
-    if (match) {
-      const degrees = parseFloat(match[1]);
-      const minutes = parseFloat(match[2]);
-      const seconds = parseFloat(match[3]);
-      decimal = degrees + (minutes / 60) + (seconds / 3600);
-    } else {
-      decimal = parseFloat(coord) || 0;
+    
+    // Handle number directly
+    if (decimal === 0 && typeof coord === 'number') {
+      decimal = coord;
     }
-  }
+    
+    // Handle object with value property
+    if (decimal === 0 && coord && typeof coord === 'object' && 'value' in coord) {
+      decimal = typeof coord.value === 'number' ? coord.value : parseFloat(coord.value) || 0;
+    }
+    
+    // Handle string format
+    if (decimal === 0 && typeof coord === 'string') {
+      const match = coord.match(/(\d+)°\s*(\d+)'\s*([\d.]+)"/);
+      if (match) {
+        const degrees = parseFloat(match[1]);
+        const minutes = parseFloat(match[2]);
+        const seconds = parseFloat(match[3]);
+        decimal = degrees + (minutes / 60) + (seconds / 3600);
+      } else {
+        decimal = parseFloat(coord) || 0;
+      }
+    }
 
-  if (ref === 'S' || ref === 'W') {
-    decimal = -decimal;
-  }
+    // Apply reference direction (S or W makes it negative)
+    if (ref === 'S' || ref === 'W') {
+      decimal = -decimal;
+    }
 
-  console.log('Converted decimal:', decimal);
-  return decimal;
+    console.log('Converted decimal:', decimal);
+    return decimal;
+    
+  } catch (error) {
+    console.error('Error converting GPS coordinate:', error);
+    return 0;
+  }
 };
 
 // GPS coordinate validation
@@ -557,12 +606,20 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
     try {
       const gps = (tags as any).gps;
       if (gps) {
-        console.log('GPS tags found:', gps);
+        console.log('GPS tags found:', JSON.stringify(gps, null, 2));
 
-        const latitude = gps.GPSLatitude || gps.Latitude || gps.gpsLatitude;
-        const longitude = gps.GPSLongitude || gps.Longitude || gps.gpsLongitude;
-        const latRef = gps.GPSLatitudeRef?.value || gps.LatitudeRef || gps.gpsLatitudeRef || 'N';
-        const lngRef = gps.GPSLongitudeRef?.value || gps.LongitudeRef || gps.gpsLongitudeRef || 'E';
+        // Try multiple GPS tag names
+        const latitude = gps.GPSLatitude || gps.Latitude || gps.gpsLatitude || gps.LatitudeValue;
+        const longitude = gps.GPSLongitude || gps.Longitude || gps.gpsLongitude || gps.LongitudeValue;
+        const latRef = gps.GPSLatitudeRef?.value || gps.GPSLatitudeRef || gps.LatitudeRef || gps.gpsLatitudeRef || gps.LatitudeRefValue || 'N';
+        const lngRef = gps.GPSLongitudeRef?.value || gps.GPSLongitudeRef || gps.LongitudeRef || gps.gpsLongitudeRef || gps.LongitudeRefValue || 'E';
+
+        console.log('Raw GPS values:', {
+          latitude: latitude,
+          longitude: longitude,
+          latRef: latRef,
+          lngRef: lngRef
+        });
 
         if (latitude !== undefined && longitude !== undefined) {
           const lat = convertExifGpsToDecimal(latitude, latRef);
@@ -575,15 +632,25 @@ const extractExifData = async (file: File): Promise<ExifData | null> => {
             exifData.gpsLongitude = lng;
             exifData.gpsSource = 'photo_exif';
 
+            // Use more accurate barangay detection
             const detectedBarangay = detectBarangayFromCoordinates(lat, lng);
             if (detectedBarangay) {
               exifData.detectedBarangay = detectedBarangay;
+              console.log(`Detected barangay: ${detectedBarangay} for coordinates: ${lat}, ${lng}`);
+            } else {
+              console.warn(`No barangay detected for coordinates: ${lat}, ${lng}`);
             }
+          } else {
+            console.warn('GPS coordinates failed validation');
           }
+        } else {
+          console.warn('GPS coordinates not found in EXIF data');
         }
+      } else {
+        console.log('No GPS data in EXIF tags');
       }
     } catch (gpsError) {
-      console.warn('GPS extraction failed:', gpsError);
+      console.error('GPS extraction failed:', gpsError);
     }
 
     // Extract date/time
@@ -724,7 +791,6 @@ const IncidentReport: React.FC = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastColor, setToastColor] = useState<'success' | 'danger' | 'warning'>('success');
@@ -749,8 +815,27 @@ const IncidentReport: React.FC = () => {
 
   const fetchUserProfile = async () => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
+      const { user, error } = await safeAuthCheck();
+      if (error) {
+        console.error('Authentication error:', error);
+        
+        // Handle all auth-related errors consistently
+        console.error('Auth error in IncidentReport:', {
+          message: error,
+          timestamp: new Date().toISOString()
+        });
+      
+        if (error === 'Session expired' || 
+            error.includes('Auth session missing') || 
+            error.includes('Invalid refresh token') || 
+            error.includes('Invalid authentication')) {
+          showToastMessage('Your session has expired. Please log in again.', 'warning');
+          window.location.href = '/it35-lab2/user-login';
+        }
+        return;
+      }
+      
+      if (!user) {
         console.error('User not authenticated');
         return;
       }
@@ -1206,8 +1291,20 @@ const IncidentReport: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
+      const { user, error } = await safeAuthCheck();
+      if (error) {
+        console.error('Authentication error during submit:', error);
+        if (error === 'Session expired') {
+          showToastMessage('Session expired. Please log in again.', 'warning');
+          setTimeout(() => {
+            window.location.href = '/it35-lab2/user-login';
+          }, 2000);
+          return;
+        }
+        throw new Error('Authentication failed. Please log in again.');
+      }
+      
+      if (!user) {
         throw new Error('User not authenticated. Please log in first.');
       }
 
@@ -1305,7 +1402,13 @@ const IncidentReport: React.FC = () => {
       // Log user report submission activity
       await logUserReportSubmission(insertData.id, String(formData.title || 'Incident Report'), userProfile?.user_email);
 
-      setShowSuccessModal(true);
+      // Show success toast
+      showToastMessage('Report submitted successfully! Redirecting to map...');
+      
+      // Wait a bit for toast to show, then redirect to map with report ID
+      setTimeout(() => {
+        window.location.href = `/it35-lab2/app/map?reportId=${insertData.id}`;
+      }, 1000);
 
     } catch (error: any) {
       console.error('Submit error:', error);
@@ -1660,76 +1763,6 @@ const IncidentReport: React.FC = () => {
           </IonCardContent>
         </IonCard>
       </div>
-
-      {/* Success Modal */}
-      <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
-        <IonContent>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            padding: '40px',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              width: '100px',
-              height: '100px',
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '24px'
-            }}>
-              <IonIcon icon={checkmarkCircleOutline} style={{ fontSize: '50px', color: 'white' }} />
-            </div>
-
-            <h2 style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              color: '#065f46',
-              margin: '0 0 12px 0'
-            }}>Report Submitted Successfully!</h2>
-
-            <p style={{
-              fontSize: '16px',
-              color: '#047857',
-              lineHeight: '1.6',
-              marginBottom: '32px'
-            }}>
-              Your incident report has been received by LDRRMO Manolo Fortich.
-              You will receive updates on the status through notifications.
-            </p>
-
-            <IonButton
-              routerLink="/it35-lab2/app/map"
-              expand="block"
-              size="large"
-              onClick={() => setShowSuccessModal(false)}
-              style={{
-                '--border-radius': '12px',
-                '--background': 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                '--color': 'white',
-                marginBottom: '12px'
-              } as any}
-            >
-              View My Reports
-            </IonButton>
-
-            <IonButton
-              fill="clear"
-              expand="block"
-              routerLink="/it35-lab2/app/dashboard"
-              onClick={() => setShowSuccessModal(false)}
-              style={{ '--color': '#6b7280' }}
-            >
-              Back to Dashboard
-            </IonButton>
-          </div>
-        </IonContent>
-      </IonModal>
 
       {/* Toast */}
       <IonToast
