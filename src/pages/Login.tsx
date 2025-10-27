@@ -730,6 +730,12 @@ const Login: React.FC = () => {
         .eq('user_id', userId)
         .eq('device_fingerprint', fingerprint);
 
+      // Update last_active_at in users table
+      await supabase
+        .from('users')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('user_email', userEmail);
+
       if (rememberMe) {
         saveAccount(loginIdentifier, password);
         setSavedAccounts(getSavedAccounts());
