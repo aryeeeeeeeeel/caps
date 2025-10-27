@@ -43,7 +43,9 @@ import {
   carOutline,
   calendarOutline,
   desktopOutline,
-  mapOutline
+  mapOutline,
+  chevronBackOutline,
+  chevronForwardOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -140,6 +142,9 @@ const AdminIncidents: React.FC = () => {
   const [showNewNotificationToast, setShowNewNotificationToast] = useState(false);
   const [resolvedPhoto, setResolvedPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -245,7 +250,33 @@ const AdminIncidents: React.FC = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'incident_reports' },
-        () => fetchReports()
+        async (payload) => {
+          console.log('Real-time incident update:', payload);
+          
+          // Handle new incident reports
+          if (payload.eventType === 'INSERT') {
+            const newReport = payload.new as IncidentReport;
+            console.log('New incident reported:', newReport.title);
+            
+            // Show immediate notification
+            const priorityEmojis = {
+              'critical': '🚨',
+              'high': '⚠️',
+              'medium': '📋',
+              'low': 'ℹ️'
+            } as const;
+            const priorityEmoji = priorityEmojis[newReport.priority as keyof typeof priorityEmojis] || '📋';
+            
+            setToastMessage(`${priorityEmoji} New ${newReport.priority} priority incident: ${newReport.title} in ${newReport.barangay}`);
+            setShowToast(true);
+            
+            // Update unread count
+            setUnreadCount(prev => prev + 1);
+          }
+          
+          // Refresh the reports list
+          await fetchReports();
+        }
       )
       .subscribe();
 
@@ -340,6 +371,7 @@ const AdminIncidents: React.FC = () => {
       setPhotoPreview(null);
       setSelectedReport(null);
       setStatusChangeType(null);
+      setShowReportModal(false); // Close the incident details modal
 
       // Force refresh reports to show updated status
       await fetchReports();
@@ -1007,23 +1039,33 @@ const AdminIncidents: React.FC = () => {
                     {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
                       <div style={{ marginTop: '16px' }}>
                         <strong>Attached Images:</strong>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
                           {selectedReport.image_urls.map((url, index) => (
-                            <IonButton
+                            <img
                               key={index}
-                              fill="clear"
+                              src={url}
+                              alt={`Report image ${index + 1}`}
                               style={{
-                                '--padding-start': '0',
-                                '--padding-end': '0',
-                                '--border-radius': '8px'
+                                width: '80px',
+                                height: '80px',
+                                borderRadius: '8px',
+                                objectFit: 'cover',
+                                cursor: 'pointer',
+                                border: '2px solid transparent',
+                                transition: 'border-color 0.2s ease'
                               }}
-                              onClick={() => window.open(url, '_blank')}
-                            >
-                              <IonImg
-                                src={url}
-                                style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }}
-                              />
-                            </IonButton>
+                              onClick={() => {
+                                setSelectedImages(selectedReport.image_urls || []);
+                                setSelectedImageIndex(index);
+                                setShowImageModal(true);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = 'transparent';
+                              }}
+                            />
                           ))}
                         </div>
                       </div>
@@ -1331,6 +1373,147 @@ const AdminIncidents: React.FC = () => {
                       <strong>Notifying:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_email})<br />
                       <strong>Report:</strong> {selectedReport.title}
                     </div>
+                  </IonCardContent>
+                </IonCard>
+              )}
+            </div>
+          </IonContent>
+        </IonModal>
+
+        {/* Image Gallery Modal */}
+        <IonModal
+          isOpen={showImageModal}
+          onDidDismiss={() => setShowImageModal(false)}
+        >
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => setShowImageModal(false)}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+              <IonTitle>Image Gallery</IonTitle>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              {selectedImages.length > 0 && (
+                <IonCard>
+                  <IonCardContent>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: '400px',
+                      position: 'relative',
+                      background: '#f8fafc',
+                      borderRadius: '8px',
+                      marginBottom: '16px'
+                    }}>
+                      <img
+                        src={selectedImages[selectedImageIndex]}
+                        alt={`Gallery image ${selectedImageIndex + 1}`}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'contain',
+                          borderRadius: '8px'
+                        }}
+                      />
+
+                      {/* Navigation arrows */}
+                      {selectedImages.length > 1 && (
+                        <>
+                          <IonButton
+                            fill="clear"
+                            onClick={() => setSelectedImageIndex(prev => 
+                              prev === 0 ? selectedImages.length - 1 : prev - 1
+                            )}
+                            style={{
+                              position: 'absolute',
+                              left: '10px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              '--color': '#374151',
+                              '--background': 'rgba(255,255,255,0.9)',
+                              '--border-radius': '50%',
+                              width: '40px',
+                              height: '40px',
+                              '--box-shadow': '0 2px 8px rgba(0,0,0,0.1)'
+                            } as any}
+                          >
+                            <IonIcon icon={chevronBackOutline} />
+                          </IonButton>
+
+                          <IonButton
+                            fill="clear"
+                            onClick={() => setSelectedImageIndex(prev => 
+                              prev === selectedImages.length - 1 ? 0 : prev + 1
+                            )}
+                            style={{
+                              position: 'absolute',
+                              right: '10px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              '--color': '#374151',
+                              '--background': 'rgba(255,255,255,0.9)',
+                              '--border-radius': '50%',
+                              width: '40px',
+                              height: '40px',
+                              '--box-shadow': '0 2px 8px rgba(0,0,0,0.1)'
+                            } as any}
+                          >
+                            <IonIcon icon={chevronForwardOutline} />
+                          </IonButton>
+                        </>
+                      )}
+
+                      {/* Image counter */}
+                      {selectedImages.length > 1 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          right: '10px',
+                          background: 'rgba(0,0,0,0.7)',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px'
+                        }}>
+                          {selectedImageIndex + 1} / {selectedImages.length}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Thumbnail Strip */}
+                    {selectedImages.length > 1 && (
+                      <div style={{
+                        display: 'flex',
+                        gap: '8px',
+                        overflowX: 'auto',
+                        paddingBottom: '8px',
+                        justifyContent: 'center'
+                      }}>
+                        {selectedImages.map((url, index) => (
+                          <img
+                            key={index}
+                            src={url}
+                            alt={`Thumbnail ${index + 1}`}
+                            style={{
+                              width: '60px',
+                              height: '60px',
+                              borderRadius: '6px',
+                              objectFit: 'cover',
+                              cursor: 'pointer',
+                              border: selectedImageIndex === index ? '2px solid #3b82f6' : '2px solid transparent',
+                              opacity: selectedImageIndex === index ? 1 : 0.7,
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={() => setSelectedImageIndex(index)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </IonCardContent>
                 </IonCard>
               )}
