@@ -59,7 +59,7 @@ import Dashboard from './Dashboard';
 import IncidentReport from './IncidentReport';
 import IncidentMap from './IncidentMap';
 import History from './History';
-import Notifications from '../Notifications';
+import Notifications from './Notifications';
 import GiveFeedback from './GiveFeedback';
 
 interface ActivityLog {
@@ -95,7 +95,7 @@ const ActivityLogs: React.FC = () => {
     { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
     { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
     { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
-    { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: listOutline },
+    { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
   ];
 
   // Check if we're on the activity logs page specifically
@@ -783,7 +783,13 @@ const ActivityLogs: React.FC = () => {
               background: '#f8fafc',
               padding: '0 20px 20px 20px'
             }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                  gap: '12px'
+                }}
+              >
                 {[
                   { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, filter: 'all' },
                   { label: 'Logins', value: stats.login, color: '#10b981', icon: logInOutline, filter: 'login' },
@@ -800,7 +806,8 @@ const ActivityLogs: React.FC = () => {
                       padding: '16px',
                       textAlign: 'center',
                       cursor: 'pointer',
-                      transition: 'all 0.3s ease'
+                      transition: 'all 0.3s ease',
+                      minWidth: 0
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
