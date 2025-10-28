@@ -261,6 +261,7 @@ const AdminUsers: React.FC = () => {
     };
   };
 
+  // Active vs Inactive should be based on whether user has submitted at least one report
   const isUserOnline = (user: User): boolean => {
     return user.is_online;
   };
@@ -274,9 +275,11 @@ const AdminUsers: React.FC = () => {
       if (statusFilter === 'all') {
         matchesStatus = true;
       } else if (statusFilter === 'active') {
-        matchesStatus = user.status === 'active';
+        // Treat as active only if the user has at least one report
+        matchesStatus = user.has_reports === true;
       } else if (statusFilter === 'inactive') {
-        matchesStatus = user.status === 'inactive';
+        // Treat as inactive if user has no reports
+        matchesStatus = !user.has_reports;
       } else if (statusFilter === 'suspended') {
         matchesStatus = user.status === 'suspended';
       } else if (statusFilter === 'banned') {
@@ -377,8 +380,9 @@ const AdminUsers: React.FC = () => {
 
   const stats = {
     total: users.length,
-    active: users.filter(u => u.status === 'active').length,
-    inactive: users.filter(u => u.status === 'inactive').length,
+    // Active/inactive computed from has_reports
+    active: users.filter(u => u.has_reports).length,
+    inactive: users.filter(u => !u.has_reports).length,
     online: users.filter(u => u.is_online).length,
     offline: users.filter(u => !u.is_online).length,
     suspended: users.filter(u => u.status === 'suspended').length,
@@ -595,16 +599,29 @@ const AdminUsers: React.FC = () => {
                           <div style={{ fontSize: '14px', color: '#6b7280' }}>{user.user_email}</div>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {/* Show ACTIVE/INACTIVE by report submissions */}
                           <IonBadge
                             style={{
                               fontSize: '10px',
-                              '--background': getStatusColor(user.status),
+                              '--background': user.has_reports ? '#10b981' : '#6b7280',
                               '--color': 'white'
                             } as any}
                           >
-                            {user.status.toUpperCase()}
+                            {user.has_reports ? 'ACTIVE' : 'INACTIVE'}
                           </IonBadge>
-                          {user.warnings > 0 && <IonBadge color="warning" style={{ fontSize: '10px' }}>{user.warnings} âš ï¸</IonBadge>}
+                          {/* Keep administrative status as a secondary hint if not normal */}
+                          {(user.status === 'suspended' || user.status === 'banned') && (
+                            <IonBadge
+                              style={{
+                                fontSize: '10px',
+                                '--background': getStatusColor(user.status),
+                                '--color': 'white'
+                              } as any}
+                            >
+                              {user.status.toUpperCase()}
+                            </IonBadge>
+                          )}
+                          {user.warnings > 0 && <IonBadge color="warning" style={{ fontSize: '10px' }}>{user.warnings} ⚠️</IonBadge>}
                         </div>
                       </div>
 
