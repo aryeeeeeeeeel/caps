@@ -219,7 +219,14 @@ export const handleAuthError = (error: any): boolean => {
 // Safe authentication check with error handling
 export const safeAuthCheck = async () => {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    // Some browsers delay session hydration; try twice briefly before failing
+    let { data: { user }, error } = await supabase.auth.getUser();
+    if ((!user || (error && error.message?.includes('Auth session missing'))) ) {
+      await new Promise(res => setTimeout(res, 250));
+      const retry = await supabase.auth.getUser();
+      user = retry.data.user;
+      error = retry.error as any;
+    }
     
     if (error) {
       // Check if it's a serious error that should trigger logout
