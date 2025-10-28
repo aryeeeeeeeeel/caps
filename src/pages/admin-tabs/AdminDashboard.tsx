@@ -103,6 +103,9 @@ interface IncidentReport {
   actual_resolved_time?: string
   current_eta_minutes?: number
   response_route_data?: any
+  // Added fields used elsewhere in the component
+  resolved_at?: string
+  resolved_photo_url?: string
 }
 
 interface User {
@@ -1581,8 +1584,9 @@ const AdminDashboard: React.FC = () => {
       active: reports.filter((r) => r.status === "active").length,
       resolved: reports.filter((r) => r.status === "resolved").length,
       total: reports.length,
-      activeUsers: users.filter((u) => u.status === 'active').length,
-      inactiveUsers: users.filter((u) => u.status === 'inactive').length,
+      // Active/inactive by report submissions, not online status
+      activeUsers: users.filter((u) => u.has_reports).length,
+      inactiveUsers: users.filter((u) => !u.has_reports).length,
       suspendedUsers: users.filter((u) => u.status === 'suspended').length,
       bannedUsers: users.filter((u) => u.status === 'banned').length,
       onlineUsers: users.filter((u) => u.is_online).length,
@@ -3040,49 +3044,85 @@ const AdminDashboard: React.FC = () => {
                       </IonBadge>
                     </div>
 
-                    {/* NEW: Scheduled and ETA Information */}
-                    {selectedReport.scheduled_response_time && (
-                      <div
-                        style={{
-                          background: "#fffbeb",
-                          border: "1px solid #fcd34d",
-                          borderRadius: "8px",
-                          padding: "12px",
-                          marginBottom: "16px",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                          <IonIcon icon={calendarOutline} style={{ color: "#f59e0b" }} />
-                          <strong style={{ color: "#92400e" }}>Scheduled Response</strong>
-                        </div>
-                        <p style={{ margin: 0, color: "#92400e", fontSize: "14px" }}>
-                          {new Date(selectedReport.scheduled_response_time).toLocaleString()}
-                        </p>
-                      </div>
+                    {/* Conditional scheduling/ETA/resolution summary by status */}
+                    {selectedReport.status === 'pending' && (
+                      <>
+                        {selectedReport.estimated_arrival_time && (
+                          <div style={{
+                            background: '#eff6ff',
+                            border: '1px solid #93c5fd',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '16px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                              <IonIcon icon={carOutline} style={{ color: '#3b82f6' }} />
+                              <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
+                            </div>
+                            <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
+                              {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
 
-                    {selectedReport.current_eta_minutes && selectedReport.status === "active" && (
-                      <div
-                        style={{
-                          background: "#eff6ff",
-                          border: "1px solid #93c5fd",
-                          borderRadius: "8px",
-                          padding: "12px",
-                          marginBottom: "16px",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                          <IonIcon icon={carOutline} style={{ color: "#3b82f6" }} />
-                          <strong style={{ color: "#1e40af" }}>Estimated Arrival</strong>
-                        </div>
-                        <p style={{ margin: 0, color: "#1e40af", fontSize: "14px" }}>
-                          {selectedReport.current_eta_minutes} minutes
-                        </p>
-                        {selectedReport.estimated_arrival_time && (
-                          <p style={{ margin: "4px 0 0 0", color: "#6b7280", fontSize: "12px" }}>
-                            Arrival at: {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
-                          </p>
+                    {selectedReport.status === 'active' && (
+                      <>
+                        {selectedReport.scheduled_response_time && (
+                          <div style={{
+                            background: '#fffbeb',
+                            border: '1px solid #fcd34d',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '16px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                              <IonIcon icon={calendarOutline} style={{ color: '#f59e0b' }} />
+                              <strong style={{ color: '#92400e' }}>Scheduled Response</strong>
+                            </div>
+                            <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
+                              {new Date(selectedReport.scheduled_response_time).toLocaleString()}
+                            </p>
+                          </div>
                         )}
+
+                        {(selectedReport.current_eta_minutes || selectedReport.estimated_arrival_time) && (
+                          <div style={{
+                            background: '#eff6ff',
+                            border: '1px solid #93c5fd',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '16px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                              <IonIcon icon={carOutline} style={{ color: '#3b82f6' }} />
+                              <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
+                            </div>
+                            <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
+                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes` : ''}
+                              {selectedReport.estimated_arrival_time ? ` ${new Date(selectedReport.estimated_arrival_time).toLocaleString()}` : ''}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {selectedReport.status === 'resolved' && selectedReport.resolved_at && (
+                      <div style={{
+                        background: '#ecfdf5',
+                        border: '1px solid #10b981',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <IonIcon icon={checkmarkCircleOutline} style={{ color: '#10b981' }} />
+                          <strong style={{ color: '#065f46' }}>Resolved</strong>
+                        </div>
+                        <p style={{ margin: 0, color: '#065f46', fontSize: '14px' }}>
+                          {new Date(selectedReport.resolved_at).toLocaleString()}
+                        </p>
                       </div>
                     )}
 
@@ -3119,13 +3159,14 @@ const AdminDashboard: React.FC = () => {
                             </p>
                           </div>
                         </IonCol>
+                        <IonCol size="12">
+                          <div style={{ marginBottom: "16px" }}>
+                            <strong>Description:</strong>
+                            <p style={{ whiteSpace: "pre-wrap" }}>{selectedReport.description}</p>
+                          </div>
+                        </IonCol>
                       </IonRow>
                     </IonGrid>
-
-                    <div style={{ marginBottom: "16px" }}>
-                      <strong>Description:</strong>
-                      <p style={{ whiteSpace: "pre-wrap" }}>{selectedReport.description}</p>
-                    </div>
 
                     {/* Reporter Information */}
                     <IonCard style={{ background: "#f8fafc" }}>
@@ -3202,16 +3243,7 @@ const AdminDashboard: React.FC = () => {
 
                     {/* NEW: Enhanced Action Buttons */}
                     <div style={{ display: "flex", gap: "8px", marginTop: "24px", flexWrap: "wrap" }}>
-                      {selectedReport.status === "active" && (
-                        <IonButton
-                          expand="block"
-                          color="success"
-                          onClick={() => selectedReport && markAsResolved(selectedReport.id)}
-                        >
-                          <IonIcon icon={checkmarkCircleOutline} slot="start" />
-                          Mark Resolved
-                        </IonButton>
-                      )}
+                      {/* Removed Mark Resolved button as requested */}
 
                       <IonButton
                         expand="block"
