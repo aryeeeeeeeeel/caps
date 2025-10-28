@@ -930,43 +930,84 @@ const AdminIncidents: React.FC = () => {
                       </IonBadge>
                     </div>
 
-                    {selectedReport.scheduled_response_time && (
-                      <div style={{
-                        background: '#fffbeb',
-                        border: '1px solid #fcd34d',
-                        borderRadius: '8px',
-                        padding: '12px',
-                        marginBottom: '16px'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <IonIcon icon={calendarOutline} style={{ color: '#f59e0b' }} />
-                          <strong style={{ color: '#92400e' }}>Scheduled Response</strong>
-                        </div>
-                        <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
-                          {new Date(selectedReport.scheduled_response_time).toLocaleString()}
-                        </p>
-                      </div>
+                    {/* Conditional scheduling/ETA/resolution summary by status */}
+                    {selectedReport.status === 'pending' && (
+                      <>
+                        {selectedReport.estimated_arrival_time && (
+                          <div style={{
+                            background: 'rgba(59, 130, 246, 0.05)',
+                            border: '1px solid #93c5fd',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '12px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <IonIcon icon={carOutline} style={{ color: '#3b82f6', fontSize: '18px' }} />
+                              <strong style={{ color: '#1e40af', fontSize: '14px' }}>Estimated Arrival</strong>
+                            </div>
+                            <IonText style={{ fontSize: '14px', color: '#1e293b', fontWeight: '500', marginLeft: '26px' }}>
+                              {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
+                            </IonText>
+                          </div>
+                        )}
+                      </>
                     )}
 
-                    {selectedReport.current_eta_minutes && (
+                    {selectedReport.status === 'active' && (
+                      <>
+                        {selectedReport.scheduled_response_time && (
+                          <div style={{
+                            background: '#fffbeb',
+                            border: '1px solid #fcd34d',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '16px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                              <IonIcon icon={calendarOutline} style={{ color: '#f59e0b' }} />
+                              <strong style={{ color: '#92400e' }}>Scheduled Response</strong>
+                            </div>
+                            <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
+                              {new Date(selectedReport.scheduled_response_time).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
+
+                        {(selectedReport.current_eta_minutes || selectedReport.estimated_arrival_time) && (
+                          <div style={{
+                            background: 'rgba(59, 130, 246, 0.05)',
+                            border: '1px solid #93c5fd',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginBottom: '12px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <IonIcon icon={carOutline} style={{ color: '#3b82f6', fontSize: '18px' }} />
+                              <strong style={{ color: '#1e40af', fontSize: '14px' }}>Estimated Arrival</strong>
+                            </div>
+                            <IonText style={{ fontSize: '16px', color: '#1e293b', fontWeight: '500', marginLeft: '26px' }}>
+                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes` : ''}
+                              {selectedReport.estimated_arrival_time ? ` ${new Date(selectedReport.estimated_arrival_time).toLocaleString()}` : ''}
+                            </IonText>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {selectedReport.status === 'resolved' && selectedReport.resolved_at && (
                       <div style={{
-                        background: 'rgba(59, 130, 246, 0.05)',
-                        border: '1px solid #68a1fdff',
+                        background: '#ecfdf5',
+                        border: '1px solid #10b981',
                         borderRadius: '8px',
                         padding: '12px',
                         marginBottom: '12px'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <IonIcon icon={carOutline} style={{ color: '#3b82f6', fontSize: '18px' }} />
-                          <strong style={{ color: '#1e40af', fontSize: '14px' }}>Estimated Arrival</strong>
+                          <IonIcon icon={checkmarkCircleOutline} style={{ color: '#10b981', fontSize: '18px' }} />
+                          <strong style={{ color: '#065f46', fontSize: '14px' }}>Resolved</strong>
                         </div>
-                        <IonText style={{
-                          fontSize: '16px',
-                          color: '#1e293b',
-                          fontWeight: '500',
-                          marginLeft: '26px'
-                        }}>
-                          {selectedReport.current_eta_minutes} minutes
+                        <IonText style={{ fontSize: '14px', color: '#065f46', fontWeight: '500', marginLeft: '26px' }}>
+                          {new Date(selectedReport.resolved_at).toLocaleString()}
                         </IonText>
                       </div>
                     )}
