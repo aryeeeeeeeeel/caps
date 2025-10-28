@@ -39,8 +39,13 @@ import AdminIncidents from './pages/admin-tabs/AdminIncidents';
 import AdminUsers from './pages/admin-tabs/AdminUsers';
 import SystemLogs from './pages/admin-tabs/SystemLogs';
 import ActivityLogs from './pages/user-tabs/ActivityLogs';
-import Home from './pages/Home';
 import AdminLogin from './pages/admin-tabs/AdminLogin';
+import Dashboard from './pages/user-tabs/Dashboard';
+import IncidentReport from './pages/user-tabs/IncidentReport';
+import IncidentMap from './pages/user-tabs/IncidentMap';
+import Notifications from './pages/user-tabs/Notifications';
+import History from './pages/user-tabs/History';
+import GiveFeedback from './pages/user-tabs/GiveFeedback';
 
 setupIonicReact();
 defineCustomElements(window);
@@ -59,15 +64,14 @@ const App: React.FC = () => (
         <Route exact path="/it35-lab2/app" render={() => {
           return <Redirect to="/it35-lab2/app/dashboard" />;
         }} />
-        <Route exact path="/it35-lab2/app/dashboard" component={Home} />
-        <Route exact path="/it35-lab2/app/submit" component={Home} />
-        <Route exact path="/it35-lab2/app/map" component={Home} />
-        <Route exact path="/it35-lab2/app/history" component={Home} />
-        <Route exact path="/it35-lab2/app/notifications" component={Home} />
-        <Route exact path="/it35-lab2/app/feedback" component={Home} />
+        <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
+        <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
+        <Route exact path="/it35-lab2/app/map" component={IncidentMap} />
+        <Route exact path="/it35-lab2/app/history" component={History} />
+        <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
+        <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
         <Route exact path="/it35-lab2/app/activity-logs" component={ActivityLogs} />
         <Route exact path="/it35-lab2/app/profile" component={Profile} />
-        <Route exact path="/it35-lab2/app/reports/:id" component={Home} />
 
         {/* Admin Dashboard Routes */}
         <Route exact path="/it35-lab2/admin-dashboard" component={AdminDashboard} />
