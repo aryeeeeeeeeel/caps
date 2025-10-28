@@ -27,21 +27,29 @@ import {
   IonTitle,
   IonButtons,
   IonTabBar,
-  IonTabButton
+  IonTabButton,
+  IonPopover,
+  IonAvatar,
+  IonBadge
 } from '@ionic/react';
 import {
   homeOutline,
-  warningOutline,
+  addCircleOutline,
   locationOutline,
   eyeOutline,
   mapOutline,
   notificationsOutline,
-  statsChartOutline,
-  shieldCheckmarkOutline,
-  callOutline
+  timeOutline,
+  callOutline,
+  personCircle,
+  documentTextOutline,
+  logOutOutline,
+  chatbubbleOutline,
+  
 } from 'ionicons/icons';
 import { useHistory } from 'react-router-dom';
 import { supabase } from '../../utils/supabaseClient';
+import { logUserLogout } from '../../utils/activityLogger';
 
 interface DashboardStats {
   pendingReports: number;
@@ -150,6 +158,8 @@ const Dashboard: React.FC = () => {
   const [userReports, setUserReports] = useState<any[]>([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showProfilePopover, setShowProfilePopover] = useState(false);
+  const [popoverEvent, setPopoverEvent] = useState<any>(null);
 
   const fetchUserData = async () => {
     try {
@@ -175,6 +185,25 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error fetching user:', error);
     }
+  };
+
+  const handleSignOut = async () => {
+    await logUserLogout(user?.email);
+    await supabase.auth.signOut();
+    setShowProfilePopover(false);
+    history.push('/it35-lab2');
+  };
+
+  const openProfilePopover = (e: any) => {
+    setPopoverEvent(e);
+    setShowProfilePopover(true);
+  };
+
+  const handlePopoverNavigation = (route: string) => {
+    setShowProfilePopover(false);
+    setTimeout(() => {
+      history.push(route);
+    }, 100);
   };
 
   const fetchUserReports = async (email: string) => {
@@ -502,8 +531,131 @@ const Dashboard: React.FC = () => {
     event.detail.complete();
   };
 
+  // Bottom tabs standardized like Profile.tsx
+  const tabs = [
+    { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
+    { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
+    { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
+    { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline }
+  ];
+
   return (
     <IonPage>
+      <IonHeader>
+        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', '--color': 'white' } as any}>
+          <IonButtons slot="start" />
+          <IonTitle style={{ fontWeight: 'bold', fontSize: '20px' }}>iAMUMA ta</IonTitle>
+          <IonButtons slot="end">
+            <IonButton
+              fill="clear"
+              onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
+              style={{ color: 'white', position: 'relative' }}
+            >
+              <IonIcon icon={notificationsOutline} slot="icon-only" />
+              {unreadNotifications > 0 && (
+                <IonBadge
+                  color="danger"
+                  style={{ position: 'absolute', top: '0', right: '0', fontSize: '10px', transform: 'translate(25%, -25%)' }}
+                >
+                  {unreadNotifications}
+                </IonBadge>
+              )}
+            </IonButton>
+
+            {user ? (
+              <IonButton fill="clear" onClick={openProfilePopover} style={{ color: 'white' }}>
+                {userProfile?.user_avatar_url ? (
+                  <IonAvatar slot="icon-only" style={{ width: '32px', height: '32px' }}>
+                    <img src={userProfile.user_avatar_url} alt="Profile" />
+                  </IonAvatar>
+                ) : (
+                  <IonIcon icon={personCircle} slot="icon-only" size="large" />
+                )}
+              </IonButton>
+            ) : (
+              <IonButton onClick={() => history.push('/it35-lab2/user-login')} fill="clear" style={{ color: 'white' }}>
+                Login
+              </IonButton>
+            )}
+          </IonButtons>
+        </IonToolbar>
+      </IonHeader>
+
+      <IonPopover
+        isOpen={showProfilePopover}
+        event={popoverEvent}
+        onDidDismiss={() => setShowProfilePopover(false)}
+      >
+        <IonContent>
+          <div style={{ padding: '0', minWidth: '280px' }}>
+            {user && (
+              <>
+                <div style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  padding: '24px 20px',
+                  textAlign: 'center',
+                  color: 'white'
+                }}>
+                  {userProfile?.user_avatar_url ? (
+                    <IonAvatar style={{ width: '60px', height: '60px', margin: '0 auto 12px', border: '3px solid rgba(255,255,255,0.3)' }}>
+                      <img src={userProfile.user_avatar_url} alt="Profile" />
+                    </IonAvatar>
+                  ) : (
+                    <div style={{ width: '60px', height: '60px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <IonIcon icon={personCircle} style={{ fontSize: '40px' }} />
+                    </div>
+                  )}
+
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold', textAlign: 'center' }}>
+                    {userProfile?.user_firstname && userProfile?.user_lastname
+                      ? `${userProfile.user_firstname} ${userProfile.user_lastname}`
+                      : 'Community Member'}
+                  </h3>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '14px', opacity: 0.9, textAlign: 'center' }}>
+                    {user?.email}
+                  </p>
+                  <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '12px', padding: '6px 12px', display: 'inline-block' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600' }}>
+                      {userReports.length} Reports Submitted
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 0' }}>
+                  <IonItem button onClick={() => handlePopoverNavigation('/it35-lab2/app/profile')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={personCircle} slot="start" color="primary" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>View Profile</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Manage account settings</p>
+                    </IonLabel>
+                  </IonItem>
+                  <IonItem button onClick={() => handlePopoverNavigation('/it35-lab2/app/feedback')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Give Feedback</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Rate our response service</p>
+                    </IonLabel>
+                  </IonItem>
+                  <IonItem button onClick={() => handlePopoverNavigation('/it35-lab2/app/activity-logs')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={documentTextOutline} slot="start" color="primary" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Activity Logs</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>View your account activities</p>
+                    </IonLabel>
+                  </IonItem>
+                  <IonItem button onClick={handleSignOut} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={logOutOutline} slot="start" color="danger" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Sign Out</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Logout from account</p>
+                    </IonLabel>
+                  </IonItem>
+                </div>
+              </>
+            )}
+          </div>
+        </IonContent>
+      </IonPopover>
       <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
         <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
           <IonRefresherContent />
@@ -841,7 +993,7 @@ const Dashboard: React.FC = () => {
             <IonCardHeader>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <IonCardTitle style={{ fontSize: '18px', color: '#1f2937', display: 'flex', alignItems: 'center' }}>
-                  <IonIcon icon={shieldCheckmarkOutline} style={{ marginRight: '8px', color: '#10b981' }} />
+                  <IonIcon icon={callOutline} style={{ marginRight: '8px', color: '#10b981' }} />
                   Safety Tips
                 </IonCardTitle>
                 <IonButton
@@ -897,6 +1049,22 @@ const Dashboard: React.FC = () => {
           color="warning"
         />
       </IonContent>
+      <IonTabBar
+        slot="bottom"
+        style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
+      >
+        {tabs.map((item, index) => (
+          <IonTabButton
+            key={index}
+            tab={item.tab}
+            onClick={() => history.push(item.url)}
+            style={{ '--color': '#94a3b8', '--color-selected': '#667eea' } as any}
+          >
+            <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
+            <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
+          </IonTabButton>
+        ))}
+      </IonTabBar>
     </IonPage>
   );
 };
