@@ -34,7 +34,7 @@ import {
 import { supabase } from '../../utils/supabaseClient';
 import { logUserProfileUpdate, logUserLogout } from '../../utils/activityLogger';
 import { useHistory } from 'react-router-dom';
-import { personOutline, mailOutline, locationOutline, callOutline, cameraOutline, checkmarkCircleOutline, arrowBackOutline, keyOutline, personCircle, notificationsOutline, logOutOutline, chatbubbleOutline, documentTextOutline, homeOutline, addCircleOutline, listOutline, mapOutline } from 'ionicons/icons';
+import { personOutline, mailOutline, locationOutline, callOutline, cameraOutline, checkmarkCircleOutline, arrowBackOutline, keyOutline, personCircle, notificationsOutline, logOutOutline, chatbubbleOutline, documentTextOutline, homeOutline, addCircleOutline, timeOutline, mapOutline } from 'ionicons/icons';
 
 const Profile: React.FC = () => {
     const history = useHistory();
@@ -74,7 +74,7 @@ const Profile: React.FC = () => {
         { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
         { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
         { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
-        { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: listOutline },
+        { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
     ];
 
     // Default avatar as an icon (like Facebook)
