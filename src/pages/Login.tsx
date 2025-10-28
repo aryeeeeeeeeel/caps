@@ -746,8 +746,8 @@ const Login: React.FC = () => {
 
       showCustomToast('Welcome back! Redirecting to your dashboard...', 'success');
 
-      // Log user login activity
-      await logUserLogin(userEmail);
+      // Fire-and-forget activity log; do not block navigation
+      logUserLogin(userEmail).catch(() => {});
 
       const clearInputFocus = async () => {
         if (loginIdentifierInputRef.current) {
@@ -771,9 +771,8 @@ const Login: React.FC = () => {
 
       await clearInputFocus();
 
-      setTimeout(() => {
-        navigation.push('/it35-lab2/app', 'forward', 'replace');
-      }, 800);
+      // Navigate immediately; Home will perform a safeAuthCheck with retry
+      navigation.push('/it35-lab2/app', 'forward', 'replace');
 
     } catch (error: any) {
       showCustomToast('Login completion failed: ' + error.message, 'danger');
