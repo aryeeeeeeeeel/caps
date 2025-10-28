@@ -35,7 +35,10 @@ import {
   IonTitle,
   IonButtons,
   IonTabBar,
-  IonTabButton
+  IonTabButton,
+  IonPopover,
+  IonAvatar,
+  IonBadge
 } from '@ionic/react';
 import {
   listOutline,
@@ -54,6 +57,9 @@ import {
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import L from 'leaflet';
+import { useHistory } from 'react-router-dom';
+import { notificationsOutline, personCircle, homeOutline, addCircleOutline } from 'ionicons/icons';
+import { useLocation } from 'react-router-dom';
 
 interface UserReport {
   id: string;
@@ -73,6 +79,11 @@ interface UserReport {
   reporter_email?: string | null;
   feedback_rating?: number;
   feedback_comment?: string;
+  // Extra fields for full details consistency
+  scheduled_response_time?: string;
+  estimated_arrival_time?: string;
+  current_eta_minutes?: number;
+  resolved_photo_url?: string;
 }
 
 // Skeleton Components
@@ -132,6 +143,13 @@ const SkeletonHistoryItem: React.FC = () => (
 );
 
 const History: React.FC = () => {
+  const historyRouter = useHistory();
+  const location = useLocation();
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [headerUserProfile, setHeaderUserProfile] = useState<any>(null);
+  const [showProfilePopover, setShowProfilePopover] = useState(false);
+  const [popoverEvent, setPopoverEvent] = useState<any>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -212,7 +230,7 @@ const History: React.FC = () => {
             .select('overall_rating, comments')
             .eq('report_id', report.id)
             .eq('user_email', user.email)
-            .single();
+            .maybeSingle();
 
           return { 
             ...report, 
@@ -236,6 +254,15 @@ const History: React.FC = () => {
   useEffect(() => {
     const initializeData = async () => {
       try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setAuthUser(user);
+          const { data: profile } = await supabase.from('users').select('*').eq('user_email', user.email).single();
+          if (profile) setHeaderUserProfile(profile);
+          const { data: n1 } = await supabase.from('notifications').select('id').eq('user_email', user.email).eq('read', false);
+          const { data: n2 } = await supabase.from('incident_reports').select('id').eq('reporter_email', user.email).not('admin_response', 'is', null).eq('read', false);
+          setUnreadNotifications((n1?.length || 0) + (n2?.length || 0));
+        }
         await fetchResolvedReports();
       } catch (error) {
         console.error('Error initializing data:', error);
@@ -466,7 +493,7 @@ const History: React.FC = () => {
             width: 100%;
             font-weight: 600;
           ">
-            View Details
+            View Full Details
           </button>
         </div>
       `;
@@ -732,7 +759,98 @@ const History: React.FC = () => {
   }
 
   return (
-    <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+    <IonPage>
+      <IonHeader>
+        <IonToolbar style={{ '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', '--color': 'white' } as any}>
+          <IonButtons slot="start" />
+          <IonTitle style={{ fontWeight: 'bold', fontSize: '20px' }}>iAMUMA ta</IonTitle>
+          <IonButtons slot="end">
+            <IonButton
+              fill="clear"
+              onClick={() => historyRouter.push('/it35-lab2/app/notifications')}
+              style={{ color: 'white', position: 'relative' }}
+            >
+              <IonIcon icon={notificationsOutline} slot="icon-only" />
+              {unreadNotifications > 0 && (
+                <IonBadge color="danger" style={{ position: 'absolute', top: '0', right: '0', fontSize: '10px', transform: 'translate(25%, -25%)' }}>
+                  {unreadNotifications}
+                </IonBadge>
+              )}
+            </IonButton>
+            {authUser ? (
+              <IonButton fill="clear" onClick={(e) => { setPopoverEvent(e); setShowProfilePopover(true); }} style={{ color: 'white' }}>
+                {headerUserProfile?.user_avatar_url ? (
+                  <IonAvatar slot="icon-only" style={{ width: '32px', height: '32px' }}>
+                    <img src={headerUserProfile.user_avatar_url} alt="Profile" />
+                  </IonAvatar>
+                ) : (
+                  <IonIcon icon={personCircle} slot="icon-only" size="large" />
+                )}
+              </IonButton>
+            ) : (
+              <IonButton onClick={() => historyRouter.push('/it35-lab2/user-login')} fill="clear" style={{ color: 'white' }}>
+                Login
+              </IonButton>
+            )}
+          </IonButtons>
+        </IonToolbar>
+      </IonHeader>
+      <IonPopover isOpen={showProfilePopover} event={popoverEvent} onDidDismiss={() => setShowProfilePopover(false)}>
+        <IonContent>
+          <div style={{ padding: '0', minWidth: '280px' }}>
+            {authUser && (
+              <>
+                <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '24px 20px', textAlign: 'center', color: 'white' }}>
+                  {headerUserProfile?.user_avatar_url ? (
+                    <IonAvatar style={{ width: '60px', height: '60px', margin: '0 auto 12px', border: '3px solid rgba(255,255,255,0.3)' }}>
+                      <img src={headerUserProfile.user_avatar_url} alt="Profile" />
+                    </IonAvatar>
+                  ) : (
+                    <div style={{ width: '60px', height: '60px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <IonIcon icon={personCircle} style={{ fontSize: '40px' }} />
+                    </div>
+                  )}
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 'bold', textAlign: 'center' }}>
+                    {headerUserProfile?.user_firstname && headerUserProfile?.user_lastname ? `${headerUserProfile.user_firstname} ${headerUserProfile.user_lastname}` : 'Community Member'}
+                  </h3>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '14px', opacity: 0.9, textAlign: 'center' }}>{authUser.email}</p>
+                </div>
+                <div style={{ padding: '12px 0' }}>
+                  <IonItem button onClick={() => { setShowProfilePopover(false); historyRouter.push('/it35-lab2/app/profile'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={personCircle} slot="start" color="primary" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>View Profile</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Manage account settings</p>
+                    </IonLabel>
+                  </IonItem>
+                  <IonItem button onClick={() => { setShowProfilePopover(false); historyRouter.push('/it35-lab2/app/feedback'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={notificationsOutline} slot="start" color="success" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Give Feedback</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Rate our response service</p>
+                    </IonLabel>
+                  </IonItem>
+                  <IonItem button onClick={() => { setShowProfilePopover(false); historyRouter.push('/it35-lab2/app/activity-logs'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={notificationsOutline} slot="start" color="primary" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Activity Logs</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>View your account activities</p>
+                    </IonLabel>
+                  </IonItem>
+                  <IonItem button onClick={async () => { await supabase.auth.signOut(); setShowProfilePopover(false); historyRouter.push('/it35-lab2'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                    <IonIcon icon={refreshOutline} slot="start" color="danger" />
+                    <IonLabel>
+                      <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Sign Out</h3>
+                      <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Logout from account</p>
+                    </IonLabel>
+                  </IonItem>
+                </div>
+              </>
+            )}
+          </div>
+        </IonContent>
+      </IonPopover>
+      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
       <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
         <IonRefresherContent />
       </IonRefresher>
@@ -1122,6 +1240,35 @@ const History: React.FC = () => {
                 overflowY: 'auto',
                 padding: '0 16px 16px'
               }}>
+                {/* Status & Priority */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <IonChip
+                    style={{
+                      '--background': '#10b98120',
+                      '--color': '#10b981',
+                      height: '24px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      margin: 0
+                    } as any}
+                  >
+                    RESOLVED
+                  </IonChip>
+                  {selectedReport.priority && (
+                    <IonChip
+                      style={{
+                        '--background': '#11182710',
+                        '--color': '#111827',
+                        height: '24px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        margin: 0
+                      } as any}
+                    >
+                      {selectedReport.priority.toUpperCase()}
+                    </IonChip>
+                  )}
+                </div>
                 <p style={{ color: '#6b7280', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <IonIcon icon={locationOutline} style={{ fontSize: '16px' }} />
                   {selectedReport.location}, {selectedReport.barangay}
@@ -1131,6 +1278,12 @@ const History: React.FC = () => {
                   <IonIcon icon={timeOutline} style={{ fontSize: '16px' }} />
                   Reported: {new Date(selectedReport.created_at).toLocaleString()}
                 </p>
+
+                {/* Category */}
+                <div style={{ marginBottom: '12px' }}>
+                  <h4 style={{ color: '#1f2937', marginBottom: '6px', fontWeight: '600', fontSize: '14px' }}>Category</h4>
+                  <p style={{ color: '#6b7280', margin: 0, fontSize: '13px' }}>{selectedReport.category}</p>
+                </div>
 
                 {selectedReport.resolved_at && (
                   <p style={{ color: '#6b7280', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1158,9 +1311,38 @@ const History: React.FC = () => {
                       fontWeight: '600',
                       fontSize: '14px'
                     }}>
-                      LDRRMO Response
+                      Admin Message
                     </h4>
                     <p style={{ color: '#0c4a6e', margin: 0, fontSize: '13px' }}>{selectedReport.admin_response}</p>
+                  </div>
+                )}
+
+                {/* Scheduling & ETA (if any) */}
+                {selectedReport.scheduled_response_time && (
+                  <p style={{ color: '#6b7280', marginBottom: '12px' }}>
+                    <strong>Scheduled Response:</strong> {new Date(selectedReport.scheduled_response_time).toLocaleString()}
+                  </p>
+                )}
+                {selectedReport.current_eta_minutes && (
+                  <p style={{ color: '#6b7280', marginBottom: '12px' }}>
+                    <strong>Estimated Arrival:</strong> {selectedReport.current_eta_minutes} minutes
+                  </p>
+                )}
+                {selectedReport.estimated_arrival_time && (
+                  <p style={{ color: '#6b7280', marginBottom: '12px' }}>
+                    <strong>ETA Time:</strong> {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
+                  </p>
+                )}
+
+                {/* Proof of Resolution Photo */}
+                {selectedReport.resolved_photo_url && (
+                  <div style={{ background: '#ecfdf5', border: '1px solid #34d399', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
+                    <p style={{ color: '#065f46', margin: '0 0 8px 0', fontWeight: 600 }}>Proof of Resolution</p>
+                    <img
+                      src={selectedReport.resolved_photo_url}
+                      alt="Proof of resolution"
+                      style={{ maxWidth: '100%', borderRadius: '8px', border: '2px solid #10b981' }}
+                    />
                   </div>
                 )}
 
@@ -1589,7 +1771,29 @@ const History: React.FC = () => {
         duration={3000}
         position="top"
       />
-    </IonContent>
+      </IonContent>
+      <IonTabBar
+        slot="bottom"
+        style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
+      >
+        {[
+          { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
+          { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
+          { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
+          { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
+        ].map((item, index) => (
+          <IonTabButton
+            key={index}
+            tab={item.tab}
+            onClick={() => historyRouter.push(item.url)}
+            style={{ '--color': '#94a3b8', '--color-selected': '#667eea' } as any}
+          >
+            <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
+            <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
+          </IonTabButton>
+        ))}
+      </IonTabBar>
+    </IonPage>
   );
 };
 
