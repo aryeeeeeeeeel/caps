@@ -14,7 +14,6 @@ import {
   IonItem,
   IonLabel,
   IonTextarea,
-  IonAlert,
   IonToast,
   IonRefresher,
   IonRefresherContent,
