@@ -298,19 +298,92 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
 
   if (isLoading) {
     return (
-      <IonContent style={{ '--background': '#f8fafc' } as any}>
-        <div style={{ padding: '20px' }}>
-          <div style={{
-            background: 'white', borderRadius: '16px', padding: '20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-          }}>
-            <IonSkeletonText animated style={{ width: '56px', height: '56px', borderRadius: '16px' }} />
-            <div style={{ flex: 1 }}>
-              <IonSkeletonText animated style={{ width: '60%', height: '20px', marginBottom: '8px' }} />
-              <IonSkeletonText animated style={{ width: '40%', height: '16px' }} />
+      <IonPage>
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', '--color': 'white' } as any}>
+            <IonButtons slot="start" />
+            <IonTitle style={{ fontWeight: 'bold', fontSize: '20px' }}>iAMUMA ta</IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent style={{ '--background': '#f8fafc' } as any}>
+          <div style={{ padding: '20px' }}>
+            {/* Header Stats Skeleton */}
+            <div style={{
+              background: 'white', 
+              borderRadius: '16px', 
+              padding: '20px', 
+              marginBottom: '20px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '16px', 
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+            }}>
+              <IonSkeletonText animated style={{ width: '56px', height: '56px', borderRadius: '16px' }} />
+              <div style={{ flex: 1 }}>
+                <IonSkeletonText animated style={{ width: '60%', height: '20px', marginBottom: '8px' }} />
+                <IonSkeletonText animated style={{ width: '40%', height: '16px' }} />
+              </div>
+            </div>
+
+            {/* Action Buttons Skeleton */}
+            <div style={{
+              background: 'white',
+              borderRadius: '16px',
+              padding: '20px',
+              marginBottom: '20px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+            }}>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <IonSkeletonText animated style={{ width: '100px', height: '36px', borderRadius: '8px' }} />
+                <IonSkeletonText animated style={{ width: '100px', height: '36px', borderRadius: '8px' }} />
+                <IonSkeletonText animated style={{ width: '80px', height: '36px', borderRadius: '8px' }} />
+              </div>
+            </div>
+
+            {/* Notifications List Skeleton */}
+            <div style={{
+              background: 'white',
+              borderRadius: '16px',
+              padding: '20px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+            }}>
+              <IonSkeletonText animated style={{ width: '120px', height: '18px', marginBottom: '16px' }} />
+              {[1, 2, 3, 4, 5].map((item) => (
+                <div key={item} style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '12px 0',
+                  borderBottom: item < 5 ? '1px solid #f1f5f9' : 'none'
+                }}>
+                  <IonSkeletonText animated style={{ width: '40px', height: '40px', borderRadius: '50%' }} />
+                  <div style={{ flex: 1 }}>
+                    <IonSkeletonText animated style={{ width: '80%', height: '16px', marginBottom: '8px' }} />
+                    <IonSkeletonText animated style={{ width: '60%', height: '14px', marginBottom: '4px' }} />
+                    <IonSkeletonText animated style={{ width: '40%', height: '12px' }} />
+                  </div>
+                  <IonSkeletonText animated style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      </IonContent>
+        </IonContent>
+        <IonTabBar
+          slot="bottom"
+          style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
+        >
+          {[1, 2, 3, 4].map((item) => (
+            <IonTabButton key={item} style={{ '--color': '#94a3b8' } as any}>
+              <IonSkeletonText animated style={{ width: '24px', height: '24px', borderRadius: '4px', marginBottom: '4px' }} />
+              <IonSkeletonText animated style={{ width: '60px', height: '12px', borderRadius: '4px' }} />
+            </IonTabButton>
+          ))}
+        </IonTabBar>
+      </IonPage>
     );
   }
 
