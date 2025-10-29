@@ -114,8 +114,7 @@ const GiveFeedback: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
+  // Replaced alerts with toasts
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -281,8 +280,8 @@ const GiveFeedback: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!selectedReport) {
-      setAlertMessage('Please select a report to provide feedback for.');
-      setShowAlert(true);
+      setToastMessage('Please select a report to provide feedback for.');
+      setShowToast(true);
       return;
     }
 
@@ -295,8 +294,8 @@ const GiveFeedback: React.FC = () => {
     }
 
     if (feedbackData.overall_rating === 0) {
-      setAlertMessage('Please provide an overall rating.');
-      setShowAlert(true);
+      setToastMessage('Please provide an overall rating.');
+      setShowToast(true);
       return;
     }
 
@@ -333,8 +332,8 @@ const GiveFeedback: React.FC = () => {
       fetchUserReports(); // Refresh the list
     } catch (error: any) {
       console.error('Error submitting feedback:', error);
-      setAlertMessage('Failed to submit feedback. Please try again.');
-      setShowAlert(true);
+      setToastMessage('Failed to submit feedback. Please try again.');
+      setShowToast(true);
     } finally {
       setIsSubmitting(false);
       setIsFeedbackLoading(false);
@@ -1168,14 +1167,7 @@ const GiveFeedback: React.FC = () => {
         </div>
       </IonModal>
 
-      {/* Alert */}
-      <IonAlert
-        isOpen={showAlert}
-        onDidDismiss={() => setShowAlert(false)}
-        header="Missing Information"
-        message={alertMessage}
-        buttons={['OK']}
-      />
+      {/* Alerts removed; using toasts only */}
 
       {/* Toast */}
       <IonToast
