@@ -669,7 +669,7 @@ const AdminUsers: React.FC = () => {
           </IonCard>
         </div>
 
-        <IonAlert isOpen={showActionAlert} onDidDismiss={() => setShowActionAlert(false)} header={'User Action'} message={`Are you sure you want to ${userAction} ${selectedUser?.user_firstname} ${selectedUser?.user_lastname}?`} buttons={[{ text: 'Cancel', role: 'cancel' }, { text: 'Confirm', role: 'confirm', handler: () => handleUserAction(userAction) }]} />
+        {/* Alerts removed; execute actions directly and report via toast */}
         <IonToast isOpen={showToast} onDidDismiss={() => setShowToast(false)} message={toastMessage} duration={3000} position="top" />
         <IonToast
           isOpen={showNewNotificationToast}
