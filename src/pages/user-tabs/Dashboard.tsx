@@ -339,7 +339,18 @@ const Dashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+      <IonPage>
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', '--color': 'white' } as any}>
+            <IonButtons slot="start" />
+            <IonTitle style={{ fontWeight: 'bold', fontSize: '20px' }}>iAMUMA ta</IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
           <div style={{ padding: '20px' }}>
             {/* Welcome Header Skeleton */}
             <IonCard style={{
@@ -499,6 +510,18 @@ const Dashboard: React.FC = () => {
             </IonCard>
           </div>
         </IonContent>
+        <IonTabBar
+          slot="bottom"
+          style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
+        >
+          {[1, 2, 3, 4].map((item) => (
+            <IonTabButton key={item} style={{ '--color': '#94a3b8' } as any}>
+              <IonSkeletonText animated style={{ width: '24px', height: '24px', borderRadius: '4px', marginBottom: '4px' }} />
+              <IonSkeletonText animated style={{ width: '60px', height: '12px', borderRadius: '4px' }} />
+            </IonTabButton>
+          ))}
+        </IonTabBar>
+      </IonPage>
     );
   }
 
