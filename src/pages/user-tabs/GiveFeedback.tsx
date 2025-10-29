@@ -408,31 +408,37 @@ const GiveFeedback: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         width: '100%',
-        padding: '12px 0'
+        padding: '12px 0',
+        justifyContent: 'space-between'
       }}>
-        <IonSkeletonText animated style={{
-          width: '10px',
-          height: '10px',
-          borderRadius: '50%',
-          marginRight: '12px'
-        }} />
+        <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+          <IonSkeletonText animated style={{
+            width: '10px',
+            height: '10px',
+            borderRadius: '50%',
+            marginRight: '12px',
+            flexShrink: 0
+          }} />
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
-          <IonSkeletonText animated style={{ width: '50%', height: '12px', marginBottom: '8px' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <IonSkeletonText animated style={{ width: '40px', height: '20px', borderRadius: '10px' }} />
-            <IonSkeletonText animated style={{ width: '30px', height: '12px' }} />
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+            <IonSkeletonText animated style={{ width: '70%', height: '16px', marginBottom: '8px' }} />
+            <IonSkeletonText animated style={{ width: '50%', height: '12px', marginBottom: '8px' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <IonSkeletonText animated style={{ width: '60px', height: '20px', borderRadius: '10px' }} />
+              <IonSkeletonText animated style={{ width: '80px', height: '20px', borderRadius: '10px' }} />
+              <IonSkeletonText animated style={{ width: '30px', height: '12px' }} />
+            </div>
           </div>
         </div>
+        <IonSkeletonText animated style={{ width: '20px', height: '20px', borderRadius: '50%', marginLeft: '16px' }} />
       </div>
     </IonItem>
   );
 
   const RatingSkeleton: React.FC = () => (
     <div style={{ marginBottom: '20px' }}>
-      <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '8px' }} />
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '12px' }} />
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {[1, 2, 3, 4, 5].map((star) => (
           <IonSkeletonText
             key={star}
@@ -440,22 +446,47 @@ const GiveFeedback: React.FC = () => {
             style={{ width: '32px', height: '32px', borderRadius: '4px' }}
           />
         ))}
+        <IonSkeletonText animated style={{ width: '60px', height: '16px', marginLeft: '12px' }} />
       </div>
     </div>
   );
 
   const CategorySkeleton: React.FC = () => (
     <div style={{ marginBottom: '20px' }}>
-      <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '8px' }} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-        {[1, 2, 3, 4].map((item) => (
-          <IonSkeletonText
-            key={item}
-            animated
-            style={{ width: '100%', height: '36px', borderRadius: '8px' }}
-          />
+      <IonSkeletonText animated style={{ width: '200px', height: '14px', marginBottom: '8px' }} />
+      <IonGrid style={{ padding: 0 }}>
+        <IonRow>
+          {[1, 2, 3, 4, 5, 6].map((item) => (
+            <IonCol size="6" key={item}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '8px 0' }}>
+                <IonSkeletonText animated style={{ width: '18px', height: '18px', borderRadius: '4px', marginRight: '8px' }} />
+                <IonSkeletonText animated style={{ width: '80%', height: '14px' }} />
+              </div>
+            </IonCol>
+          ))}
+        </IonRow>
+      </IonGrid>
+    </div>
+  );
+
+  const RecommendationSkeleton: React.FC = () => (
+    <div style={{ marginBottom: '20px' }}>
+      <IonSkeletonText animated style={{ width: '200px', height: '14px', marginBottom: '8px' }} />
+      <div style={{ display: 'flex', gap: '16px' }}>
+        {[1, 2].map((item) => (
+          <div key={item} style={{ display: 'flex', alignItems: 'center' }}>
+            <IonSkeletonText animated style={{ width: '20px', height: '20px', borderRadius: '50%', marginRight: '8px' }} />
+            <IonSkeletonText animated style={{ width: '40px', height: '14px' }} />
+          </div>
         ))}
       </div>
+    </div>
+  );
+
+  const CommentsSkeleton: React.FC = () => (
+    <div style={{ marginBottom: '20px' }}>
+      <IonSkeletonText animated style={{ width: '150px', height: '14px', marginBottom: '8px' }} />
+      <IonSkeletonText animated style={{ width: '100%', height: '80px', borderRadius: '8px' }} />
     </div>
   );
 
@@ -788,11 +819,11 @@ const GiveFeedback: React.FC = () => {
                   {/* Categories Skeleton */}
                   <CategorySkeleton />
 
+                  {/* Recommendation Skeleton */}
+                  <RecommendationSkeleton />
+
                   {/* Comments Skeleton */}
-                  <div style={{ marginBottom: '20px' }}>
-                    <IonSkeletonText animated style={{ width: '120px', height: '14px', marginBottom: '8px' }} />
-                    <IonSkeletonText animated style={{ width: '100%', height: '80px', borderRadius: '8px' }} />
-                  </div>
+                  <CommentsSkeleton />
 
                   {/* Submit Button Skeleton */}
                   <IonSkeletonText animated style={{ width: '100%', height: '44px', borderRadius: '12px' }} />
