@@ -28,6 +28,7 @@ const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
+  const [otpEmail, setOtpEmail] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -350,6 +351,7 @@ const AdminLogin: React.FC = () => {
         throw error;
       }
 
+      setOtpEmail(email);
       setShowOtpModal(true);
       showCustomToast('Verification code sent to your email! Valid for 60 seconds.', 'success');
       return true;
@@ -372,7 +374,7 @@ const AdminLogin: React.FC = () => {
     try {
       // Verify OTP token
       const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-        email,
+        email: otpEmail || email,
         token: otp.trim(),
         type: 'email'
       });
@@ -834,7 +836,11 @@ const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
                       maxlength={6}
                       placeholder="000000"
                       value={otp}
-                      onIonChange={handleOtpChange}
+                      onIonChange={(e) => {
+                        const raw = e.detail.value || '';
+                        const numeric = raw.replace(/\D/g, '').slice(0, 6);
+                        setOtp(numeric);
+                      }}
                       onKeyPress={(e: React.KeyboardEvent) => {
                         if (!/^\d$/.test(e.key) &&
                           e.key !== 'Backspace' &&
@@ -842,12 +848,10 @@ const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
                           e.key !== 'Tab' &&
                           e.key !== 'Enter' &&
                           e.key !== 'ArrowLeft' &&
-                          e.key !== 'ArrowRight' &&
-                          e.key !== 'Home' &&
-                          e.key !== 'End') {
+                          e.key !== 'ArrowRight') {
                           e.preventDefault();
                         }
-                        if (e.key === 'Enter' && otp.length === 6) {
+                        if (e.key === 'Enter' && (otp.length === 6 || (e.currentTarget as any).value?.length === 6)) {
                           verifyAndLogin();
                         }
                       }}
@@ -856,10 +860,7 @@ const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
                         '--border-color': '#e2e8f0',
                         '--padding-start': '16px',
                         '--padding-end': '16px',
-                        fontSize: '16px',
-                        fontWeight: '600',
-                        textAlign: 'center',
-                        letterSpacing: '3px'
+                        fontSize: '16px'
                       } as any}
                     />
                   </div>
