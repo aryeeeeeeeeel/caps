@@ -153,7 +153,6 @@ const AdminDashboard: React.FC = () => {
   const [userSort, setUserSort] = useState<"alphabetical">("alphabetical")
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [showLogoutAlert, setShowLogoutAlert] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
   const [showReportModal, setShowReportModal] = useState(false)
@@ -2335,7 +2334,21 @@ const AdminDashboard: React.FC = () => {
                 </IonBadge>
               )}
             </IonButton>
-            <IonButton fill="clear" onClick={() => setShowLogoutAlert(true)} style={{ color: "white" }}>
+            <IonButton
+              fill="clear"
+              onClick={async () => {
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  await logAdminLogout(user?.email);
+                  setToastMessage('Logged out successfully');
+                  setShowToast(true);
+                } finally {
+                  supabase.auth.signOut();
+                  navigation.push("/it35-lab2", "root", "replace");
+                }
+              }}
+              style={{ color: "white" }}
+            >
               <IonIcon icon={logOutOutline} />
             </IonButton>
           </IonButtons>
@@ -3502,25 +3515,12 @@ const AdminDashboard: React.FC = () => {
         </IonModal>
 
         {/* Alerts and Toasts */}
-        <IonAlert
-          isOpen={showLogoutAlert}
-          onDidDismiss={() => setShowLogoutAlert(false)}
-          header={"Logout"}
-          message={"Are you sure you want to logout?"}
-          buttons={[
-            { text: "Cancel", role: "cancel" },
-            {
-              text: "Logout",
-              role: "confirm",
-              handler: async () => {
-                // Log admin logout activity
-                const { data: { user } } = await supabase.auth.getUser();
-                await logAdminLogout(user?.email);
-                supabase.auth.signOut()
-                navigation.push("/it35-lab2", "root", "replace")
-              },
-            },
-          ]}
+        <IonToast
+          isOpen={showToast}
+          onDidDismiss={() => setShowToast(false)}
+          message={toastMessage}
+          duration={3000}
+          position="top"
         />
 
         {/* Image Gallery Modal */}
@@ -3663,14 +3663,6 @@ const AdminDashboard: React.FC = () => {
             </div>
           </IonContent>
         </IonModal>
-
-        <IonToast
-          isOpen={showToast}
-          onDidDismiss={() => setShowToast(false)}
-          message={toastMessage}
-          duration={3000}
-          position="top"
-        />
       </IonContent>
     </IonPage>
   )
