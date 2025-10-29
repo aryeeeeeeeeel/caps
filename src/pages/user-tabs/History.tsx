@@ -17,7 +17,6 @@ import {
   IonRow,
   IonCol,
   IonTextarea,
-  IonAlert,
   IonToast,
   IonRefresher,
   IonRefresherContent,
