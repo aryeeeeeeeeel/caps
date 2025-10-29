@@ -22,7 +22,6 @@ import {
     IonCol,
     IonIcon,
     IonModal,
-    IonAlert,
     IonSkeletonText,
     IonPopover,
     IonBadge,
