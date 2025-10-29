@@ -806,12 +806,22 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleIdentifierKeyPress = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (e.currentTarget === loginIdentifierInputRef.current) {
+      if (loginIdentifier) {
         passwordInputRef.current?.setFocus();
-      } else if (e.currentTarget === passwordInputRef.current) {
+      } else {
+        showCustomToast('Please enter your email or username', 'warning');
+      }
+    }
+  };
+
+  const handlePasswordKeyPress = async (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      if (password) {
         handleLogin();
+      } else {
+        showCustomToast('Please enter your password', 'warning');
       }
     }
   };
@@ -1017,7 +1027,7 @@ const Login: React.FC = () => {
                       placeholder="your.email@example.com or username"
                       value={loginIdentifier}
                       onIonChange={e => setLoginIdentifier((e.detail.value ?? ""))}
-                      onKeyPress={handleKeyPress}
+                      onKeyPress={handleIdentifierKeyPress}
                       style={{
                         '--border-radius': '12px',
                         '--border-color': '#e2e8f0',
@@ -1355,7 +1365,7 @@ const Login: React.FC = () => {
                     placeholder="Enter your password"
                     value={password}
                     onIonChange={e => setPassword((e.detail.value ?? ""))}
-                    onKeyPress={handleKeyPress}
+                    onKeyPress={handlePasswordKeyPress}
                     style={{
                       '--border-radius': '12px',
                       '--border-color': '#e2e8f0',
@@ -1607,7 +1617,13 @@ const Login: React.FC = () => {
                       maxlength={6}
                       placeholder="000000"
                       value={otpCode}
-                      onIonChange={handleOtpChange}
+                      onIonChange={(e) => {
+                        const raw = e.detail.value || '';
+                        const numeric = raw.replace(/\D/g, '').slice(0, 6);
+                        setOtpCode(numeric);
+                        // Optional auto-verify when 6 digits entered
+                        // if (numeric.length === 6 && !isVerifyingOTP) handleOTPVerification();
+                      }}
                       onKeyPress={(e: React.KeyboardEvent) => {
                         // Allow only numbers and control keys
                         if (!/^\d$/.test(e.key) &&
@@ -1616,10 +1632,11 @@ const Login: React.FC = () => {
                           e.key !== 'Tab' &&
                           e.key !== 'Enter' &&
                           e.key !== 'ArrowLeft' &&
-                          e.key !== 'ArrowRight' &&
-                          e.key !== 'Home' &&
-                          e.key !== 'End') {
+                          e.key !== 'ArrowRight') {
                           e.preventDefault();
+                        }
+                        if (e.key === 'Enter' && otpCode.length === 6) {
+                          handleOTPVerification();
                         }
                       }}
                       style={{
