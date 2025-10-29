@@ -791,6 +791,60 @@ const SkeletonInfoCard: React.FC = () => (
   </IonCard>
 );
 
+const SkeletonLocationCard: React.FC = () => (
+  <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+    <IonCardHeader>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <IonCardTitle style={{ fontSize: '18px', color: '#1f2937', margin: 0 }}>
+          <IonSkeletonText animated style={{ width: '120px', height: '18px' }} />
+        </IonCardTitle>
+        <IonSkeletonText animated style={{ width: '80px', height: '32px', borderRadius: '8px' }} />
+      </div>
+    </IonCardHeader>
+    <IonCardContent>
+      <IonSkeletonText animated style={{ width: '100%', height: '40px', marginBottom: '16px' }} />
+      <IonSkeletonText animated style={{ width: '100%', height: '40px', marginBottom: '16px' }} />
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <IonSkeletonText animated style={{ width: '60px', height: '32px', borderRadius: '8px' }} />
+        <IonSkeletonText animated style={{ width: '60px', height: '32px', borderRadius: '8px' }} />
+        <IonSkeletonText animated style={{ width: '60px', height: '32px', borderRadius: '8px' }} />
+      </div>
+    </IonCardContent>
+  </IonCard>
+);
+
+const SkeletonReporterCard: React.FC = () => (
+  <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+    <IonCardHeader>
+      <IonCardTitle style={{ fontSize: '18px', color: '#1f2937', margin: 0 }}>
+        <IonSkeletonText animated style={{ width: '140px', height: '18px' }} />
+      </IonCardTitle>
+    </IonCardHeader>
+    <IonCardContent>
+      <IonGrid style={{ padding: 0 }}>
+        <IonRow>
+          <IonCol size="6">
+            <IonSkeletonText animated style={{ width: '100%', height: '40px', marginBottom: '16px' }} />
+          </IonCol>
+          <IonCol size="6">
+            <IonSkeletonText animated style={{ width: '100%', height: '40px', marginBottom: '16px' }} />
+          </IonCol>
+        </IonRow>
+        <IonRow>
+          <IonCol size="12">
+            <IonSkeletonText animated style={{ width: '100%', height: '40px', marginBottom: '16px' }} />
+          </IonCol>
+        </IonRow>
+        <IonRow>
+          <IonCol size="12">
+            <IonSkeletonText animated style={{ width: '100%', height: '40px' }} />
+          </IonCol>
+        </IonRow>
+      </IonGrid>
+    </IonCardContent>
+  </IonCard>
+);
+
 const IncidentReport: React.FC = () => {
   const history = useHistory();
   const [authUser, setAuthUser] = useState<any>(null);
@@ -916,7 +970,18 @@ const IncidentReport: React.FC = () => {
 
   if (isFormLoading) {
     return (
-      <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
+      <IonPage>
+        <IonHeader>
+          <IonToolbar style={{ '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', '--color': 'white' } as any}>
+            <IonButtons slot="start" />
+            <IonTitle style={{ fontWeight: 'bold', fontSize: '20px' }}>iAMUMA ta</IonTitle>
+            <IonButtons slot="end">
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '8px' }} />
+              <IonSkeletonText animated style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent style={{ '--background': 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)' } as any}>
           <div style={{ padding: '20px' }}>
             {/* Header Skeleton */}
             <IonCard style={{
@@ -961,8 +1026,14 @@ const IncidentReport: React.FC = () => {
             {/* Photo Section Skeleton */}
             <SkeletonPhotoCard />
 
+            {/* Location Section Skeleton */}
+            <SkeletonLocationCard />
+
             {/* Information Section Skeleton */}
             <SkeletonInfoCard />
+
+            {/* Reporter Information Skeleton */}
+            <SkeletonReporterCard />
 
             {/* Incident Details Skeleton */}
             <SkeletonFormCard title="Incident Details" />
@@ -975,6 +1046,18 @@ const IncidentReport: React.FC = () => {
             </IonCard>
           </div>
         </IonContent>
+        <IonTabBar
+          slot="bottom"
+          style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
+        >
+          {[1, 2, 3, 4].map((item) => (
+            <IonTabButton key={item} style={{ '--color': '#94a3b8' } as any}>
+              <IonSkeletonText animated style={{ width: '24px', height: '24px', borderRadius: '4px', marginBottom: '4px' }} />
+              <IonSkeletonText animated style={{ width: '60px', height: '12px', borderRadius: '4px' }} />
+            </IonTabButton>
+          ))}
+        </IonTabBar>
+      </IonPage>
     );
   }
 
