@@ -69,6 +69,7 @@ interface IncidentReport {
   scheduled_response_time?: string;
   estimated_arrival_time?: string;
   current_eta_minutes?: number;
+  resolved_at?: string | null;
   resolved_photo_url?: string;
 }
 
