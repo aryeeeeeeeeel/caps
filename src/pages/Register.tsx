@@ -14,7 +14,7 @@ import {
     IonCardHeader,
     IonCardSubtitle,
     IonCardTitle,
-    IonAlert,
+    IonToast,
     IonHeader,
     IonToolbar,
     IonIcon,
@@ -30,13 +30,7 @@ import { personAddOutline, mailOutline, lockClosedOutline, personOutline, checkm
 
 const AlertBox: React.FC<{ message: string; isOpen: boolean; onClose: () => void }> = ({ message, isOpen, onClose }) => {
     return (
-        <IonAlert
-            isOpen={isOpen}
-            onDidDismiss={onClose}
-            header="Registration Notice"
-            message={message}
-            buttons={['OK']}
-        />
+        <IonToast isOpen={isOpen} onDidDismiss={onClose} message={message} duration={3000} position="top" />
     );
 };
 
