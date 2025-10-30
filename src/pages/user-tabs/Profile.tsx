@@ -134,6 +134,31 @@ const Profile: React.FC = () => {
         fetchUserData();
     }, [history]);
 
+    useEffect(() => {
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.email) {
+                const email = user.email;
+                const notifChannel = supabase
+                    .channel('profile_badge_notifications')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_email=eq.${email}` }, async () => {
+                        await fetchNotifications(email);
+                    })
+                    .subscribe();
+                const reportsChannel = supabase
+                    .channel('profile_badge_reports')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
+                        await fetchNotifications(email);
+                    })
+                    .subscribe();
+                return () => {
+                    notifChannel.unsubscribe();
+                    reportsChannel.unsubscribe();
+                };
+            }
+        })();
+    }, []);
+
     const ensureProfileExists = async (authUser: any) => {
         try {
             console.log("Looking for user with auth_uuid:", authUser.id);
@@ -1390,7 +1415,7 @@ const Profile: React.FC = () => {
                         '--height': 'auto',
                         '--width': '90%',
                         '--max-width': '450px',
-                        '--border-radius': '20px'
+                        '--border-radius': '0px'
                     }}
                 >
                     <div style={{
@@ -1402,7 +1427,7 @@ const Profile: React.FC = () => {
                     }}>
                         <IonCard style={{
                             width: '100%',
-                            borderRadius: '20px',
+                            borderRadius: '0px',
                             boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
                             overflow: 'hidden',
                             margin: '0'
@@ -1593,7 +1618,7 @@ const Profile: React.FC = () => {
                         '--height': 'auto',
                         '--width': '90%',
                         '--max-width': '400px',
-                        '--border-radius': '20px'
+                        '--border-radius': '0px'
                     }}
                 >
                     <div style={{
@@ -1605,7 +1630,7 @@ const Profile: React.FC = () => {
                     }}>
                         <IonCard style={{
                             width: '100%',
-                            borderRadius: '20px',
+                            borderRadius: '0px',
                             boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
                             overflow: 'hidden',
                             margin: '0'
@@ -1770,7 +1795,7 @@ const Profile: React.FC = () => {
                         '--height': 'auto',
                         '--width': '90%',
                         '--max-width': '400px',
-                        '--border-radius': '20px'
+                        '--border-radius': '0px'
                     }}
                 >
                     <div style={{
@@ -1785,7 +1810,7 @@ const Profile: React.FC = () => {
                             maxWidth: '400px',
                             width: '100%',
                             background: 'white',
-                            borderRadius: '20px',
+                            borderRadius: '0px',
                             padding: '30px 24px',
                             boxShadow: '0 20px 64px rgba(0,0,0,0.3)'
                         }}>
@@ -1844,7 +1869,7 @@ const Profile: React.FC = () => {
                 </IonModal>
 
                 <IonToast
-                    isOpen={showToast}
+                    isOpen={false}
                     onDidDismiss={() => setShowToast(false)}
                     message={`You have ${unreadNotifications} unread notifications`}
                     duration={3000}
