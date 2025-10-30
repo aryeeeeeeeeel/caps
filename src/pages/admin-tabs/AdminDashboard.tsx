@@ -183,36 +183,22 @@ const AdminDashboard: React.FC = () => {
   const [showImageModal, setShowImageModal] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [selectedImages, setSelectedImages] = useState<string[]>([])
+  const [selectedReportFeedback, setSelectedReportFeedback] = useState<{ overall_rating: number; comments: string | null } | null>(null)
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {
         const { data: reports } = await supabase
           .from('incident_reports')
-          .select('*')
-          .eq('read', false);
-
-        const { data: feedbackFromReports } = await supabase
-          .from('feedback')
-          .select('*')
+          .select('id, created_at')
           .eq('read', false);
 
         const { data: feedback } = await supabase
           .from('feedback')
-          .select('*')
+          .select('id, created_at')
           .eq('read', false);
 
-        const newCount = (reports?.length || 0) +
-          (feedbackFromReports?.length || 0) +
-          (feedback?.length || 0);
-
-        // Combine all notifications to find last one
-        const allNotifications = [
-          ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
-          ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
-          ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
-        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
+        const newCount = (reports?.length || 0) + (feedback?.length || 0);
         setUnreadCount(newCount);
         if (newCount > prevUnreadCount) {
           setToastMessage(`You have ${newCount} unread notifications`);
@@ -221,11 +207,8 @@ const AdminDashboard: React.FC = () => {
         setPrevUnreadCount(newCount);
       } catch (error) {
         console.error('Error fetching unread counts:', error);
-        setToastMessage('Failed to load notifications');
-        setShowToast(true);
       }
     };
-
     const interval = setInterval(fetchUnreadCount, 30000);
     fetchUnreadCount();
     return () => clearInterval(interval);
@@ -962,6 +945,33 @@ const AdminDashboard: React.FC = () => {
     }
   }
 
+  // Load latest feedback for selected report (for resolved reports)
+  useEffect(() => {
+    const loadFeedback = async () => {
+      if (!selectedReport || selectedReport.status !== 'resolved') {
+        setSelectedReportFeedback(null)
+        return
+      }
+      try {
+        const { data } = await supabase
+          .from('feedback')
+          .select('overall_rating, comments')
+          .eq('report_id', selectedReport.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (data) {
+          setSelectedReportFeedback({ overall_rating: data.overall_rating, comments: data.comments || null })
+        } else {
+          setSelectedReportFeedback(null)
+        }
+      } catch {
+        setSelectedReportFeedback(null)
+      }
+    }
+    loadFeedback()
+  }, [selectedReport])
+
   // Improved map initialization with error handling
   const initializeMap = () => {
     if (!mapRef.current || mapInstanceRef.current) return
@@ -1583,7 +1593,7 @@ const AdminDashboard: React.FC = () => {
       active: reports.filter((r) => r.status === "active").length,
       resolved: reports.filter((r) => r.status === "resolved").length,
       total: reports.length,
-      // Active/inactive by report submissions, not online status
+      // Align with AdminUsers: active = has_reports true, inactive = has_reports false
       activeUsers: users.filter((u) => u.has_reports).length,
       inactiveUsers: users.filter((u) => !u.has_reports).length,
       suspendedUsers: users.filter((u) => u.status === 'suspended').length,
@@ -1618,14 +1628,14 @@ const AdminDashboard: React.FC = () => {
 
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = users.filter((user) => {
-      // Apply status filter
+      // Apply status filter (match AdminUsers semantics)
       let matchesStatus = false;
       if (userFilter === 'all') {
         matchesStatus = true;
       } else if (userFilter === 'active') {
-        matchesStatus = user.status === 'active';
+        matchesStatus = user.has_reports === true;
       } else if (userFilter === 'inactive') {
-        matchesStatus = user.status === 'inactive';
+        matchesStatus = !user.has_reports;
       } else if (userFilter === 'online') {
         matchesStatus = user.is_online;
       } else if (userFilter === 'offline') {
@@ -1633,7 +1643,7 @@ const AdminDashboard: React.FC = () => {
       } else if (userFilter === 'suspended' || userFilter === 'banned') {
         matchesStatus = user.status === userFilter;
       } else {
-        matchesStatus = false;
+        matchesStatus = true;
       }
 
       // Apply search filter
@@ -1871,15 +1881,17 @@ const AdminDashboard: React.FC = () => {
 
     try {
       // Store the estimated time in the incident report if provided
+      const updateFields: any = {
+        admin_response: notificationMessage,
+        updated_at: new Date().toISOString()
+      };
       if (estimatedTime) {
-        await supabase
-          .from('incident_reports')
-          .update({
-            estimated_arrival_time: estimatedTime,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', selectedReport.id);
+        updateFields.estimated_arrival_time = estimatedTime;
       }
+      await supabase
+        .from('incident_reports')
+        .update(updateFields)
+        .eq('id', selectedReport.id);
 
       // Send notification
       const { error } = await supabase
@@ -3060,7 +3072,7 @@ const AdminDashboard: React.FC = () => {
                     {/* Conditional scheduling/ETA/resolution summary by status */}
                     {selectedReport.status === 'pending' && (
                       <>
-                        {selectedReport.estimated_arrival_time && (
+                        {selectedReport.current_eta_minutes && (
                           <div style={{
                             background: '#eff6ff',
                             border: '1px solid #93c5fd',
@@ -3073,7 +3085,9 @@ const AdminDashboard: React.FC = () => {
                               <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
                             </div>
                             <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
-                              {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
+                            <IonText style={{ fontSize: '16px', color: '#1e293b', fontWeight: '500', marginLeft: '26px' }}>
+                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes to arrive` : ''}
+                            </IonText>
                             </p>
                           </div>
                         )}
@@ -3100,7 +3114,7 @@ const AdminDashboard: React.FC = () => {
                           </div>
                         )}
 
-                        {(selectedReport.current_eta_minutes || selectedReport.estimated_arrival_time) && (
+                        {(selectedReport.current_eta_minutes) && (
                           <div style={{
                             background: '#eff6ff',
                             border: '1px solid #93c5fd',
@@ -3113,8 +3127,7 @@ const AdminDashboard: React.FC = () => {
                               <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
                             </div>
                             <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
-                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes` : ''}
-                              {selectedReport.estimated_arrival_time ? ` ${new Date(selectedReport.estimated_arrival_time).toLocaleString()}` : ''}
+                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes to arrive` : ''}
                             </p>
                           </div>
                         )}
@@ -3136,6 +3149,43 @@ const AdminDashboard: React.FC = () => {
                         <p style={{ margin: 0, color: '#065f46', fontSize: '14px' }}>
                           {new Date(selectedReport.resolved_at).toLocaleString()}
                         </p>
+                        {/* Proof of Resolution */}
+                        {selectedReport.resolved_photo_url && (
+                          <div style={{ marginTop: '12px' }}>
+                            <strong style={{ color: '#065f46' }}>Proof of Resolution:</strong>
+                            <div style={{ marginTop: '8px' }}>
+                              <IonImg
+                                src={selectedReport.resolved_photo_url}
+                                style={{
+                                  maxWidth: '300px',
+                                  maxHeight: '300px',
+                                  borderRadius: '8px',
+                                  border: '2px solid #10b981'
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {/* Latest Feedback */}
+                        {selectedReportFeedback && (
+                          <div style={{
+                            background: '#f5f3ff',
+                            border: '1px solid #ddd6fe',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginTop: '12px'
+                          }}>
+                            <strong style={{ color: '#5b21b6' }}>User Feedback</strong>
+                            <div style={{ marginTop: '6px', color: '#5b21b6' }}>
+                              Overall Rating: {selectedReportFeedback.overall_rating}/5
+                            </div>
+                            {selectedReportFeedback.comments && (
+                              <div style={{ marginTop: '4px', color: '#5b21b6' }}>
+                                {selectedReportFeedback.comments}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -3177,40 +3227,8 @@ const AdminDashboard: React.FC = () => {
                             <strong>Description:</strong>
                             <p style={{ whiteSpace: "pre-wrap" }}>{selectedReport.description}</p>
                           </div>
-                        </IonCol>
-                      </IonRow>
-                    </IonGrid>
 
-                    {/* Reporter Information */}
-                    <IonCard style={{ background: "#f8fafc" }}>
-                      <IonCardContent>
-                        <h3 style={{ marginTop: 0 }}>Reporter Information</h3>
-                        <IonGrid>
-                          <IonRow>
-                            <IonCol size="6">
-                              <strong>Name:</strong>
-                              <p>{selectedReport.reporter_name}</p>
-                            </IonCol>
-                            <IonCol size="6">
-                              <strong>Email:</strong>
-                              <p>{selectedReport.reporter_email}</p>
-                            </IonCol>
-                          </IonRow>
-                          <IonRow>
-                            <IonCol size="6">
-                              <strong>Contact:</strong>
-                              <p>{selectedReport.reporter_contact}</p>
-                            </IonCol>
-                            <IonCol size="6">
-                              <strong>Address:</strong>
-                              <p>{selectedReport.reporter_address}</p>
-                            </IonCol>
-                          </IonRow>
-                        </IonGrid>
-                      </IonCardContent>
-                    </IonCard>
-
-                    {/* Images */}
+                          {/* Images */}
                     {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
                       <div style={{ marginTop: "16px" }}>
                         <strong>Attached Images:</strong>
@@ -3245,6 +3263,11 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
                     )}
+                        </IonCol>
+                      </IonRow>
+                    </IonGrid>
+
+                    
 
                     {/* Admin Response */}
                     {selectedReport.admin_response && (
@@ -3253,6 +3276,35 @@ const AdminDashboard: React.FC = () => {
                         <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{selectedReport.admin_response}</p>
                       </div>
                     )}
+
+                    {/* Reporter Information */}
+                    <IonCard style={{ background: "#f8fafc" }}>
+                      <IonCardContent>
+                        <h3 style={{ marginTop: 0 }}>Reporter Information</h3>
+                        <IonGrid>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Name:</strong>
+                              <p>{selectedReport.reporter_name}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Email:</strong>
+                              <p>{selectedReport.reporter_email}</p>
+                            </IonCol>
+                          </IonRow>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Contact:</strong>
+                              <p>{selectedReport.reporter_contact}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Address:</strong>
+                              <p>{selectedReport.reporter_address}</p>
+                            </IonCol>
+                          </IonRow>
+                        </IonGrid>
+                      </IonCardContent>
+                    </IonCard>
 
                     {/* NEW: Enhanced Action Buttons */}
                     <div style={{ display: "flex", gap: "8px", marginTop: "24px", flexWrap: "wrap" }}>
