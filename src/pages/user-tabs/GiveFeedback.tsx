@@ -121,6 +121,7 @@ const GiveFeedback: React.FC = () => {
   const [isReportsLoading, setIsReportsLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [showExistingFeedback, setShowExistingFeedback] = useState(false);
+  const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'feedbacked' | 'not'>('all');
 
   const feedbackCategories = [
     'Response Speed',
@@ -154,6 +155,32 @@ const GiveFeedback: React.FC = () => {
       }
     };
     initializeData();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const email = user.email;
+        const notifChannel = supabase
+          .channel('give_feedback_badge_notifications')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_email=eq.${email}` }, async () => {
+            await fetchNotifications(email);
+          })
+          .subscribe();
+        const reportsChannel = supabase
+          .channel('give_feedback_badge_reports')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
+            await fetchNotifications(email);
+          })
+          .subscribe();
+        // Cleanup on unmount
+        return () => {
+          notifChannel.unsubscribe();
+          reportsChannel.unsubscribe();
+        };
+      }
+    })();
   }, []);
 
   const openProfilePopover = (e: any) => {
@@ -490,9 +517,16 @@ const GiveFeedback: React.FC = () => {
   );
 
   // Filter reports based on selection
-  const displayReports = selectedReport
+  const baseReports = selectedReport
     ? userReports.filter(report => report.id === selectedReport)
     : userReports;
+
+  const displayReports = baseReports.filter(r => {
+    if (feedbackFilter === 'all') return true;
+    if (feedbackFilter === 'feedbacked') return !!r.has_feedback;
+    if (feedbackFilter === 'not') return !r.has_feedback;
+    return true;
+  });
 
   return (
     <IonPage>
@@ -629,6 +663,30 @@ const GiveFeedback: React.FC = () => {
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
               Select Report to Review
             </IonCardTitle>
+            {/* Feedback filter */}
+            <div style={{ position: 'absolute', right: '16px', top: '12px', display: 'flex', gap: '6px' }}>
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'feedbacked', label: 'Feedbacked' },
+                { key: 'not', label: 'Not Yet' }
+              ].map((f: any) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFeedbackFilter(f.key)}
+                  style={{
+                    background: feedbackFilter === f.key ? '#6366f1' : 'transparent',
+                    color: feedbackFilter === f.key ? 'white' : '#6366f1',
+                    border: '1px solid #6366f1',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
             {selectedReport && (
               <IonButton
                 fill="clear"
@@ -777,7 +835,7 @@ const GiveFeedback: React.FC = () => {
                           aria-checked={selectedReport === report.id}
                           disabled={report.has_feedback}
                           style={{
-                            marginLeft: '16px',
+                            marginLeft: 'auto',
                             flexShrink: 0,
                             '--inner-border-radius': '50%',
                             '--border-radius': '50%',
@@ -1122,8 +1180,8 @@ const GiveFeedback: React.FC = () => {
       </div>
 
       {/* Success Modal */}
-      <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)}>
-        <div style={{ padding: '40px 20px', textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <IonModal isOpen={showSuccessModal} onDidDismiss={() => setShowSuccessModal(false)} style={{ '--border-radius': '0px' }}>
+        <div style={{ padding: '40px 20px', textAlign: 'center', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderRadius: 0 }}>
           <div style={{
             width: '80px',
             height: '80px',
@@ -1171,7 +1229,7 @@ const GiveFeedback: React.FC = () => {
 
       {/* Toast */}
       <IonToast
-        isOpen={showToast}
+        isOpen={false}
         onDidDismiss={() => setShowToast(false)}
         message={toastMessage}
         duration={3000}
@@ -1187,17 +1245,24 @@ const GiveFeedback: React.FC = () => {
           { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
           { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
           { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
-        ].map((item, index) => (
-          <IonTabButton
-            key={index}
-            tab={item.tab}
-            onClick={() => history.push(item.url)}
-            style={{ '--color': '#94a3b8', '--color-selected': '#667eea' } as any}
-          >
-            <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
-            <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
-          </IonTabButton>
-        ))}
+        ].map((item, index) => {
+          const isActive = location.pathname.startsWith(item.url);
+          return (
+            <IonTabButton
+              key={index}
+              tab={item.tab}
+              onClick={() => history.push(item.url)}
+              style={{
+                '--color': isActive ? '#667eea' : '#94a3b8',
+                '--color-selected': '#667eea',
+                borderTop: isActive ? '2px solid #667eea' : '2px solid transparent'
+              } as any}
+            >
+              <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
+              <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
+            </IonTabButton>
+          );
+        })}
       </IonTabBar>
     </IonPage>
   );
