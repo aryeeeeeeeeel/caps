@@ -1,5 +1,5 @@
 // src/pages/admin-tabs/AdminUsers.tsx - Updated with proper status logic
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { desktopOutline, notifications } from 'ionicons/icons';
 import {
   IonPage,
@@ -99,40 +99,16 @@ const AdminUsers: React.FC = () => {
     const fetchUnreadCount = async () => {
       const { data: reports } = await supabase
         .from('incident_reports')
-        .select('*')
+        .select('id')
         .eq('read', false);
-
-      const { data: feedbackFromReports } = await supabase
-        .from('feedback')
-        .select('*')
-        .eq('read', false);
-
       const { data: feedback } = await supabase
         .from('feedback')
-        .select('*')
+        .select('id')
         .eq('read', false);
-
-      const newCount = (reports?.length || 0) +
-        (feedbackFromReports?.length || 0) +
-        (feedback?.length || 0);
-
-      // Combine all notifications to find last one
-      const allNotifications = [
-        ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
-        ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
-        ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      const lastNotification = allNotifications[0];
-
-      // Show toast when unread count increases
-      if (newCount > prevUnreadCount && prevUnreadCount > 0 && lastNotification) {
-        setToastMessage(
-          lastNotification.type === 'incident_report'
-            ? "A new incident report was submitted. Check it out!"
-            : "A new feedback was submitted. Check it out!"
-        );
-        setShowToast(true);
+      const newCount = (reports?.length || 0) + (feedback?.length || 0);
+      if (newCount > prevUnreadCount && prevUnreadCount > 0) {
+        setToastMessage("There's new notification/s! Check it out!");
+        setShowNewNotificationToast(true);
       }
       setPrevUnreadCount(newCount);
       setUnreadCount(newCount);
@@ -144,7 +120,6 @@ const AdminUsers: React.FC = () => {
       .channel('reports_unread_count')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => fetchUnreadCount())
       .subscribe();
-
     const feedbackChannel = supabase
       .channel('feedback_unread_count')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchUnreadCount())
@@ -154,7 +129,7 @@ const AdminUsers: React.FC = () => {
       reportsChannel.unsubscribe();
       feedbackChannel.unsubscribe();
     };
-  }, [prevUnreadCount]); // Added dependency
+  }, [prevUnreadCount]);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -378,16 +353,15 @@ const AdminUsers: React.FC = () => {
     }
   };
 
-  const stats = {
+  const stats = useMemo(() => ({
     total: users.length,
-    // Active/inactive computed from has_reports
-    active: users.filter(u => u.has_reports).length,
-    inactive: users.filter(u => !u.has_reports).length,
+    active: users.filter((u) => u.has_reports).length,
+    inactive: users.filter((u) => !u.has_reports).length,
+    suspended: users.filter(u => u.status === 'suspended').length,
+    banned: users.filter(u => u.status === 'banned').length,
     online: users.filter(u => u.is_online).length,
     offline: users.filter(u => !u.is_online).length,
-    suspended: users.filter(u => u.status === 'suspended').length,
-    banned: users.filter(u => u.status === 'banned').length
-  };
+  }), [users]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -515,7 +489,7 @@ const AdminUsers: React.FC = () => {
               <IonIcon icon={notificationsOutline} />
               {unreadCount > 0 && <IonBadge color="danger" style={{ position: 'absolute', top: '0px', right: '0px', fontSize: '10px', transform: 'translate(25%, -25%)' }}>{unreadCount}</IonBadge>}
             </IonButton>
-            <IonButton fill="clear" onClick={async () => { await supabase.auth.signOut(); navigation.push('/it35-lab2', 'root', 'replace'); }} style={{ color: 'white' }}>
+            <IonButton fill="clear" onClick={async () => { try { const { data: { user } } = await supabase.auth.getUser(); if (user?.email) { await supabase.from('system_logs').insert({ admin_email: user.email, activity_type: 'logout', activity_description: 'Admin logged out', details: { source: 'AdminUsers' } }); } } finally { await supabase.auth.signOut(); navigation.push('/it35-lab2', 'root', 'replace'); } }} style={{ color: 'white' }}>
               <IonIcon icon={logOutOutline} />
             </IonButton>
           </IonButtons>
