@@ -90,23 +90,17 @@ const AdminNotifications: React.FC = () => {
   setPrevUnreadCount(unreadCount);
 }, [unreadCount, notifications]);
 
-  // Fetch unread count for badge (same as other admin pages)
+  // Fetch unread count for badge from incident_reports + feedback tables
   const fetchUnreadCount = async () => {
-    const { data: reports } = await supabase
+    const { data: unreadReports } = await supabase
       .from('incident_reports')
-      .select('*')
+      .select('id')
       .eq('read', false);
-
-    const { data: feedback } = await supabase
+    const { data: unreadFeedback } = await supabase
       .from('feedback')
-      .select('*')
-      .eq('read', false)
-      .order('created_at', { ascending: false });
-
-    setUnreadCount(
-      (reports?.length || 0) +
-      (feedback?.length || 0)
-    );
+      .select('id')
+      .eq('read', false);
+    setUnreadCount((unreadReports?.length || 0) + (unreadFeedback?.length || 0));
   };
 
   const fetchAdminNotifications = async () => {
@@ -661,8 +655,20 @@ if (isLoading) {
             <IonButton
               fill="clear"
               onClick={async () => {
-                await supabase.auth.signOut();
-                navigation.push('/it35-lab2', 'root', 'replace');
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user?.email) {
+                    await supabase.from('system_logs').insert({
+                      admin_email: user.email,
+                      activity_type: 'logout',
+                      activity_description: 'Admin logged out',
+                      details: { source: 'AdminNotifications' }
+                    });
+                  }
+                } finally {
+                  await supabase.auth.signOut();
+                  navigation.push('/it35-lab2', 'root', 'replace');
+                }
               }}
               style={{ color: 'white' }}
             >
@@ -678,7 +684,8 @@ if (isLoading) {
               { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
               { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
               { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
-              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' }
+              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' },
+              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
             ].map(menu => (
               <IonButton
                 key={menu.id}
