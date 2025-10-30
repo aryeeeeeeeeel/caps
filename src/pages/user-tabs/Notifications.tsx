@@ -400,6 +400,20 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
               style={{ color: 'white', position: 'relative', borderBottom: location.pathname === '/it35-lab2/app/notifications' ? '2px solid white' : 'none' }}
             >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
+              {stats.unread > 0 && (
+                <IonBadge
+                  color="danger"
+                  style={{
+                    position: 'absolute',
+                    top: '0',
+                    right: '0',
+                    fontSize: '10px',
+                    transform: 'translate(25%, -25%)'
+                  }}
+                >
+                  {stats.unread}
+                </IonBadge>
+              )}
             </IonButton>
             {user ? (
               <IonButton fill="clear" onClick={(e) => { setPopoverEvent(e); setShowProfilePopover(true); }} style={{ color: 'white' }}>
@@ -560,23 +574,30 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
           </IonCard>
         </div>
 
-        <IonToast isOpen={showToast} onDidDismiss={() => setShowToast(false)} message={toastMessage} duration={3000} position="top" />
+        <IonToast isOpen={false} onDidDismiss={() => setShowToast(false)} message={toastMessage} duration={3000} position="top" />
       </IonContent>
       <IonTabBar
         slot="bottom"
         style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
       >
-        {tabs.map((item, index) => (
+        {tabs.map((item, index) => {
+          const isActive = location.pathname === item.url;
+          return (
           <IonTabButton
             key={index}
             tab={item.tab}
             onClick={() => history.push(item.url)}
-            style={{ '--color': '#94a3b8', '--color-selected': '#667eea' } as any}
+            style={{
+              '--color': isActive ? '#667eea' : '#94a3b8',
+              '--color-selected': '#667eea',
+              borderTop: isActive ? '2px solid #667eea' : '2px solid transparent',
+            } as any}
           >
             <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
             <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
           </IonTabButton>
-        ))}
+          );
+        })}
       </IonTabBar>
     </IonPage>
   );
