@@ -146,44 +146,21 @@ const AdminIncidents: React.FC = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedReportFeedback, setSelectedReportFeedback] = useState<{ overall_rating: number; comments: string | null } | null>(null);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
       const { data: reports } = await supabase
         .from('incident_reports')
-        .select('*')
+        .select('id')
         .eq('read', false);
-
-      const { data: feedbackFromReports } = await supabase
-        .from('feedback')
-        .select('*')
-        .eq('read', false);
-
       const { data: feedback } = await supabase
         .from('feedback')
-        .select('*')
+        .select('id')
         .eq('read', false);
-
-      const newCount = (reports?.length || 0) +
-        (feedbackFromReports?.length || 0) +
-        (feedback?.length || 0);
-      
-      // Combine all notifications to find last one
-      const allNotifications = [
-        ...(reports || []).map(r => ({ type: 'incident_report', created_at: r.created_at })),
-        ...(feedbackFromReports || []).map(f => ({ type: 'feedback', created_at: f.created_at })),
-        ...(feedback || []).map(f => ({ type: 'feedback', created_at: f.created_at }))
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      const lastNotification = allNotifications[0];
-      
-      // Show toast when unread count increases
-      if (newCount > prevUnreadCount && prevUnreadCount > 0 && lastNotification) {
-        setToastMessage(
-          lastNotification.type === 'incident_report'
-            ? "A new incident report was submitted. Check it out!"
-            : "A new feedback was submitted. Check it out!"
-        );
+      const newCount = (reports?.length || 0) + (feedback?.length || 0);
+      if (newCount > prevUnreadCount && prevUnreadCount > 0) {
+        setToastMessage('You have new notifications');
         setShowNewNotificationToast(true);
       }
       setPrevUnreadCount(newCount);
@@ -193,10 +170,9 @@ const AdminIncidents: React.FC = () => {
     fetchUnreadCount();
 
     const reportsChannel = supabase
-      .channel('reports_unread_count')
+      .channel('incidents_unread_count')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => fetchUnreadCount())
       .subscribe();
-
     const feedbackChannel = supabase
       .channel('feedback_unread_count')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => fetchUnreadCount())
@@ -206,7 +182,7 @@ const AdminIncidents: React.FC = () => {
       reportsChannel.unsubscribe();
       feedbackChannel.unsubscribe();
     };
-  }, [prevUnreadCount]); // Added dependency
+  }, [prevUnreadCount]);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -285,6 +261,29 @@ const AdminIncidents: React.FC = () => {
       channel.unsubscribe();
     };
   };
+
+  // Load latest feedback for selected report
+  useEffect(() => {
+    const loadFeedback = async () => {
+      if (!selectedReport || selectedReport.status !== 'resolved') {
+        setSelectedReportFeedback(null);
+        return;
+      }
+      const { data } = await supabase
+        .from('feedback')
+        .select('overall_rating, comments')
+        .eq('report_id', selectedReport.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setSelectedReportFeedback({ overall_rating: data.overall_rating, comments: data.comments || null });
+      } else {
+        setSelectedReportFeedback(null);
+      }
+    };
+    loadFeedback();
+  }, [selectedReport]);
 
   const handleStatusBadgeClick = (report: IncidentReport, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -390,15 +389,17 @@ const AdminIncidents: React.FC = () => {
 
     try {
       // Store the estimated time in the incident report if provided
+      const updateFields: any = {
+        admin_response: notificationMessage,
+        updated_at: new Date().toISOString()
+      };
       if (estimatedTime) {
-        await supabase
-          .from('incident_reports')
-          .update({
-            estimated_arrival_time: estimatedTime,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', selectedReport.id);
+        updateFields.estimated_arrival_time = estimatedTime;
       }
+      await supabase
+        .from('incident_reports')
+        .update(updateFields)
+        .eq('id', selectedReport.id);
 
       // Send notification
       const { error } = await supabase
@@ -636,9 +637,9 @@ const AdminIncidents: React.FC = () => {
     <IonPage>
       <IonHeader>
         <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
-          <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Admin Dashboard</IonTitle>
+          <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - Report Management</IonTitle>
           <IonButtons slot="end">
-            <IonButton
+            <IonButton  
               fill="clear"
               onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")}
               style={{ color: 'white' }}
@@ -669,8 +670,20 @@ const AdminIncidents: React.FC = () => {
             <IonButton
               fill="clear"
               onClick={async () => {
-                await supabase.auth.signOut();
-                navigation.push('/it35-lab2', 'root', 'replace');
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user?.email) {
+                    await supabase.from('system_logs').insert({
+                      admin_email: user.email,
+                      activity_type: 'logout',
+                      activity_description: 'Admin logged out',
+                      details: { source: 'AdminIncidents' }
+                    });
+                  }
+                } finally {
+                  await supabase.auth.signOut();
+                  navigation.push('/it35-lab2', 'root', 'replace');
+                }
               }}
               style={{ color: 'white' }}
             >
@@ -974,7 +987,7 @@ const AdminIncidents: React.FC = () => {
                           </div>
                         )}
 
-                        {(selectedReport.current_eta_minutes || selectedReport.estimated_arrival_time) && (
+                        {(selectedReport.current_eta_minutes) && (
                           <div style={{
                             background: 'rgba(59, 130, 246, 0.05)',
                             border: '1px solid #93c5fd',
@@ -987,8 +1000,7 @@ const AdminIncidents: React.FC = () => {
                               <strong style={{ color: '#1e40af', fontSize: '14px' }}>Estimated Arrival</strong>
                             </div>
                             <IonText style={{ fontSize: '16px', color: '#1e293b', fontWeight: '500', marginLeft: '26px' }}>
-                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes` : ''}
-                              {selectedReport.estimated_arrival_time ? ` ${new Date(selectedReport.estimated_arrival_time).toLocaleString()}` : ''}
+                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes to arrive` : ''}
                             </IonText>
                           </div>
                         )}
@@ -1010,6 +1022,39 @@ const AdminIncidents: React.FC = () => {
                         <IonText style={{ fontSize: '14px', color: '#065f46', fontWeight: '500', marginLeft: '26px' }}>
                           {new Date(selectedReport.resolved_at).toLocaleString()}
                         </IonText>
+                        {selectedReport.resolved_photo_url && (
+                          <div style={{ marginTop: '8px', marginLeft: '26px' }}>
+                            <IonImg
+                              src={selectedReport.resolved_photo_url}
+                              style={{
+                                maxWidth: '300px',
+                                maxHeight: '300px',
+                                borderRadius: '8px',
+                                border: '2px solid #10b981'
+                              }}
+                            />
+                          </div>
+                        )}
+                        {selectedReportFeedback && (
+                          <div style={{
+                            background: '#f5f3ff',
+                            border: '1px solid #ddd6fe',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginTop: '12px',
+                            marginLeft: '0'
+                          }}>
+                            <strong style={{ color: '#5b21b6' }}>User Feedback</strong>
+                            <div style={{ marginTop: '6px', color: '#5b21b6' }}>
+                              Overall Rating: {selectedReportFeedback.overall_rating}/5
+                            </div>
+                            {selectedReportFeedback.comments && (
+                              <div style={{ marginTop: '4px', color: '#5b21b6' }}>
+                                {selectedReportFeedback.comments}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1046,39 +1091,7 @@ const AdminIncidents: React.FC = () => {
                             <strong>Description:</strong>
                             <p style={{ whiteSpace: 'pre-wrap' }}>{selectedReport.description}</p>
                           </div>
-                        </IonCol>
-                      </IonRow>
-                    </IonGrid>
-
-                    <IonCard style={{ background: '#f8fafc' }}>
-                      <IonCardContent>
-                        <h2 style={{ marginTop: 0 }}>Reporter Information</h2>
-                        <IonGrid>
-                          <IonRow>
-                            <IonCol size="6">
-                              <strong>Name:</strong>
-                              <p>{selectedReport.reporter_name}</p>
-                            </IonCol>
-                            <IonCol size="6">
-                              <strong>Email:</strong>
-                              <p>{selectedReport.reporter_email}</p>
-                            </IonCol>
-                          </IonRow>
-                          <IonRow>
-                            <IonCol size="6">
-                              <strong>Contact:</strong>
-                              <p>{selectedReport.reporter_contact}</p>
-                            </IonCol>
-                            <IonCol size="6">
-                              <strong>Address:</strong>
-                              <p>{selectedReport.reporter_address}</p>
-                            </IonCol>
-                          </IonRow>
-                        </IonGrid>
-                      </IonCardContent>
-                    </IonCard>
-
-                    {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
+                          {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
                       <div style={{ marginTop: '16px' }}>
                         <strong>Attached Images:</strong>
                         <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
@@ -1112,6 +1125,9 @@ const AdminIncidents: React.FC = () => {
                         </div>
                       </div>
                     )}
+                        </IonCol>
+                      </IonRow>
+                    </IonGrid>                   
 
                     {selectedReport.admin_response && (
                       <div style={{ marginTop: '16px', padding: '12px', background: '#eff6ff', borderRadius: '8px' }}>
@@ -1140,6 +1156,33 @@ const AdminIncidents: React.FC = () => {
                         </div>
                       </div>
                     )}
+                    <IonCard style={{ background: '#f8fafc' }}>
+                      <IonCardContent>
+                        <h2 style={{ marginTop: 0 }}>Reporter Information</h2>
+                        <IonGrid>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Name:</strong>
+                              <p>{selectedReport.reporter_name}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Email:</strong>
+                              <p>{selectedReport.reporter_email}</p>
+                            </IonCol>
+                          </IonRow>
+                          <IonRow>
+                            <IonCol size="6">
+                              <strong>Contact:</strong>
+                              <p>{selectedReport.reporter_contact}</p>
+                            </IonCol>
+                            <IonCol size="6">
+                              <strong>Address:</strong>
+                              <p>{selectedReport.reporter_address}</p>
+                            </IonCol>
+                          </IonRow>
+                        </IonGrid>
+                      </IonCardContent>
+                    </IonCard>
 
                     <div style={{ display: 'flex', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
                       <IonButton
