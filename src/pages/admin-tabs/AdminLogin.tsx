@@ -48,6 +48,14 @@ const AdminLogin: React.FC = () => {
     setTimeout(checkDevice, 800);
   }, []);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !showOtpModal) handleLogin();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [email, password, showOtpModal]);
+
   // Skeleton Loading Component
   const SkeletonLoader = () => (
     <div style={{
@@ -265,59 +273,40 @@ const AdminLogin: React.FC = () => {
 
   const validateCredentials = async (email: string, password: string): Promise<boolean> => {
   if (!email) {
-    showCustomToast('Please enter your administrative email', 'warning');
+    showCustomToast('Please input email', 'warning');
     return false;
   }
 
   if (!password) {
-    showCustomToast('Please enter your password', 'warning');
+    showCustomToast('Please input password', 'warning');
     return false;
   }
 
   try {
-    // First check if email exists in the database
+    // Fetch user
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('user_email, is_authenticated')
+      .select('user_email, role')
       .eq('user_email', email)
       .maybeSingle();
-
-    if (userError) {
-      console.error('Database error:', userError);
-      showCustomToast('Database error. Please try again.', 'danger');
+    if (userError || !userData) {
+      showCustomToast('Only an LDRRMO personnel can access admin.', 'danger');
       return false;
     }
-
-    if (!userData) {
-      showCustomToast('Email is not registered. Please contact administrator.', 'warning');
+    if (userData.role !== 'admin') {
+      showCustomToast('Only an LDRRMO personnel can access admin.', 'danger');
       return false;
     }
-
-    if (!userData.is_authenticated) {
-      showCustomToast('Your account is not authenticated. Please contact administrator to verify your account.', 'warning');
-      return false;
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    // Now validate password for admin
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        showCustomToast('Invalid credentials, please try again', 'danger');
-      } else if (error.message.includes('Email not confirmed')) {
-        showCustomToast('Your account is not authenticated. Please contact administrator to verify your account.', 'warning');
-      } else {
-        showCustomToast(error.message || 'Login failed', 'danger');
-      }
+      showCustomToast('Credentials incorrect', 'danger');
       return false;
     }
-
-    await supabase.auth.signOut();
+    await supabase.auth.signOut(); // Don't persist session
     return true;
   } catch (error: any) {
-    showCustomToast(error.message || 'Login failed', 'danger');
+    showCustomToast('Login failed', 'danger');
     return false;
   }
 };
@@ -490,26 +479,6 @@ const AdminLogin: React.FC = () => {
   }
 };
 
-  const handleEmailKeyPress = (e: React.KeyboardEvent) => {
-  if (e.key === 'Enter') {
-    if (email) {
-      passwordInputRef.current?.setFocus();
-    } else {
-      showCustomToast('Please enter your email', 'warning');
-    }
-  }
-};
-
-const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
-  if (e.key === 'Enter') {
-    if (password) {
-      handleLogin();
-    } else {
-      showCustomToast('Please enter your password', 'warning');
-    }
-  }
-};
-
   return (
     <IonPage>
       <IonHeader>
@@ -630,7 +599,6 @@ const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
                     placeholder="ldrrmo@manolofortich.gov.ph"
                     value={email}
                     onIonChange={e => setEmail(e.detail.value!)}
-                    onKeyPress={handleEmailKeyPress}
                     style={{
                       '--border-radius': '12px',
                       '--border-color': '#e2e8f0',
@@ -668,7 +636,6 @@ const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
                       setPassword(e.detail.value!);
                       e.preventDefault(); // Prevent default behavior that might clear the input
                     }}
-                    onKeyPress={handlePasswordKeyPress}
                     style={{
                       '--border-radius': '12px',
                       '--border-color': '#e2e8f0',
