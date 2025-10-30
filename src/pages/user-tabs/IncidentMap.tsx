@@ -35,11 +35,13 @@ import {
   IonBadge
 } from '@ionic/react';
 import {
+  imageOutline,
   mapOutline,
   addCircleOutline,
   eyeOutline,
   timeOutline,
   locationOutline,
+  arrowForwardOutline,
   refreshOutline,
   closeCircleOutline,
   checkmarkCircleOutline,
@@ -48,6 +50,7 @@ import {
   notificationsOutline,
   personCircle,
   chatbubbleOutline,
+  folderOutline,
   documentTextOutline,
   logOutOutline,
   homeOutline
@@ -261,11 +264,17 @@ const IncidentMap: React.FC = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const reportId = searchParams.get('reportId');
+    const status = searchParams.get('status') as any;
     if (reportId) {
       console.log('Report ID detected in URL:', reportId);
       setTargetReportId(reportId);
       // Force refresh to ensure we have the latest data including the new report
       fetchActiveReports();
+    }
+    if (status === 'pending' || status === 'active') {
+      setStatusFilter(status);
+    } else if (status === 'all') {
+      setStatusFilter('all');
     }
   }, [location.search]);
 
@@ -286,6 +295,28 @@ const IncidentMap: React.FC = () => {
         }
         await fetchActiveReports();
         setupRealtimeSubscription();
+
+        // Realtime badge updates for notifications and admin updates
+        if (user?.email) {
+          const email = user.email;
+          const notifChannel = supabase
+            .channel('incident_map_badge_notifications')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_email=eq.${email}` }, async () => {
+              await refreshUnreadBadge(email);
+            })
+            .subscribe();
+
+          const reportsChannel = supabase
+            .channel('incident_map_badge_reports')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
+              await refreshUnreadBadge(email);
+            })
+            .subscribe();
+
+          setRealtimeChannel((prev: any) => prev); // keep existing for map; cleanup below
+
+          // Note: channels will be cleaned up with page unmount elsewhere if needed
+        }
       } catch (error) {
         console.error('Error initializing data:', error);
         setIsLoading(false);
@@ -300,6 +331,25 @@ const IncidentMap: React.FC = () => {
       }
     };
   }, []);
+
+  const refreshUnreadBadge = async (email: string) => {
+    try {
+      const { data: n1 } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_email', email)
+        .eq('read', false);
+      const { data: n2 } = await supabase
+        .from('incident_reports')
+        .select('id')
+        .eq('reporter_email', email)
+        .not('admin_response', 'is', null)
+        .eq('read', false);
+      setUnreadNotifications((n1?.length || 0) + (n2?.length || 0));
+    } catch (e) {
+      console.warn('Failed to refresh unread badge:', e);
+    }
+  };
 
   const setupRealtimeSubscription = () => {
     const channel = supabase
@@ -1324,199 +1374,163 @@ const IncidentMap: React.FC = () => {
 
       {/* View Report Modal */}
       <IonModal
-        isOpen={showViewModal}
-        onDidDismiss={() => setShowViewModal(false)}
-        style={{ '--border-radius': '20px' } as any}
-      >
-        {selectedReport && (
-          <div style={{
-            padding: '0',
-            height: '100%',
-            background: 'white',
-            borderRadius: '20px',
-            overflow: 'hidden'
-          }}>
-            <IonCard style={{
-              margin: '0',
-              height: '100%',
-              borderRadius: '0',
-              boxShadow: 'none'
-            }}>
-              <IonCardHeader style={{ paddingBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <IonCardTitle style={{ fontSize: '20px', margin: '0', fontWeight: '700' }}>{selectedReport.title}</IonCardTitle>
-                  <IonButton
-                    fill="clear"
-                    onClick={() => setShowViewModal(false)}
-                    style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
-                  >
-                    <IonIcon icon={closeCircleOutline} />
-                  </IonButton>
-                </div>
-              </IonCardHeader>
-
-              <div style={{
-                height: 'calc(100% - 80px)',
-                overflowY: 'auto',
-                padding: '0 16px 16px'
-              }}>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                  <IonChip
-                    style={{
-                      '--background': getStatusColor(selectedReport.status) + '20',
-                      '--color': getStatusColor(selectedReport.status),
-                      height: '28px',
-                      fontSize: '12px',
-                      fontWeight: '600'
-                    } as any}
-                  >
-                    {selectedReport.status.toUpperCase()}
-                  </IonChip>
-                  <IonChip
-                    style={{
-                      '--background': getPriorityColor(selectedReport.priority) + '20',
-                      '--color': getPriorityColor(selectedReport.priority),
-                      height: '28px',
-                      fontSize: '12px',
-                      fontWeight: '600'
-                    } as any}
-                  >
-                    {selectedReport.priority.toUpperCase()}
-                  </IonChip>
-                </div>
-
-                <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-                  <IonIcon icon={locationOutline} style={{ marginRight: '4px' }} />
-                  {selectedReport.location}, {selectedReport.barangay}
-                </p>
-
-              {/* Category */}
-              <div style={{ marginBottom: '12px' }}>
-                <p style={{ color: '#6b7280', margin: 0 }}>
-                  <strong>Category:</strong> {selectedReport.category}
-                </p>
-              </div>
-
-                <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-                  <strong>Description:</strong> {selectedReport.description}
-                </p>
-
-                {/* Admin message/response */}
-                {selectedReport.admin_response && (
-                  <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
-                    <p style={{ color: '#0369a1', margin: 0 }}>
-                      <strong>Admin Message:</strong> {selectedReport.admin_response}
-                    </p>
-                  </div>
-                )}
-
-                {/* Scheduling and ETA for active/pending */}
-                {selectedReport.scheduled_response_time && (
-                  <p style={{ color: '#6b7280', marginBottom: '12px' }}>
-                    <strong>Scheduled Response:</strong> {new Date(selectedReport.scheduled_response_time).toLocaleString()}
-                  </p>
-                )}
-              {selectedReport.current_eta_minutes && (
-                  <p style={{ color: '#6b7280', marginBottom: '12px' }}>
-                    <strong>Estimated Arrival:</strong> {selectedReport.current_eta_minutes} minutes
-                  </p>
-                )}
-                {selectedReport.estimated_arrival_time && (
-                  <p style={{ color: '#6b7280', marginBottom: '12px' }}>
-                    <strong>ETA Time:</strong> {new Date(selectedReport.estimated_arrival_time).toLocaleString()}
-                  </p>
-                )}
-
-                {/* Resolved details */}
-                {selectedReport.resolved_at && (
-                  <p style={{ color: '#6b7280', marginBottom: '12px' }}>
-                    <strong>Resolved At:</strong> {new Date(selectedReport.resolved_at).toLocaleString()}
-                  </p>
-                )}
-
-              {/* Proof of Resolution Photo */}
-              {selectedReport.resolved_photo_url && (
-                <div style={{ background: '#ecfdf5', border: '1px solid #34d399', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-                  <p style={{ color: '#065f46', margin: '0 0 8px 0', fontWeight: 600 }}>Proof of Resolution</p>
-                  <img
-                    src={selectedReport.resolved_photo_url}
-                    alt="Proof of resolution"
-                    style={{ maxWidth: '100%', borderRadius: '8px', border: '2px solid #10b981' }}
-                  />
-                </div>
-              )}
-
-                <p style={{ color: '#6b7280', marginBottom: '16px' }}>
-                  <strong>Reported:</strong> {new Date(selectedReport.created_at).toLocaleString()}
-                </p>
-
-                {selectedReport.admin_response && (
-                  <div style={{
-                    background: '#f0f9ff',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    marginBottom: '16px'
-                  }}>
-                    <p style={{ color: '#0369a1', margin: '0' }}>
-                      <strong>Admin Response:</strong> {selectedReport.admin_response}
-                    </p>
-                  </div>
-                )}
-
-                {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <p style={{ color: '#6b7280', marginBottom: '8px' }}>
-                      <strong>Images:</strong>
-                    </p>
-                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
-                      {selectedReport.image_urls.map((url, index) => (
-                        <img
-                          key={index}
-                          src={url}
-                          alt={`Report image ${index + 1}`}
-                          style={{
-                            width: '80px',
-                            height: '80px',
-                            borderRadius: '8px',
-                            objectFit: 'cover',
-                            cursor: 'pointer',
-                            border: '2px solid transparent',
-                            transition: 'border-color 0.2s ease'
-                          }}
-                          onClick={() => {
-                            setSelectedImages(selectedReport.image_urls || []);
-                            setSelectedImageIndex(index);
-                            setShowImageModal(true);
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = '#3b82f6';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'transparent';
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </IonCard>
+  isOpen={showViewModal}
+  onDidDismiss={() => setShowViewModal(false)}
+  style={{ '--border-radius': '0px' } as any}
+>
+  {selectedReport && (
+    <div style={{
+      padding: '0',
+      height: '100%',
+      background: 'white',
+      borderRadius: '0',
+      overflow: 'hidden'
+    }}>
+      <IonCard style={{
+        margin: '0',
+        height: '100%',
+        borderRadius: '0',
+        boxShadow: 'none'
+      }}>
+        <IonCardHeader style={{ paddingBottom: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <IonCardTitle style={{ fontSize: '20px', margin: '0', fontWeight: '700' }}>{selectedReport.title}</IonCardTitle>
+            <IonButton
+              fill="clear"
+              onClick={() => setShowViewModal(false)}
+              style={{ '--padding-start': '4px', '--padding-end': '4px' } as any}
+            >
+              <IonIcon icon={closeCircleOutline} />
+            </IonButton>
           </div>
-        )}
-      </IonModal>
+        </IonCardHeader>
+
+        <div style={{
+          height: 'calc(100% - 80px)',
+          overflowY: 'auto',
+          padding: '0 16px 16px'
+        }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <IonChip
+              style={{
+                '--background': getStatusColor(selectedReport.status) + '20',
+                '--color': getStatusColor(selectedReport.status),
+                height: '28px',
+                fontSize: '12px',
+                fontWeight: '600'
+              } as any}
+            >
+              {selectedReport.status.toUpperCase()}
+            </IonChip>
+            <IonChip
+              style={{
+                '--background': getPriorityColor(selectedReport.priority) + '20',
+                '--color': getPriorityColor(selectedReport.priority),
+                height: '28px',
+                fontSize: '12px',
+                fontWeight: '600'
+              } as any}
+            >
+              {selectedReport.priority.toUpperCase()}
+            </IonChip>
+          </div>
+
+          {/* Category - Updated */}
+          <p style={{ color: '#6b7280', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <IonIcon icon={folderOutline} style={{ fontSize: '16px' }} />
+            <span><strong>Category:</strong> {selectedReport.category}</span>
+          </p>
+
+          {/* Description - Updated */}
+          <p style={{ color: '#6b7280', marginBottom: '16px', display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+            <IonIcon icon={documentTextOutline} style={{ fontSize: '16px', marginTop: '2px' }} />
+            <span><strong>Description:</strong> {selectedReport.description}</span>
+          </p>
+          <p style={{ color: '#6b7280', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <IonIcon icon={locationOutline} style={{ fontSize: '16px' }} />
+            <span><strong>Location:</strong> {selectedReport.location}, {selectedReport.barangay}</span>
+          </p>
+
+          <p style={{ color: '#6b7280', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <IonIcon icon={timeOutline} style={{ fontSize: '16px' }} />
+            <span><strong>Reported:</strong> {new Date(selectedReport.created_at).toLocaleString()}</span>
+          </p>
+          {/* Scheduling and ETA for active/pending */}
+          {selectedReport.scheduled_response_time && (
+            <p style={{ color: '#6b7280', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <IonIcon icon={timeOutline} style={{ fontSize: '16px' }} />
+              <span><strong>Scheduled Response:</strong> {new Date(selectedReport.scheduled_response_time).toLocaleString()}</span>
+            </p>
+          )}
+          {selectedReport.current_eta_minutes && (
+            <p style={{ color: '#6b7280', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <IonIcon icon={timeOutline} style={{ fontSize: '16px' }} />
+              <span><strong>Estimated Arrival:</strong> {selectedReport.current_eta_minutes} minutes to arrive</span>
+            </p>
+          )}          
+
+          {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ color: '#6b7280', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <IonIcon icon={imageOutline} style={{ fontSize: '16px' }} />
+                <span><strong> Images:</strong></span>
+              </p>
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+                {selectedReport.image_urls.map((url, index) => (
+                  <img
+                    key={index}
+                    src={url}
+                    alt={`Report image ${index + 1}`}
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '8px',
+                      objectFit: 'cover',
+                      cursor: 'pointer',
+                      border: '2px solid transparent',
+                      transition: 'border-color 0.2s ease'
+                    }}
+                    onClick={() => {
+                      setSelectedImages(selectedReport.image_urls || []);
+                      setSelectedImageIndex(index);
+                      setShowImageModal(true);
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#3b82f6';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'transparent';
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+           {/* Admin message/response */}
+           {selectedReport.admin_response && (
+            <div style={{ background: '#f0f9ff', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
+              <p style={{ color: '#0369a1', margin: 0 }}>
+                <strong>Admin Message:</strong> {selectedReport.admin_response}
+              </p>
+            </div>
+          )}
+        </div>
+      </IonCard>
+    </div>
+  )}
+</IonModal>
 
       {/* Image Gallery Modal */}
       <IonModal
         isOpen={showImageModal}
         onDidDismiss={() => setShowImageModal(false)}
-        style={{ '--border-radius': '20px' } as any}
+        style={{ '--border-radius': '0px' } as any}
       >
         <div style={{
           padding: '0',
           height: '100%',
           background: 'black',
-          borderRadius: '20px',
+          borderRadius: '0',
           overflow: 'hidden',
           position: 'relative'
         }}>
@@ -1623,7 +1637,7 @@ const IncidentMap: React.FC = () => {
                       '--color': 'white'
                     } as any}
                   >
-                    <IonIcon icon={refreshOutline} style={{ fontSize: '24px', transform: 'rotate(180deg)' }} />
+                    <IonIcon icon={arrowForwardOutline} style={{ fontSize: '24px', transform: 'rotate(180deg)' }} />
                   </IonButton>
                 </div>
               )}
@@ -1666,7 +1680,7 @@ const IncidentMap: React.FC = () => {
       </IonModal>
 
       <IonToast
-        isOpen={showToast}
+        isOpen={false}
         onDidDismiss={() => setShowToast(false)}
         message={toastMessage}
         duration={3000}
@@ -1682,17 +1696,24 @@ const IncidentMap: React.FC = () => {
           { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
           { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
           { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
-        ].map((item, index) => (
-          <IonTabButton
-            key={index}
-            tab={item.tab}
-            onClick={() => history.push(item.url)}
-            style={{ '--color': '#94a3b8', '--color-selected': '#667eea' } as any}
-          >
-            <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
-            <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
-          </IonTabButton>
-        ))}
+        ].map((item, index) => {
+          const isActive = location.pathname.startsWith(item.url);
+          return (
+            <IonTabButton
+              key={index}
+              tab={item.tab}
+              onClick={() => history.push(item.url)}
+              style={{
+                '--color': isActive ? '#667eea' : '#94a3b8',
+                '--color-selected': '#667eea',
+                borderTop: isActive ? '2px solid #667eea' : '2px solid transparent'
+              } as any}
+            >
+              <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
+              <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
+            </IonTabButton>
+          );
+        })}
       </IonTabBar>
     </IonPage>
   );
