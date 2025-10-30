@@ -56,6 +56,7 @@ import { logUserReportSubmission } from '../../utils/activityLogger';
 import { Capacitor } from '@capacitor/core';
 import ExifReader from 'exifreader';
 import { useHistory } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 interface IncidentReport {
   title: string | number | null | undefined;
@@ -847,6 +848,7 @@ const SkeletonReporterCard: React.FC = () => (
 
 const IncidentReport: React.FC = () => {
   const history = useHistory();
+  const location = useLocation();
   const [authUser, setAuthUser] = useState<any>(null);
   const [headerUserProfile, setHeaderUserProfile] = useState<any>(null);
   const [showProfilePopover, setShowProfilePopover] = useState(false);
@@ -899,9 +901,40 @@ const IncidentReport: React.FC = () => {
         const { data: n1 } = await supabase.from('notifications').select('id').eq('user_email', user.email).eq('read', false);
         const { data: n2 } = await supabase.from('incident_reports').select('id').eq('reporter_email', user.email).not('admin_response', 'is', null).eq('read', false);
         setUnreadNotifications((n1?.length || 0) + (n2?.length || 0));
+
+        // Realtime badge updates
+        const email = user.email || '';
+        if (!email) return;
+        supabase
+          .channel('incident_report_badge_notifications')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_email=eq.${email}` }, async () => {
+            await refreshUnreadBadge(email);
+          })
+          .subscribe();
+        supabase
+          .channel('incident_report_badge_reports')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
+            await refreshUnreadBadge(email);
+          })
+          .subscribe();
       }
     })();
   }, []);
+
+  const refreshUnreadBadge = async (email: string) => {
+    try {
+      const { data: n1 } = await supabase.from('notifications').select('id').eq('user_email', email).eq('read', false);
+      const { data: n2 } = await supabase
+        .from('incident_reports')
+        .select('id')
+        .eq('reporter_email', email)
+        .not('admin_response', 'is', null)
+        .eq('read', false);
+      setUnreadNotifications((n1?.length || 0) + (n2?.length || 0));
+    } catch (e) {
+      console.warn('Failed to refresh unread badge:', e);
+    }
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -1496,6 +1529,12 @@ const IncidentReport: React.FC = () => {
       if (insertError) {
         throw new Error(`Failed to submit report: ${insertError.message}`);
       }
+      
+      // Set status to active after successful incident report insert (redundant but per request)
+      await supabase
+        .from('users')
+        .update({ status: 'active' })
+        .eq('user_email', user.email);
 
       // Reset form
       setFormData({
@@ -1976,7 +2015,7 @@ const IncidentReport: React.FC = () => {
 
         {/* Toast */}
         <IonToast
-          isOpen={showToast}
+          isOpen={false}
           onDidDismiss={() => setShowToast(false)}
           message={toastMessage}
           duration={4000}
@@ -1994,15 +2033,24 @@ const IncidentReport: React.FC = () => {
           { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
           { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
         ].map((item, index) => (
-          <IonTabButton
-            key={index}
-            tab={item.tab}
-            onClick={() => history.push(item.url)}
-            style={{ '--color': '#94a3b8', '--color-selected': '#667eea' } as any}
-          >
-            <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
-            <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
-          </IonTabButton>
+          (() => {
+            const isActive = location.pathname.startsWith(item.url);
+            return (
+              <IonTabButton
+                key={index}
+                tab={item.tab}
+                onClick={() => history.push(item.url)}
+                style={{
+                  '--color': isActive ? '#667eea' : '#94a3b8',
+                  '--color-selected': '#667eea',
+                  borderTop: isActive ? '2px solid #667eea' : '2px solid transparent'
+                } as any}
+              >
+                <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
+                <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
+              </IonTabButton>
+            );
+          })()
         ))}
       </IonTabBar>
     </IonPage>
