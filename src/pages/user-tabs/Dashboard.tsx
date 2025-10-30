@@ -48,6 +48,7 @@ import {
   
 } from 'ionicons/icons';
 import { useHistory } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../../utils/supabaseClient';
 import { logUserLogout } from '../../utils/activityLogger';
 
@@ -144,6 +145,7 @@ const SkeletonRecentReportItem: React.FC = () => (
 
 const Dashboard: React.FC = () => {
   const history = useHistory();
+  const location = useLocation();
   const [user, setUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -155,6 +157,7 @@ const Dashboard: React.FC = () => {
   const [recentReports, setRecentReports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
   const [userReports, setUserReports] = useState<any[]>([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -232,7 +235,14 @@ const Dashboard: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        setUnreadNotifications(data.length);
+        const newCount = data.length;
+        // Show a toast if unread increases (dashboard-only per requirements)
+        if (newCount > prevUnreadCount) {
+          setToastMessage('You have new notifications');
+          setShowToast(true);
+        }
+        setUnreadNotifications(newCount);
+        setPrevUnreadCount(newCount);
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -313,6 +323,25 @@ const Dashboard: React.FC = () => {
         }
         await fetchUserData();
         await fetchDashboardData();
+
+        // Realtime: update badge + toast on new notifications/admin updates
+        if (user.email) {
+          const email = user.email;
+          const notifChannel = supabase
+            .channel('dashboard_badge_notifications')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_email=eq.${email}` }, async () => {
+              await fetchNotifications(email);
+            })
+            .subscribe();
+          const reportsChannel = supabase
+            .channel('dashboard_badge_reports')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
+              // handle unread incident admin responses; reuse fetchNotifications which pulls unread from notifications table only
+              await fetchNotifications(email);
+            })
+            .subscribe();
+          // Note: channels will be cleaned when app unmounts; keep lightweight subscriptions
+        }
       } catch (error) {
         console.error('Error in checkAuth:', error);
         setIsLoading(false);
@@ -333,7 +362,8 @@ const Dashboard: React.FC = () => {
     if (type === 'resolved') {
       history.push('/it35-lab2/app/history');
     } else {
-      history.push('/it35-lab2/app/map');
+      const statusParam = type === 'pending' ? 'pending' : 'active';
+      history.push(`/it35-lab2/app/map?status=${statusParam}`);
     }
   };
 
@@ -576,10 +606,7 @@ const Dashboard: React.FC = () => {
             >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
               {unreadNotifications > 0 && (
-                <IonBadge
-                  color="danger"
-                  style={{ position: 'absolute', top: '0', right: '0', fontSize: '10px', transform: 'translate(25%, -25%)' }}
-                >
+                <IonBadge color="danger" style={{ position: 'absolute', top: '0', right: '0', fontSize: '10px', transform: 'translate(25%, -25%)' }}>
                   {unreadNotifications}
                 </IonBadge>
               )}
@@ -1076,17 +1103,24 @@ const Dashboard: React.FC = () => {
         slot="bottom"
         style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
       >
-        {tabs.map((item, index) => (
-          <IonTabButton
-            key={index}
-            tab={item.tab}
-            onClick={() => history.push(item.url)}
-            style={{ '--color': '#94a3b8', '--color-selected': '#667eea' } as any}
-          >
-            <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
-            <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
-          </IonTabButton>
-        ))}
+        {tabs.map((item, index) => {
+          const isActive = location.pathname.startsWith(item.url);
+          return (
+            <IonTabButton
+              key={index}
+              tab={item.tab}
+              onClick={() => history.push(item.url)}
+              style={{
+                '--color': isActive ? '#667eea' : '#94a3b8',
+                '--color-selected': '#667eea',
+                borderTop: isActive ? '2px solid #667eea' : '2px solid transparent'
+              } as any}
+            >
+              <IonIcon icon={item.icon} style={{ marginBottom: '4px', fontSize: '22px' }} />
+              <IonLabel style={{ fontSize: '11px', fontWeight: '600' }}>{item.name}</IonLabel>
+            </IonTabButton>
+          );
+        })}
       </IonTabBar>
     </IonPage>
   );
