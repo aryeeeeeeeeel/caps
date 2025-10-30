@@ -26,9 +26,7 @@ import '@ionic/react/css/display.css';
 import './theme/variables.css';
 
 /* Main Pages */
-import Login from './pages/Login';
 import LandingPage from "./pages/Landingpage";
-import Register from './pages/Register';
 import Profile from './pages/user-tabs/Profile';
 
 /* Admin Pages */
@@ -46,6 +44,8 @@ import IncidentMap from './pages/user-tabs/IncidentMap';
 import Notifications from './pages/user-tabs/Notifications';
 import History from './pages/user-tabs/History';
 import GiveFeedback from './pages/user-tabs/GiveFeedback';
+import Login from './pages/user-tabs/Login';
+import Register from './pages/user-tabs/Register';
 
 setupIonicReact();
 defineCustomElements(window);
