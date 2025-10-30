@@ -948,7 +948,7 @@ const ActivityLogs: React.FC = () => {
 
         {/* Global Toast */}
         <IonToast
-          isOpen={showToast}
+          isOpen={false}
           onDidDismiss={() => setShowToast(false)}
           message={toastMessage}
           duration={3000}
@@ -967,31 +967,35 @@ const ActivityLogs: React.FC = () => {
           paddingBottom: '8px'
         } as any}
       >
-        {tabs.map((item, index) => (
-          <IonTabButton
-            key={index}
-            tab={item.tab}
-            onClick={() => history.push(item.url)}
-            style={{
-              '--color': '#94a3b8',
-              '--color-selected': '#667eea'
-            } as any}
-          >
-            <IonIcon
-              icon={item.icon}
+        {tabs.map((item, index) => {
+          const isActive = location.pathname.startsWith(item.url);
+          return (
+            <IonTabButton
+              key={index}
+              tab={item.tab}
+              onClick={() => history.push(item.url)}
               style={{
-                marginBottom: '4px',
-                fontSize: '22px'
-              }}
-            />
-            <IonLabel style={{
-              fontSize: '11px',
-              fontWeight: '600'
-            }}>
-              {item.name}
-            </IonLabel>
-          </IonTabButton>
-        ))}
+                '--color': isActive ? '#667eea' : '#94a3b8',
+                '--color-selected': '#667eea',
+                borderTop: isActive ? '2px solid #667eea' : '2px solid transparent'
+              } as any}
+            >
+              <IonIcon
+                icon={item.icon}
+                style={{
+                  marginBottom: '4px',
+                  fontSize: '22px'
+                }}
+              />
+              <IonLabel style={{
+                fontSize: '11px',
+                fontWeight: '600'
+              }}>
+                {item.name}
+              </IonLabel>
+            </IonTabButton>
+          );
+        })}
       </IonTabBar>
     </IonPage>
   );
