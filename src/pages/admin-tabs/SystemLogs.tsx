@@ -104,30 +104,27 @@ const SystemLogs: React.FC = () => {
     fetchSystemLogs();
   }, []);
 
-  const fetchNotifications = async (email: string) => {
+  const fetchNotifications = async (_email: string) => {
     try {
       console.log('Fetching notifications...');
-      // Fetch from notifications table
-      const { data: notificationsData, error: notificationsError } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_email', email)
+      // Fetch unread from incident_reports and feedback tables
+      const { data: unreadReports } = await supabase
+        .from('incident_reports')
+        .select('id')
+        .eq('read', false);
+      const { data: unreadFeedback } = await supabase
+        .from('feedback')
+        .select('id')
         .eq('read', false);
 
-      if (notificationsError) {
-        console.error('Notifications error:', notificationsError);
+      if (Notification) {
+        console.error('Notifications error:', Notification);
       }
 
       // Calculate total unread count
-      const unreadCount = notificationsData?.length || 0;
+      const unreadCount = (unreadReports?.length || 0) + (unreadFeedback?.length || 0);
       console.log('New unread count:', unreadCount, 'Previous:', prevUnreadCount);
       setUnreadNotifications(unreadCount);
-      
-      // Show toast if new notifications arrive
-      if (unreadCount > prevUnreadCount) {
-        console.log('Showing toast for new notifications');
-        setShowToast(true);
-      }
       setPrevUnreadCount(unreadCount);
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -339,14 +336,6 @@ const SystemLogs: React.FC = () => {
 
   return (
     <IonPage>
-      <IonToast
-        isOpen={showToast}
-        onDidDismiss={() => setShowToast(false)}
-        message={unreadNotifications > 0 ? "You have new notifications!" : "System logs updated!"}
-        duration={3000}
-        position="top"
-        color={unreadNotifications > 0 ? 'primary' : 'success'}
-      />
       <IonHeader>
         <IonToolbar
           style={{ "--background": "linear-gradient(135deg, #1a202c 0%, #2d3748 100%)", "--color": "white" } as any}
