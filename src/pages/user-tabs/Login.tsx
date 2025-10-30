@@ -41,8 +41,8 @@ import { useState, useRef, useEffect } from 'react';
 import {
   supabase,
   isRememberMeEnabled
-} from '../utils/supabaseClient';
-import { logUserLogin } from '../utils/activityLogger';
+} from '../../utils/supabaseClient';
+import { logUserLogin } from '../../utils/activityLogger';
 
 // Removed AlertBox - using toast messages instead
 
@@ -613,109 +613,79 @@ const Login: React.FC = () => {
     await sendOTP(otpEmail, deviceFingerprint);
   };
 
+  // --- Remove all early validation and toasts except handleLogin ---
+  // Remove per-field key handlers, leave global Enter handler only
+  // In handleLogin, perform these checks:
   const handleLogin = async () => {
     if (!loginIdentifier) {
       showCustomToast('Please enter your email or username', 'warning');
       return;
     }
-
     if (!password) {
       showCustomToast('Please enter your password', 'warning');
       return;
     }
-
     setIsLoggingIn(true);
     try {
+      // Find user (by username or email)
       let userEmail = loginIdentifier;
-
+      let userRow = null;
       if (!loginIdentifier.includes('@')) {
         const { data, error } = await supabase
           .from('users')
           .select('user_email, is_authenticated')
           .eq('username', loginIdentifier)
           .single();
-
         if (error || !data) {
-          showCustomToast('Username not found. Please check your credentials or create an account.', 'warning');
+          showCustomToast('Account not found. Please check your credentials or create an account.', 'warning');
           setIsLoggingIn(false);
           return;
         }
         userEmail = data.user_email;
-        
-        if (!data.is_authenticated) {
-          showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
-          setIsLoggingIn(false);
-          return;
-        }
+        userRow = data;
       } else {
-        // Check if email exists in database
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('user_email, is_authenticated')
           .eq('user_email', loginIdentifier)
           .maybeSingle();
-
-        if (userError) {
-          console.error('Database error:', userError);
-          showCustomToast('Database error. Please try again.', 'danger');
+        if (userError || !userData) {
+          showCustomToast('Account not found. Please check your credentials or create an account.', 'warning');
           setIsLoggingIn(false);
           return;
         }
-
-        if (!userData) {
-          showCustomToast('Email is not registered. Please create an account.', 'warning');
-          setIsLoggingIn(false);
-          return;
-        }
-
-        if (!userData.is_authenticated) {
-          showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
-          setIsLoggingIn(false);
-          return;
-        }
+        userEmail = userData.user_email;
+        userRow = userData;
       }
-
-      const fingerprint = await generateDeviceFingerprint();
-      setDeviceFingerprint(fingerprint);
-
+      // Check password
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: userEmail,
         password,
       });
-
       if (authError) {
-        if (authError.message.includes('Invalid login credentials')) {
-          showCustomToast('Invalid credentials, please try again', 'danger');
-        } else if (authError.message.includes('Email not confirmed')) {
-          showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
-        } else {
-          showCustomToast(authError.message || 'Login failed', 'danger');
-        }
+        showCustomToast('Credentials incorrect', 'danger');
         setIsLoggingIn(false);
         return;
       }
-
-      if (!authData.user) {
-        showCustomToast('Login failed. No user data returned.', 'danger');
+      // Check authentication
+      if (!userRow.is_authenticated) {
+        showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
         setIsLoggingIn(false);
         return;
       }
-
+      // Device trust and OTP logic (unchanged)
       setCurrentUserId(authData.user.id);
-
+      const fingerprint = await generateDeviceFingerprint();
+      setDeviceFingerprint(fingerprint);
       const isTrusted = await isDeviceTrusted(authData.user.id, fingerprint);
-
       if (!isTrusted) {
         setOtpEmail(userEmail);
         setShowOTPModal(true);
         setIsLoggingIn(false);
-
         await sendOTP(userEmail, fingerprint);
         return;
       }
-
       await completeLogin(authData.user.id, userEmail, fingerprint);
-
     } catch (error: any) {
       showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
       setIsLoggingIn(false);
@@ -1028,6 +998,12 @@ const Login: React.FC = () => {
                       value={loginIdentifier}
                       onIonChange={e => setLoginIdentifier((e.detail.value ?? ""))}
                       onKeyPress={handleIdentifierKeyPress}
+                      onKeyDown={(e: any) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          passwordInputRef.current?.setFocus();
+                        }
+                      }}
                       style={{
                         '--border-radius': '12px',
                         '--border-color': '#e2e8f0',
