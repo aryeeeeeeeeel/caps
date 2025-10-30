@@ -23,8 +23,8 @@ import {
     IonCol,
     IonSkeletonText
 } from '@ionic/react';
-import { supabase } from '../utils/supabaseClient';
-import { logUserRegistration } from '../utils/activityLogger';
+import { supabase } from '../../utils/supabaseClient';
+import { logUserRegistration } from '../../utils/activityLogger';
 import bcrypt from 'bcryptjs';
 import { personAddOutline, mailOutline, lockClosedOutline, personOutline, checkmarkCircleOutline, arrowBackOutline, schoolOutline, callOutline, locationOutline } from 'ionicons/icons';
 
@@ -49,6 +49,10 @@ const Register: React.FC = () => {
     const [showAlert, setShowAlert] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+
+    const [showTermsModal, setShowTermsModal] = useState(false);
+    const [termsRead, setTermsRead] = useState(false);
+    const [termsChecked, setTermsChecked] = useState(false);
 
     useEffect(() => {
         setTimeout(() => {
@@ -402,7 +406,9 @@ const Register: React.FC = () => {
                     user_contact_number: contactNumber,
                     user_password: hashedPassword,
                     is_authenticated: false, // Set to false initially
-                    auth_uuid: authData.user.id // Link to Supabase Auth user
+                    auth_uuid: authData.user.id, // Link to Supabase Auth user
+                    status: 'inactive', // Set default status to inactive
+                    date_registered: new Date().toISOString(),
                 },
             ]);
 
@@ -426,6 +432,24 @@ const Register: React.FC = () => {
             setIsRegistering(false);
         }
     };
+
+    // Handler Logic
+    const handleShowTerms = () => setShowTermsModal(true);
+    const handleCloseTermsModal = () => {
+      setShowTermsModal(false);
+      setTermsRead(true);
+    };
+    const handleTermsCheckbox = () => {
+      if (!termsRead) {
+        setAlertMessage('Please read the Terms and Conditions first.');
+        setShowAlert(true);
+        return;
+      }
+      setTermsChecked(!termsChecked);
+    };
+
+    // Calculate disabled state for Create button
+    const canCreateAccount = termsChecked;
 
     if (isLoading) {
         return (
@@ -847,11 +871,23 @@ const Register: React.FC = () => {
                                 Password must be at least 8 characters and include: uppercase letter, lowercase letter, number, and special symbol (!@#$%^&*)
                             </div>
 
+                            <div style={{ background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bee3f8', padding: '16px', marginBottom: '20px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', fontWeight: 500, fontSize: 13 }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={termsChecked}
+                                        onChange={handleTermsCheckbox}
+                                        style={{ marginRight: 8 }}
+                                    />
+                                    I have read and agree to the <span style={{ color: '#3182ce', cursor: 'pointer', marginLeft: 4 }} onClick={handleShowTerms}>iAMUMA ta Terms and Conditions</span>.
+                                </label>
+                            </div>
+
                             <IonButton
                                 onClick={handleOpenVerificationModal}
                                 expand="block"
                                 size="large"
-                                disabled={isRegistering}
+                                disabled={isRegistering || !canCreateAccount}
                                 style={{
                                     '--border-radius': '12px',
                                     '--padding-top': '16px',
@@ -1169,6 +1205,184 @@ const Register: React.FC = () => {
                     </div>
                 </IonModal>
                 <AlertBox message={alertMessage} isOpen={showAlert} onClose={() => setShowAlert(false)} />
+
+                <IonModal isOpen={showTermsModal} onDidDismiss={handleCloseTermsModal}>
+  <div style={{
+    minHeight: '100vh',
+    maxWidth: 620,
+    margin: '0 auto',
+    fontFamily: `"Inter", "Segoe UI", "Roboto", "Arial", sans-serif`,
+    background: '#f8fafc',
+    borderRadius: 0,
+    width: '100vw',
+    height: '100vh',
+    boxSizing: 'border-box',
+  }}>
+    <div style={{
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+      padding: '28px 24px 16px',
+      width: '100%',
+      position: 'sticky',
+      top: 0,
+      zIndex: 1,
+      borderRadius: 0,
+      boxShadow: 'rgba(30,41,59,0.09) 0 2px 6px',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontWeight: 800, fontSize: 22, letterSpacing: -0.5, color: '#fff', margin: 0, lineHeight: '1.2', textShadow: '0 2px 12px rgba(28,28,44,0.06)' }}>iAMUMA ta Terms and Conditions</span>
+        <IonButton fill="clear" color="light" size="large" style={{ borderRadius: '50%', height: 38, width: 38, fontSize: 23, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', transition: 'background .18s', margin: 0 }} onClick={handleCloseTermsModal}>
+          <span style={{fontWeight:800,display:"block"}}>×</span>
+        </IonButton>
+      </div>
+      <div style={{ fontSize: 13, opacity: 0.93, letterSpacing: 0.1 }}>Last Updated: October 30, 2025</div>
+    </div>
+    <div
+      style={{
+        padding: '28px 18px 60px',
+        fontSize: 15.5,
+        background: '#fff',
+        color: '#252e3e',
+        textAlign: 'justify',
+        width: '100%',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        margin: '0 auto',
+        wordBreak: 'break-word',
+        boxSizing: 'border-box',
+        borderRadius: 0,
+        boxShadow: 'none',
+      }}>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>1</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2, marginBottom: 0 }}>Acceptance of Terms</span>
+        </div>
+        <div>By accessing and using the system ('iAMUMA ta'), a geo-intelligent incident reporting progressive web application developed by researchers from Northern Bukidnon State College for the Local Disaster Risk Reduction and Management Office (LDRRMO) of Manolo Fortich, you agree to be bound by these Terms and Conditions.
+          <span style={{ color: '#dc2626', fontWeight: 700 }}> If you do not agree with any part of these terms, you must discontinue use of the System immediately.</span>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>2</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Description of Service</span>
+        </div>
+        <div>iAMUMA ta is a cross-platform application that allows users to report public safety incidents (e.g., road damage, fallen trees, utility issues) by submitting photographs and related information. The System utilizes Geographic Information System (GIS) technology and Global Positioning System (GPS) data, including metadata from images (EXIF data), to map and monitor the location of reported incidents. This service is provided for the primary benefit of the LDRRMO Manolo Fortich to enhance public safety response and monitoring.</div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>3</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>User Responsibilities and Account Registration</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4, color: '#2d2f37' }}><b style={{ color: '#475569' }}>• Accurate Information:</b> You agree to provide true, accurate, and complete information during registration and when submitting incident reports.</div>
+          <div style={{ marginBottom: 4, color: '#2d2f37' }}><b style={{ color: '#475569' }}>• Account Security:</b> You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.</div>
+          <div style={{ marginBottom: 4, color: '#2d2f37' }}><b style={{ color: '#475569' }}>• Appropriate Use:</b> You agree to use the System only for its intended purpose—reporting legitimate public safety concerns within the Municipality of Manolo Fortich.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>4</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Incident Reporting and Data Submission</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Accuracy of Reports:</b> You must exercise best efforts to provide an accurate and truthful description of the incident. Do not knowingly submit false, misleading, or malicious reports.</div>
+          <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Location Data (GIS/GPS):</b> By submitting a photograph, you consent to the System extracting and using the embedded GPS coordinates (EXIF data) to pinpoint the incident's location on the map. You acknowledge that the accuracy of this location data depends on your device's capabilities and settings.</div>
+          <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Media Content:</b> You affirm that any photo you submit is your own, taken at the time and location of the reported incident, and does not violate any third-party rights.</div>
+          <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• No Emergency Service:</b><span style={{ color: '#dc2626', fontWeight: 700 }}> iAMUMA ta IS NOT AN EMERGENCY SERVICE. For immediate, life-threatening emergencies, such as fires, active crimes, or serious medical situations, you must CONTACT THE APPROPRIATE EMERGENCY SERVICES DIRECTLY (e.g., call the local police, fire department, or ambulance).</span></div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>5</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Privacy and Data Use</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Collection of Data:</b> The System collects personal information you provide (e.g., name, email), incident details, and geolocation data from your reports.</div>
+          <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Use of Data:</b> This data is used to:</div>
+          <div style={{ margin: '4px 0 4px 32px' }}>- Process, map, and verify incident reports.<br/>- Provide the LDRRMO with analytics and data for public safety monitoring and risk reduction planning.<br/>- Improve the functionality of the System.</div>
+          <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Sharing of Data:</b> Aggregated and anonymized data may be used for academic and research purposes by Northern Bukidnon State College. Personally identifiable information and specific report details will be shared only with authorized personnel of the LDRRMO Manolo Fortich for official response and monitoring purposes.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>6</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Intellectual Property</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}>The iAMUMA ta application, its design, source code, and all related documentation are the intellectual property of the developers and Northern Bukidnon State College.</div>
+          <div style={{ marginBottom: 4 }}>The incident data and associated analytics generated by the system are primarily owned and managed by the LGU Manolo Fortich (LDRRMO) for public safety governance.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>7</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>System Limitations and Disclaimers</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}>• <b style={{ color: '#475569' }}>"As Is" Service:</b> The System is provided on an "as is" and "as available" basis. We do not guarantee that the service will be uninterrupted, timely, secure, or error-free.</div>
+          <div style={{ marginBottom: 4 }}>• <b style={{ color: '#475569' }}>Location Accuracy:</b> While the System uses geo-intelligent technology (GIS, GPS, EXIF), the accuracy of the mapped locations is not guaranteed and may be affected by technical limitations.</div>
+          <div style={{ marginBottom: 4 }}>• <b style={{ color: '#475569' }}>Response Time:</b> Submitting a report does not guarantee a specific response time or action from the LDRRMO. Response is subject to the office's operational protocols and resource availability.</div>
+          <div style={{ marginBottom: 4 }}>• <b style={{ color: '#475569' }}>Internet Dependency:</b> The System requires an active internet connection to submit reports and access most features. It does not support offline functionality.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>8</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Limitation of Liability</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}>Northern Bukidnon State College, the project researchers, and the LGU Manolo Fortich (LDRRMO) shall not be held liable for any direct, indirect, incidental, special, or consequential damages resulting from:</div>
+          <div style={{ marginBottom: 4, paddingLeft:32, color: '#6b7280' }}>• The use or inability to use the System.<br/>• Any delay or failure in responding to a reported incident.<br/>• The inaccuracy of any user-submitted data or location information.<br/>• Any decisions made or actions taken based on the information provided by the System.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>9</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>User Conduct and Prohibited Activities</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}>You agree not to use the System to:</div>
+          <div style={{ marginBottom: 4, paddingLeft:32, color: '#6b7280' }}>• Submit false, fraudulent, or harassing reports.<br/>• Infringe on the privacy or rights of others.<br/>• Upload content that is unlawful, obscene, or harmful.<br/>• Attempt to disrupt or compromise the security and functionality of the System.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>10</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Modification and Termination</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}>We reserve the right to modify, suspend, or discontinue the System, or these Terms and Conditions, at any time without prior notice. We may also terminate or suspend your access to the System for violations of these terms.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>11</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Governing Law</span>
+        </div>
+        <div style={{ paddingLeft: 22 }}>
+          <div style={{ marginBottom: 4 }}>These Terms and Conditions shall be governed by and construed in accordance with the laws of the Republic of the Philippines.</div>
+        </div>
+      </section>
+      <section style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+          <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>12</span>
+          <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Contact Information</span>
+        </div>
+        <div style={{ paddingLeft: 22, marginBottom: 7 }}>
+          <div>For any questions about these Terms and Conditions or the iAMUMA ta system, please contact the project researchers through the College of Computer Studies, Northern Bukidnon State College, or the LDRRMO Manolo Fortich.</div>
+        </div>
+        <div style={{ marginLeft: 22, marginTop: 14, marginBottom: 0, color: '#2563eb', fontWeight: 700, fontSize: 16, letterSpacing: 0.12 }}>
+          By using the iAMUMA ta system, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.
+        </div>
+      </section>
+      <IonButton expand="block" style={{ width: '100%', borderRadius: 0, fontWeight: 700, fontSize: window.innerWidth < 480 ? 14 : 16, fontFamily: 'Inter,sans-serif', boxShadow: '0 2px 8px 0 rgba(41,65,104,0.10)', textTransform:'uppercase', letterSpacing:0.4, marginTop: 30 }} onClick={handleCloseTermsModal}>
+        I have fully read the Terms and Conditions
+      </IonButton>
+      <div style={{ height: 110 }} />
+    </div>
+  </div>
+</IonModal>
             </IonContent>
         </IonPage>
     );
