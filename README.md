@@ -32,7 +32,7 @@ A comprehensive incident reporting and management system built with Ionic React 
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/it35-lab2.git
+git clone https://github.com/aryeeeeeeeeel/caps.git
 cd it35-lab2
 ```
 
