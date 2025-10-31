@@ -1,4 +1,4 @@
-// src/pages/AdminLogin.tsx - FIXED OTP VERIFICATION & INPUT VALIDATION
+// src/pages/AdminLogin.tsx - FIXED ENTER KEY NAVIGATION & TOAST VALIDATION
 import {
   IonButton,
   IonContent,
@@ -38,6 +38,7 @@ const AdminLogin: React.FC = () => {
   const [verificationSuccess, setVerificationSuccess] = useState(false);
   const passwordInputRef = useRef<HTMLIonInputElement>(null);
   const otpInputRef = useRef<HTMLIonInputElement>(null);
+  const emailInputRef = useRef<HTMLIonInputElement>(null);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -50,7 +51,17 @@ const AdminLogin: React.FC = () => {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !showOtpModal) handleLogin();
+      if (e.key === 'Enter' && !showOtpModal) {
+        const activeElement = document.activeElement as HTMLElement;
+        
+        if (activeElement?.id === 'email-input') {
+          e.preventDefault();
+          passwordInputRef.current?.setFocus();
+        } else if (activeElement?.id === 'password-input') {
+          e.preventDefault();
+          handleLogin();
+        }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -272,21 +283,16 @@ const AdminLogin: React.FC = () => {
   };
 
   const validateCredentials = async (email: string, password: string): Promise<boolean> => {
-    // Validate email - must contain at least one character
-    if (!email || email.trim().length === 0) {
-      showCustomToast('Please input email', 'warning');
+    setIsVerifying(true);
+    
+    // Validate specific email formats
+    if (!(/^ldrrmo@manolofortich\.gov\.ph$/.test(email) || /^arielsumantin69@gmail\.com$/.test(email))) {
+      showCustomToast('Only LDRRMO personnel can access admin.', 'warning');
+      setIsVerifying(false);
       return false;
     }
 
-    // Validate password - must contain at least one character
-    if (!password || password.trim().length === 0) {
-      showCustomToast('Please input password', 'warning');
-      // Focus on password field if it's empty
-      setTimeout(() => {
-        passwordInputRef.current?.setFocus();
-      }, 100);
-      return false;
-    }
+    
 
     try {
       // Fetch user
@@ -314,25 +320,17 @@ const AdminLogin: React.FC = () => {
     } catch (error: any) {
       showCustomToast('Login failed', 'danger');
       return false;
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const sendOtp = async () => {
-    // Validate email first
-    if (!email || email.trim().length === 0) {
-      showCustomToast('Please enter your administrative email', 'warning');
-      return false;
-    }
-
-    // Validate password first
-    if (!password || password.trim().length === 0) {
-      showCustomToast('Please enter your password', 'warning');
-      // Focus on password field
-      setTimeout(() => {
-        passwordInputRef.current?.setFocus();
-      }, 100);
-      return false;
-    }
+    // No validation here - validation happens in handleLogin
+    
+    // Preserve current values
+    const currentEmail = email;
+    const currentPassword = password;
 
     const isValid = await validateCredentials(email, password);
     if (!isValid) {
@@ -372,119 +370,139 @@ const AdminLogin: React.FC = () => {
   };
 
   const verifyAndLogin = async () => {
-    if (!otp || otp.trim().length !== 6) {
-      showCustomToast('Please enter a valid 6-digit verification code', 'warning');
+    if (!otp) {
       return;
     }
 
-    setIsVerifying(true);
-    try {
-      // Verify OTP token
-      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-        email: otpEmail || email,
-        token: otp.trim(),
-        type: 'email'
-      });
+  setIsVerifying(true);
+  try {
+    // Verify OTP token with proper validation
+    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+      email: otpEmail || email,
+      token: otp.trim(), // Use trimmed OTP
+      type: 'email'
+    });
 
-      if (verifyError) {
-        // Handle specific error cases
-        if (verifyError.message.includes('expired') || verifyError.message.includes('Token has expired')) {
-          showCustomToast('Verification code expired. Please request a new one.', 'warning');
-          setShowOtpModal(false);
-          setOtp('');
-          return;
-        } else if (verifyError.message.includes('invalid') || verifyError.message.includes('Invalid')) {
-          showCustomToast('Invalid verification code. Please try again.', 'danger');
-          setOtp('');
-          return;
-        } else {
-          throw verifyError;
-        }
-      }
-
-      // Wait for auth state to update
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        throw new Error('Authentication failed. Please try again.');
-      }
-
-      // Check admin role
-      const { data: userData, error: dbError } = await supabase
-        .from('users')
-        .select('role')
-        .eq('auth_uuid', user.id)
-        .maybeSingle();
-
-      if (dbError) {
-        console.error('Database error:', dbError);
-        await supabase.auth.signOut();
-        throw new Error('Database configuration error. Please contact administrator.');
-      }
-
-      if (!userData || !userData.role || userData.role !== 'admin') {
-        await supabase.auth.signOut();
-        showCustomToast('Access denied: Administrative privileges required.', 'danger');
+    if (verifyError) {
+      // Handle specific error cases
+      if (verifyError.message.includes('expired') || verifyError.message.includes('Token has expired')) {
+        showCustomToast('Verification code expired. Please request a new one.', 'warning');
         setShowOtpModal(false);
+        setOtp('');
         return;
-      }
-
-      showCustomToast('Login successful! Redirecting to dashboard...', 'success');
-      
-      // Log admin login activity
-      await logAdminLogin(email);
-      
-      // Set success flag BEFORE closing modal to prevent cancelled toast
-      setVerificationSuccess(true);
-      
-      // Small delay to ensure state is set before modal closes
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      setShowOtpModal(false);
-
-      setTimeout(() => {
-        navigation.push('/iAMUMAta/admin-dashboard', 'forward', 'replace');
-      }, 1500);
-
-    } catch (error: any) {
-      console.error('Verification Error:', error);
-      
-      let errorMessage = 'Verification failed. Please try again.';
-      let toastColor: 'danger' | 'warning' = 'danger';
-
-      if (error.message?.includes('token has expired') || error.message?.includes('expired')) {
-        errorMessage = 'Code expired after 60 seconds. Please request a new one.';
-        toastColor = 'warning';
-        setShowOtpModal(false);
+      } else if (verifyError.message.includes('invalid') || verifyError.message.includes('Invalid')) {
+        showCustomToast('Invalid verification code. Please try again.', 'danger');
         setOtp('');
-      } else if (error.message?.includes('invalid') || error.message?.includes('Invalid')) {
-        errorMessage = 'Invalid verification code. Please check and try again.';
-        setOtp('');
-      } else if (error.message?.includes('403') || error.message?.includes('Access denied')) {
-        errorMessage = 'Access denied. Please contact administrator.';
-        setShowOtpModal(false);
+        return;
       } else {
-        errorMessage = error.message || 'Verification failed. Please try again.';
+        throw verifyError;
       }
-
-      showCustomToast(errorMessage, toastColor);
-    } finally {
-      setIsVerifying(false);
     }
-  };
+
+    // Wait for auth state to update
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('Authentication failed. Please try again.');
+    }
+
+    // Check admin role
+    const { data: userData, error: dbError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('auth_uuid', user.id)
+      .maybeSingle();
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      await supabase.auth.signOut();
+      throw new Error('Database configuration error. Please contact administrator.');
+    }
+
+    if (!userData || !userData.role || userData.role !== 'admin') {
+      await supabase.auth.signOut();
+      showCustomToast('Access denied: Administrative privileges required.', 'danger');
+      setShowOtpModal(false);
+      return;
+    }
+
+    showCustomToast('Login successful! Redirecting to dashboard...', 'success');
+    
+    // Log admin login activity
+    await logAdminLogin(email);
+    
+    // Set success flag BEFORE closing modal to prevent cancelled toast
+    setVerificationSuccess(true);
+    
+    // Small delay to ensure state is set before modal closes
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    setShowOtpModal(false);
+
+    setTimeout(() => {
+      navigation.push('/iAMUMAta/admin-dashboard', 'forward', 'replace');
+    }, 1500);
+
+  } catch (error: any) {
+    console.error('Verification Error:', error);
+    
+    let errorMessage = 'Verification failed. Please try again.';
+    let toastColor: 'danger' | 'warning' = 'danger';
+
+    if (error.message?.includes('token has expired') || error.message?.includes('expired')) {
+      errorMessage = 'Code expired after 60 seconds. Please request a new one.';
+      toastColor = 'warning';
+      setShowOtpModal(false);
+      setOtp('');
+    } else if (error.message?.includes('invalid') || error.message?.includes('Invalid')) {
+      errorMessage = 'Invalid verification code. Please check and try again.';
+      setOtp('');
+    } else if (error.message?.includes('403') || error.message?.includes('Access denied')) {
+      errorMessage = 'Access denied. Please contact administrator.';
+      setShowOtpModal(false);
+    } else if (error.message?.includes('Verify requires either a token or a token hash')) {
+      errorMessage = 'Please enter a valid verification code.';
+      setOtp('');
+    } else {
+      errorMessage = error.message || 'Verification failed. Please try again.';
+    }
+
+    showCustomToast(errorMessage, toastColor);
+  } finally {
+    setIsVerifying(false);
+  }
+};
 
   const handleLogin = async () => {
-    const currentPassword = password; // Store password before validation
-    const isValid = await validateCredentials(email, currentPassword);
-    if (isValid) {
-      await sendOtp();
-    } else {
-      setPassword(currentPassword); // Restore password if validation fails
+    const currentEmail = email;
+    const currentPassword = password;
+    
+    try {
+      const isValid = await validateCredentials(currentEmail, currentPassword);
+      if (isValid) {
+        await sendOtp();
+      }
+    } catch (error) {
+      console.error('Login error:', error);
     }
   };
+
+  const handleEmailKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      passwordInputRef.current?.setFocus();
+    }
+  };
+
+  const handlePasswordKeyPress = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleLogin();
+  }
+};
 
   return (
     <IonPage>
@@ -601,11 +619,14 @@ const AdminLogin: React.FC = () => {
                     }}>Administrative Email</label>
                   </div>
                   <IonInput
+                    ref={emailInputRef}
+                    id="email-input"
                     fill="outline"
                     type="email"
                     placeholder="ldrrmo@manolofortich.gov.ph"
                     value={email}
-                    onIonChange={e => setEmail(e.detail.value!)}
+                    onIonInput={e => setEmail(e.detail.value!)}
+                    onKeyDown={handleEmailKeyPress}
                     style={{
                       '--border-radius': '12px',
                       '--border-color': '#e2e8f0',
@@ -635,14 +656,13 @@ const AdminLogin: React.FC = () => {
                   </div>
                   <IonInput
                     ref={passwordInputRef}
+                    id="password-input"
                     fill="outline"
                     type="password"
                     placeholder="Enter your secure password"
                     value={password}
-                    onIonChange={e => {
-                      setPassword(e.detail.value!);
-                      e.preventDefault(); // Prevent default behavior that might clear the input
-                    }}
+                    onIonInput={(e) => setPassword(e.detail.value!)}
+                    onKeyDown={handlePasswordKeyPress}
                     style={{
                       '--border-radius': '12px',
                       '--border-color': '#e2e8f0',
@@ -805,27 +825,13 @@ const AdminLogin: React.FC = () => {
                       ref={otpInputRef}
                       fill="outline"
                       type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxlength={6}
-                      placeholder="000000"
+                      placeholder="Enter verification code"
                       value={otp}
                       onIonChange={(e) => {
-                        const raw = e.detail.value || '';
-                        const numeric = raw.replace(/\D/g, '').slice(0, 6);
-                        setOtp(numeric);
+                        setOtp(e.detail.value || '');
                       }}
-                      onKeyPress={(e: React.KeyboardEvent) => {
-                        if (!/^\d$/.test(e.key) &&
-                          e.key !== 'Backspace' &&
-                          e.key !== 'Delete' &&
-                          e.key !== 'Tab' &&
-                          e.key !== 'Enter' &&
-                          e.key !== 'ArrowLeft' &&
-                          e.key !== 'ArrowRight') {
-                          e.preventDefault();
-                        }
-                        if (e.key === 'Enter' && (otp.length === 6 || (e.currentTarget as any).value?.length === 6)) {
+                      onKeyDown={(e: React.KeyboardEvent) => {
+                        if (e.key === 'Enter') {
                           verifyAndLogin();
                         }
                       }}
@@ -835,8 +841,8 @@ const AdminLogin: React.FC = () => {
                         '--padding-start': '16px',
                         '--padding-end': '16px',
                         fontSize: '16px',
-                        '--placeholder-text-align': 'center',
-                        'text-align': 'center'
+                        '--placeholder-textAlign': 'center',
+                        'textAlign': 'center'
                       } as any}
                     />
                   </div>
@@ -845,7 +851,7 @@ const AdminLogin: React.FC = () => {
                     type="submit"
                     expand="block"
                     size="large"
-                    disabled={isVerifying || otp.length !== 6}
+                    disabled={isVerifying || !otp}
                     style={{
                       '--border-radius': '10px',
                       '--padding-top': '14px',
