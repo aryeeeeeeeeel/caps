@@ -55,10 +55,11 @@ import {
   checkmarkCircleOutline as activateOutline,
   filterOutline,
   notifications,
+  trashOutline,
 } from "ionicons/icons"
 import { supabase } from "../../utils/supabaseClient"
 import SystemLogs from "./SystemLogs"
-import { logAdminLogout, logReportStatusUpdate, logUserNotification } from "../../utils/activityLogger"
+import { logAdminLogout, logReportStatusUpdate, logUserAction, logUserNotification } from "../../utils/activityLogger"
 // Type definitions moved inline since types.ts doesn't exist
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
@@ -184,6 +185,12 @@ const AdminDashboard: React.FC = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [selectedReportFeedback, setSelectedReportFeedback] = useState<{ overall_rating: number; comments: string | null } | null>(null)
+  const [showActionConfirmAlert, setShowActionConfirmAlert] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ 
+  type: 'warn' | 'suspend' | 'ban' | 'activate' | 'delete', 
+  user?: User,
+  report?: IncidentReport 
+} | null>(null);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -823,12 +830,12 @@ const AdminDashboard: React.FC = () => {
           .from('incident_reports')
           .update({ read: true })
           .eq('id', report.id)
-        
+
         // Update local state
-        setReports(prev => prev.map(r => 
+        setReports(prev => prev.map(r =>
           r.id === report.id ? { ...r, read: true } : r
         ))
-        
+
         // Update unread count
         setUnreadCount(prev => Math.max(0, prev - 1))
       } catch (error) {
@@ -884,10 +891,10 @@ const AdminDashboard: React.FC = () => {
                 'low': 'ℹ️'
               } as const;
               const priorityEmoji = priorityEmojis[newReport.priority as keyof typeof priorityEmojis] || '📋';
-              
+
               setToastMessage(`${priorityEmoji} New ${newReport.priority} priority incident: ${newReport.title} in ${newReport.barangay}`)
               setShowToast(true)
-              
+
               // Update unread count
               setUnreadCount(prev => prev + 1)
             }
@@ -1794,7 +1801,7 @@ const AdminDashboard: React.FC = () => {
   const handleStatusChange = async () => {
     if (!selectedReport || !notificationMessage.trim() || !estimatedTime) {
       setToastMessage('Please fill in all required fields')
-        setShowToast(true)
+      setShowToast(true)
       return
     }
 
@@ -1924,6 +1931,154 @@ const AdminDashboard: React.FC = () => {
       setShowToast(true);
     }
   };
+
+  const handleDeleteUser = async (user: User) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('user_id', user.user_id);
+
+      if (error) throw error;
+
+      // Log the deletion
+      const { data: { user: adminUser } } = await supabase.auth.getUser();
+      await logUserAction(user.user_email, 'delete_user', adminUser?.email);
+
+      setToastMessage('User deleted successfully');
+      setShowToast(true);
+      await fetchInitialData();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      setToastMessage('Error deleting user');
+      setShowToast(true);
+    }
+  };
+
+  // Add this to your delete handler after successful user deletion
+  const deleteAuthUser = async (userId: string) => {
+    try {
+      // Note: This requires SUPABASE_SERVICE_ROLE_KEY and should be done server-side
+      // For client-side, you might want to create an edge function
+      const { error } = await supabase.auth.admin.deleteUser(userId);
+      if (error) console.warn('Could not delete auth user:', error);
+    } catch (error) {
+      console.warn('Error deleting auth user:', error);
+    }
+  };
+
+  // Show confirmation dialog for user actions
+  const showConfirmationDialog = (user: User, action: 'warn' | 'suspend' | 'ban' | 'activate' | 'delete') => {
+    setSelectedUserForAction(user);
+    setPendingAction({ type: action, user });
+    setShowActionConfirmAlert(true);
+  };
+
+  // Update getConfirmationMessage function
+const getConfirmationMessage = () => {
+  if (!pendingAction) return '';
+
+  // Handle report deletion
+  if (pendingAction.type === 'delete' && pendingAction.report) {
+    return `Are you sure you want to delete the report "${pendingAction.report.title}"? This action is permanent and cannot be undone.`;
+  }
+
+  // Handle user actions
+  if (pendingAction.user) {
+    const userName = `${pendingAction.user.user_firstname} ${pendingAction.user.user_lastname}`;
+    const userEmail = pendingAction.user.user_email;
+
+    switch (pendingAction.type) {
+      case 'warn':
+        return `Are you sure you want to issue a warning to ${userName} (${userEmail})? This will increment their warning count.`;
+      case 'suspend':
+        return `Are you sure you want to suspend ${userName} (${userEmail})? They will not be able to access the system.`;
+      case 'ban':
+        return `Are you sure you want to ban ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
+      case 'activate':
+        return `Are you sure you want to activate ${userName} (${userEmail})? This will reset their warnings and restore access.`;
+      case 'delete':
+        return `Are you sure you want to delete ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
+      default:
+        return 'Are you sure you want to perform this action?';
+    }
+  }
+  
+  return 'Are you sure you want to perform this action?';
+};
+
+// Update getConfirmationHeader function
+const getConfirmationHeader = () => {
+  if (!pendingAction) return 'Confirm Action';
+
+  if (pendingAction.type === 'delete' && pendingAction.report) {
+    return 'Delete Report';
+  }
+
+  switch (pendingAction.type) {
+    case 'warn': return 'Issue Warning';
+    case 'suspend': return 'Suspend User';
+    case 'ban': return 'Ban User';
+    case 'activate': return 'Activate User';
+    case 'delete': return 'Delete User';
+    default: return 'Confirm Action';
+  }
+};
+
+  // Update executeConfirmedAction function
+  const executeConfirmedAction = async () => {
+    if (!pendingAction) return;
+
+    try {
+      if (pendingAction.type === 'delete' && pendingAction.report) {
+        await handleDeleteReport(pendingAction.report);
+      } else if (pendingAction.user) {
+        switch (pendingAction.type) {
+          case 'warn':
+          case 'suspend':
+          case 'ban':
+          case 'activate':
+            await handleUserActionModal(pendingAction.type);
+            break;
+          case 'delete':
+            await handleDeleteUser(pendingAction.user);
+            break;
+        }
+      }
+    } catch (error) {
+      console.error('Error executing action:', error);
+      setToastMessage('Error executing action');
+      setShowToast(true);
+    } finally {
+      setPendingAction(null);
+      setShowActionConfirmAlert(false);
+    }
+  };
+
+  // Add this function to your component
+const handleDeleteReport = async (report: IncidentReport) => {
+  try {
+    const { error } = await supabase
+      .from('incident_reports')
+      .delete()
+      .eq('id', report.id);
+
+    if (error) throw error;
+
+    // Log the deletion
+    const { data: { user } } = await supabase.auth.getUser();
+    await logUserAction(report.reporter_email, 'delete_report', user?.email);
+
+    setToastMessage('Report deleted successfully');
+    setShowToast(true);
+    setShowReportModal(false);
+    await fetchInitialData();
+  } catch (error) {
+    console.error('Error deleting report:', error);
+    setToastMessage('Error deleting report');
+    setShowToast(true);
+  }
+};
 
   if (isLoading) {
     return (
@@ -2121,204 +2276,204 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </IonContent>
-        </IonPage>
-      )
+      </IonPage>
+    )
   }
 
-    return (
-      <IonPage>
-        {/* Status Change Modal */}
-        <IonModal isOpen={showStatusChangeModal} onDidDismiss={() => {
-          setShowStatusChangeModal(false);
-          setNotificationMessage('');
-          setEstimatedTime('');
-          setResolvedPhoto(null);
-          setPhotoPreview(null);
-        }}>
-          <IonHeader>
-            <IonToolbar>
-              <IonButtons slot="start">
-                <IonButton onClick={() => {
-                  setShowStatusChangeModal(false);
-                  setNotificationMessage('');
-                  setEstimatedTime('');
-                  setResolvedPhoto(null);
-                  setPhotoPreview(null);
+  return (
+    <IonPage>
+      {/* Status Change Modal */}
+      <IonModal isOpen={showStatusChangeModal} onDidDismiss={() => {
+        setShowStatusChangeModal(false);
+        setNotificationMessage('');
+        setEstimatedTime('');
+        setResolvedPhoto(null);
+        setPhotoPreview(null);
+      }}>
+        <IonHeader>
+          <IonToolbar>
+            <IonButtons slot="start">
+              <IonButton onClick={() => {
+                setShowStatusChangeModal(false);
+                setNotificationMessage('');
+                setEstimatedTime('');
+                setResolvedPhoto(null);
+                setPhotoPreview(null);
+              }}>
+                <IonIcon icon={closeOutline} />
+              </IonButton>
+            </IonButtons>
+            <IonTitle>Update Status</IonTitle>
+            <IonButtons slot="end">
+              <IonButton
+                onClick={handleStatusChange}
+                strong
+                disabled={!notificationMessage.trim() || !estimatedTime || (statusChangeType === 'active-to-resolved' && !resolvedPhoto)}
+                color="primary"
+              >
+                <IonIcon icon={sendOutline} slot="start" />
+                Update
+              </IonButton>
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent>
+          <div style={{ padding: '16px' }}>
+            <IonCard>
+              <IonCardContent>
+                {/* Status Change Info */}
+                <div style={{
+                  background: statusChangeType === 'pending-to-active' ? '#eff6ff' : '#ecfdf5',
+                  border: `1px solid ${statusChangeType === 'pending-to-active' ? '#93c5fd' : '#6ee7b7'}`,
+                  borderRadius: '8px',
+                  padding: '16px',
+                  marginBottom: '20px'
                 }}>
-                  <IonIcon icon={closeOutline} />
-                </IonButton>
-              </IonButtons>
-              <IonTitle>Update Status</IonTitle>
-              <IonButtons slot="end">
-              <IonButton 
-                  onClick={handleStatusChange}
-                  strong
-                  disabled={!notificationMessage.trim() || !estimatedTime || (statusChangeType === 'active-to-resolved' && !resolvedPhoto)}
-                  color="primary"
-                >
-                  <IonIcon icon={sendOutline} slot="start" />
-                  Update
-              </IonButton>
-              </IonButtons>
-            </IonToolbar>
-          </IonHeader>
-          <IonContent>
-            <div style={{ padding: '16px' }}>
-              <IonCard>
-                <IonCardContent>
-                  {/* Status Change Info */}
-                  <div style={{
-                    background: statusChangeType === 'pending-to-active' ? '#eff6ff' : '#ecfdf5',
-                    border: `1px solid ${statusChangeType === 'pending-to-active' ? '#93c5fd' : '#6ee7b7'}`,
-                    borderRadius: '8px',
-                    padding: '16px',
-                    marginBottom: '20px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <strong style={{ color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '16px' }}>
-                        Status Change
-                      </strong>
-                    </div>
-                    <p style={{ margin: 0, color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '14px' }}>
-                      {statusChangeType === 'pending-to-active' ? 'Pending → Active' : 'Active → Resolved'}
-                    </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <strong style={{ color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '16px' }}>
+                      Status Change
+                    </strong>
                   </div>
+                  <p style={{ margin: 0, color: statusChangeType === 'pending-to-active' ? '#1e40af' : '#065f46', fontSize: '14px' }}>
+                    {statusChangeType === 'pending-to-active' ? 'Pending → Active' : 'Active → Resolved'}
+                  </p>
+                </div>
 
-                  {/* Message Input */}
-                  <IonItem>
-                    <IonLabel position="stacked" color="primary">
-                      Message to User *
-                    </IonLabel>
-                    <IonTextarea
-                      value={notificationMessage}
-                      onIonInput={e => setNotificationMessage(e.detail.value!)}
-                      placeholder={statusChangeType === 'pending-to-active'
-                        ? 'Enter message about response activation...'
-                        : 'Enter message about incident resolution...'}
-                      rows={4}
-                      autoGrow
-                      counter
-                      maxlength={500}
-                    />
-                  </IonItem>
+                {/* Message Input */}
+                <IonItem>
+                  <IonLabel position="stacked" color="primary">
+                    Message to User *
+                  </IonLabel>
+                  <IonTextarea
+                    value={notificationMessage}
+                    onIonInput={e => setNotificationMessage(e.detail.value!)}
+                    placeholder={statusChangeType === 'pending-to-active'
+                      ? 'Enter message about response activation...'
+                      : 'Enter message about incident resolution...'}
+                    rows={4}
+                    autoGrow
+                    counter
+                    maxlength={500}
+                  />
+                </IonItem>
 
-                  {/* Date/Time Input */}
-                  <IonItem>
-                    <IonLabel position="stacked" color="primary">
-                      {statusChangeType === 'pending-to-active'
-                        ? 'Estimated Response Time *'
-                        : 'Resolved Date & Time *'}
-                    </IonLabel>
-                    <IonDatetime
-                      value={estimatedTime}
-                      onIonChange={e => setEstimatedTime(e.detail.value as string)}
-                      presentation="date-time"
-                      min={new Date().toISOString()}
-                    />
-                  </IonItem>
+                {/* Date/Time Input */}
+                <IonItem>
+                  <IonLabel position="stacked" color="primary">
+                    {statusChangeType === 'pending-to-active'
+                      ? 'Estimated Response Time *'
+                      : 'Resolved Date & Time *'}
+                  </IonLabel>
+                  <IonDatetime
+                    value={estimatedTime}
+                    onIonChange={e => setEstimatedTime(e.detail.value as string)}
+                    presentation="date-time"
+                    min={new Date().toISOString()}
+                  />
+                </IonItem>
 
-                  {/* Proof of Photo - Only for Active to Resolved */}
-                  {statusChangeType === 'active-to-resolved' && (
-                    <div style={{ marginTop: '16px' }}>
-                      <IonItem>
-                        <IonLabel position="stacked" color="primary">
-                          Proof of Resolution Photo *
-                          <IonText style={{ fontSize: '12px', color: '#6b7280' }}>
-                            {' '}(Required for resolution)
-                          </IonText>
-                        </IonLabel>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={handlePhotoUpload}
-                          style={{ marginTop: '8px' }}
+                {/* Proof of Photo - Only for Active to Resolved */}
+                {statusChangeType === 'active-to-resolved' && (
+                  <div style={{ marginTop: '16px' }}>
+                    <IonItem>
+                      <IonLabel position="stacked" color="primary">
+                        Proof of Resolution Photo *
+                        <IonText style={{ fontSize: '12px', color: '#6b7280' }}>
+                          {' '}(Required for resolution)
+                        </IonText>
+                      </IonLabel>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handlePhotoUpload}
+                        style={{ marginTop: '8px' }}
+                      />
+                    </IonItem>
+
+                    {photoPreview && (
+                      <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                        <IonText style={{ fontSize: '14px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
+                          Photo Preview:
+                        </IonText>
+                        <IonImg
+                          src={photoPreview}
+                          style={{
+                            maxWidth: '200px',
+                            maxHeight: '200px',
+                            borderRadius: '8px',
+                            margin: '0 auto',
+                            border: '2px solid #e5e7eb'
+                          }}
                         />
-                      </IonItem>
+                        <IonButton
+                          size="small"
+                          color="danger"
+                          fill="clear"
+                          onClick={() => {
+                            setResolvedPhoto(null);
+                            setPhotoPreview(null);
+                          }}
+                          style={{ marginTop: '8px' }}
+                        >
+                          <IonIcon icon={closeOutline} slot="start" />
+                          Remove Photo
+                        </IonButton>
+                      </div>
+                    )}
 
-                      {photoPreview && (
-                        <div style={{ marginTop: '12px', textAlign: 'center' }}>
-                          <IonText style={{ fontSize: '14px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
-                            Photo Preview:
-                          </IonText>
-                          <IonImg
-                            src={photoPreview}
-                            style={{
-                              maxWidth: '200px',
-                              maxHeight: '200px',
-                              borderRadius: '8px',
-                              margin: '0 auto',
-                              border: '2px solid #e5e7eb'
-                            }}
-                          />
-              <IonButton 
-                            size="small"
-                            color="danger"
-                            fill="clear"
-                            onClick={() => {
-                              setResolvedPhoto(null);
-                              setPhotoPreview(null);
-                            }}
-                            style={{ marginTop: '8px' }}
-                          >
-                            <IonIcon icon={closeOutline} slot="start" />
-                            Remove Photo
-              </IonButton>
-                        </div>
-                      )}
+                    {!photoPreview && (
+                      <div style={{
+                        background: '#fef3cd',
+                        border: '1px solid #f59e0b',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginTop: '12px',
+                        fontSize: '14px',
+                        color: '#92400e'
+                      }}>
+                        <strong>Photo Requirement:</strong> A photo is required to mark this incident as resolved.
+                        This serves as proof that the issue has been addressed.
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                      {!photoPreview && (
-                        <div style={{
-                          background: '#fef3cd',
-                          border: '1px solid #f59e0b',
-                          borderRadius: '8px',
-                          padding: '12px',
-                          marginTop: '12px',
-                          fontSize: '14px',
-                          color: '#92400e'
-                        }}>
-                          <strong>Photo Requirement:</strong> A photo is required to mark this incident as resolved.
-                          This serves as proof that the issue has been addressed.
-                        </div>
-                      )}
-                    </div>
-                  )}
+                {estimatedTime && (
+                  <div style={{
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginTop: '12px',
+                    fontSize: '14px',
+                    color: '#0369a1'
+                  }}>
+                    <strong>
+                      {statusChangeType === 'pending-to-active'
+                        ? 'Response scheduled for:'
+                        : 'Report will be marked as resolved at:'}
+                    </strong><br />
+                    {new Date(estimatedTime).toLocaleString()}
+                  </div>
+                )}
+              </IonCardContent>
+            </IonCard>
 
-                  {estimatedTime && (
-                    <div style={{
-                      background: '#f0f9ff',
-                      border: '1px solid #bae6fd',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      marginTop: '12px',
-                      fontSize: '14px',
-                      color: '#0369a1'
-                    }}>
-                      <strong>
-                        {statusChangeType === 'pending-to-active'
-                          ? 'Response scheduled for:'
-                          : 'Report will be marked as resolved at:'}
-                      </strong><br />
-                      {new Date(estimatedTime).toLocaleString()}
-                    </div>
-                  )}
+            {/* Preview */}
+            {selectedReport && (
+              <IonCard style={{ marginTop: '16px' }}>
+                <IonCardContent>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                    <strong>Report:</strong> {selectedReport.title}<br />
+                    <strong>Notifying:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_email})
+                  </div>
                 </IonCardContent>
               </IonCard>
-
-              {/* Preview */}
-              {selectedReport && (
-                <IonCard style={{ marginTop: '16px' }}>
-                  <IonCardContent>
-                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                      <strong>Report:</strong> {selectedReport.title}<br />
-                      <strong>Notifying:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_email})
-                    </div>
-                  </IonCardContent>
-                </IonCard>
-              )}
-            </div>
-          </IonContent>
-        </IonModal>
+            )}
+          </div>
+        </IonContent>
+      </IonModal>
       <IonHeader>
         <IonToolbar
           style={{ "--background": "linear-gradient(135deg, #1a202c 0%, #2d3748 100%)", "--color": "white" } as any}
@@ -2630,6 +2785,25 @@ const AdminDashboard: React.FC = () => {
                                 <IonIcon icon={navigateOutline} slot="start" style={{ fontSize: "10px" }} />
                                 Track
                               </IonButton>
+                              <IonButton
+                                size="small"
+                                fill="solid"
+                                color="danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingAction({ type: 'delete', report: report });
+                                  setShowActionConfirmAlert(true);
+                                }}
+                                style={{
+                                  height: "24px",
+                                  fontSize: "10px",
+                                  "--background": "#dc2626",
+                                  "--color": "white"
+                                } as any}
+                              >
+                                <IonIcon icon={trashOutline} slot="start" style={{ fontSize: "10px" }} />
+                                Delete
+                              </IonButton>
                             </div>
                             {/* NEW: Show scheduled time if exists */}
                             {report.scheduled_response_time && (
@@ -2838,7 +3012,7 @@ const AdminDashboard: React.FC = () => {
 
             {!isUsersCollapsed && (
               <>
-               
+
 
                 {/* User Search and Sort */}
                 <div style={{ padding: "8px", borderBottom: "1px solid #e5e7eb" }}>
@@ -2971,7 +3145,7 @@ const AdminDashboard: React.FC = () => {
                                 onClick={() => {
                                   setSelectedUserForAction(user);
                                   setUserActionType("warn");
-                                  setShowUserActionModal(true);
+                                  showConfirmationDialog(user, 'warn');
                                 }}
                                 disabled={user.status === 'banned'}
                                 style={{ height: "24px", fontSize: "10px", "--color": "white" } as any}
@@ -2986,7 +3160,7 @@ const AdminDashboard: React.FC = () => {
                                 onClick={() => {
                                   setSelectedUserForAction(user);
                                   setUserActionType(user.status === 'suspended' ? "activate" : "suspend");
-                                  setShowUserActionModal(true);
+                                  showConfirmationDialog(user, user.status === 'suspended' ? 'activate' : 'suspend');
                                 }}
                                 disabled={user.status === 'banned'}
                                 style={{ height: "24px", fontSize: "10px", "--color": "white" } as any}
@@ -3001,12 +3175,26 @@ const AdminDashboard: React.FC = () => {
                                 onClick={() => {
                                   setSelectedUserForAction(user);
                                   setUserActionType(user.status === 'banned' ? "activate" : "ban");
-                                  setShowUserActionModal(true);
+                                  showConfirmationDialog(user, user.status === 'banned' ? 'activate' : 'ban');
                                 }}
                                 style={{ height: "24px", fontSize: "10px", "--color": "white" } as any}
                               >
                                 <IonIcon icon={banOutline} slot="start" style={{ fontSize: "10px", color: "white" }} />
                                 {user.status === 'banned' ? 'Unban' : 'Ban'}
+                              </IonButton>
+                              <IonButton
+                                size="small"
+                                fill="solid"
+                                color="danger"
+                                onClick={() => showConfirmationDialog(user, 'delete')}
+                                style={{
+                                  height: "24px",
+                                  fontSize: "10px",
+                                  "--background": "#dc2626",
+                                  "--color": "white"
+                                } as any}
+                              >
+                                <IonIcon icon={trashOutline} slot="start" style={{ fontSize: "10px" }} />
                               </IonButton>
                             </div>
                           </div>
@@ -3085,9 +3273,9 @@ const AdminDashboard: React.FC = () => {
                               <strong style={{ color: '#1e40af' }}>Estimated Arrival</strong>
                             </div>
                             <p style={{ margin: 0, color: '#1e40af', fontSize: '14px' }}>
-                            <IonText style={{ fontSize: '16px', color: '#1e293b', fontWeight: '500', marginLeft: '26px' }}>
-                              {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes to arrive` : ''}
-                            </IonText>
+                              <IonText style={{ fontSize: '16px', color: '#1e293b', fontWeight: '500', marginLeft: '26px' }}>
+                                {selectedReport.current_eta_minutes ? `${selectedReport.current_eta_minutes} minutes to arrive` : ''}
+                              </IonText>
                             </p>
                           </div>
                         )}
@@ -3229,45 +3417,45 @@ const AdminDashboard: React.FC = () => {
                           </div>
 
                           {/* Images */}
-                    {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
-                      <div style={{ marginTop: "16px" }}>
-                        <strong>Attached Images:</strong>
-                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
-                          {selectedReport.image_urls.map((url, index) => (
-                            <img
-                              key={index}
-                              src={url}
-                              alt={`Report image ${index + 1}`}
-                              style={{
-                                width: '80px',
-                                height: '80px',
-                                borderRadius: '8px',
-                                objectFit: 'cover',
-                                cursor: 'pointer',
-                                border: '2px solid transparent',
-                                transition: 'border-color 0.2s ease'
-                              }}
-                              onClick={() => {
-                                setSelectedImages(selectedReport.image_urls || []);
-                                setSelectedImageIndex(index);
-                                setShowImageModal(true);
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.borderColor = '#3b82f6';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.borderColor = 'transparent';
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                          {selectedReport.image_urls && selectedReport.image_urls.length > 0 && (
+                            <div style={{ marginTop: "16px" }}>
+                              <strong>Attached Images:</strong>
+                              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+                                {selectedReport.image_urls.map((url, index) => (
+                                  <img
+                                    key={index}
+                                    src={url}
+                                    alt={`Report image ${index + 1}`}
+                                    style={{
+                                      width: '80px',
+                                      height: '80px',
+                                      borderRadius: '8px',
+                                      objectFit: 'cover',
+                                      cursor: 'pointer',
+                                      border: '2px solid transparent',
+                                      transition: 'border-color 0.2s ease'
+                                    }}
+                                    onClick={() => {
+                                      setSelectedImages(selectedReport.image_urls || []);
+                                      setSelectedImageIndex(index);
+                                      setShowImageModal(true);
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.borderColor = '#3b82f6';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.borderColor = 'transparent';
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </IonCol>
                       </IonRow>
                     </IonGrid>
 
-                    
+
 
                     {/* Admin Response */}
                     {selectedReport.admin_response && (
@@ -3308,7 +3496,18 @@ const AdminDashboard: React.FC = () => {
 
                     {/* NEW: Enhanced Action Buttons */}
                     <div style={{ display: "flex", gap: "8px", marginTop: "24px", flexWrap: "wrap" }}>
-                      {/* Removed Mark Resolved button as requested */}
+                      {/* Delete Report Button */}
+                      <IonButton
+                        expand="block"
+                        color="danger"
+                        onClick={() => {
+                          setPendingAction({ type: 'delete', report: selectedReport });
+                          setShowActionConfirmAlert(true);
+                        }}
+                      >
+                        <IonIcon icon={trashOutline} slot="start" />
+                        Delete Report
+                      </IonButton>
 
                       <IonButton
                         expand="block"
@@ -3621,7 +3820,7 @@ const AdminDashboard: React.FC = () => {
                         <>
                           <IonButton
                             fill="clear"
-                            onClick={() => setSelectedImageIndex(prev => 
+                            onClick={() => setSelectedImageIndex(prev =>
                               prev === 0 ? selectedImages.length - 1 : prev - 1
                             )}
                             style={{
@@ -3642,7 +3841,7 @@ const AdminDashboard: React.FC = () => {
 
                           <IonButton
                             fill="clear"
-                            onClick={() => setSelectedImageIndex(prev => 
+                            onClick={() => setSelectedImageIndex(prev =>
                               prev === selectedImages.length - 1 ? 0 : prev + 1
                             )}
                             style={{
@@ -3715,30 +3914,52 @@ const AdminDashboard: React.FC = () => {
             </div>
           </IonContent>
         </IonModal>
+        {/* Action Confirmation Alert */}
+        <IonAlert
+          isOpen={showActionConfirmAlert}
+          onDidDismiss={() => {
+            setShowActionConfirmAlert(false);
+            setPendingAction(null);
+          }}
+          header={getConfirmationHeader()}
+          message={getConfirmationMessage()}
+          buttons={[
+            {
+              text: 'Cancel',
+              role: 'cancel',
+              cssClass: 'alert-button-cancel'
+            },
+            {
+              text: 'Confirm',
+              role: 'confirm',
+              cssClass: pendingAction?.type === 'delete' ? 'alert-button-danger' : 'alert-button-confirm',
+              handler: executeConfirmedAction
+            }
+          ]}
+        />
       </IonContent>
     </IonPage>
   )
-
 }
 
-  // Helper functions
-  function getIncidentStatusColor(status: string): string {
-    const colors: { [key: string]: string } = {
-      pending: "#f59e0b",
-      active: "#3b82f6",
-      resolved: "#10b981",
-    }
-    return colors[status] || "#6b7280"
+// Helper functions
+function getIncidentStatusColor(status: string): string {
+  const colors: { [key: string]: string } = {
+    pending: "#f59e0b",
+    active: "#3b82f6",
+    resolved: "#10b981",
   }
+  return colors[status] || "#6b7280"
+}
 
-  function getPriorityColor(priority: string): string {
-    const colors: { [key: string]: string } = {
-      critical: "#dc2626",
-      high: "#f97316",
-      medium: "#eab308",
-      low: "#84cc16",
-    }
-    return colors[priority] || "#6b7280"
+function getPriorityColor(priority: string): string {
+  const colors: { [key: string]: string } = {
+    critical: "#dc2626",
+    high: "#f97316",
+    medium: "#eab308",
+    low: "#84cc16",
+  }
+  return colors[priority] || "#6b7280"
 }
 
 export default AdminDashboard
