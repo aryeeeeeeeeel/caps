@@ -785,8 +785,7 @@ useEffect(() => {
   };
 
   const handleOTPVerification = async () => {
-    if (!otpCode || otpCode.length < 6) {
-      showCustomToast('Please enter a valid 6-digit verification code.', 'warning');
+    if (!otpCode) {
       return;
     }
 
@@ -796,7 +795,6 @@ useEffect(() => {
 
       if (isValid) {
         setShowOTPModal(false);
-        setOtpCode('');
         setIsOtpSent(false);
 
         await completeLogin(currentUserId, otpEmail, deviceFingerprint);
@@ -902,17 +900,6 @@ useEffect(() => {
 
   const currentSavedAccount = savedAccounts.find(acc => acc.identifier === loginIdentifier);
   const showAccountCount = savedAccounts.length > 1;
-
-  const handleOtpChange = (e: CustomEvent) => {
-  const value = e.detail.value!;
-  const numericValue = value.replace(/\D/g, '').slice(0, 6);
-  setOtpCode(numericValue);
-  
-  // Auto-verify when 6 digits are entered
-  if (numericValue.length === 6) {
-    handleOTPVerification();
-  }
-};
 
   return (
     <IonPage>
@@ -1633,30 +1620,13 @@ useEffect(() => {
                     <IonInput
                       fill="outline"
                       type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxlength={6}
-                      placeholder="000000"
+                      placeholder="Enter verification code"
                       value={otpCode}
                       onIonChange={(e) => {
-                        const raw = e.detail.value || '';
-                        const numeric = raw.replace(/\D/g, '').slice(0, 6);
-                        setOtpCode(numeric);
-                        // Optional auto-verify when 6 digits entered
-                        if (numeric.length === 6 && !isVerifyingOTP) handleOTPVerification();
+                        setOtpCode(e.detail.value || '');
                       }}
                       onKeyPress={(e: React.KeyboardEvent) => {
-                        // Allow only numbers and control keys
-                        if (!/^\d$/.test(e.key) &&
-                          e.key !== 'Backspace' &&
-                          e.key !== 'Delete' &&
-                          e.key !== 'Tab' &&
-                          e.key !== 'Enter' &&
-                          e.key !== 'ArrowLeft' &&
-                          e.key !== 'ArrowRight') {
-                          e.preventDefault();
-                        }
-                        if (e.key === 'Enter' && otpCode.length === 6) {
+                        if (e.key === 'Enter') {
                           handleOTPVerification();
                         }
                       }}
@@ -1696,7 +1666,8 @@ useEffect(() => {
                     type="submit"
                     expand="block"
                     size="large"
-                    disabled={isVerifyingOTP || otpCode.length < 6}
+                    disabled={isVerifyingOTP || !otpCode}
+                    onKeyDown={(e) => e.key === 'Enter' && handleOTPVerification()}
                     style={{
                       '--border-radius': '10px',
                       '--padding-top': '14px',
