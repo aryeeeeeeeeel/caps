@@ -291,8 +291,8 @@ const Register: React.FC = () => {
     );
 
     const handleOpenVerificationModal = () => {
-        if (!username.trim()) {
-            setAlertMessage("Please enter a username.");
+        if (!username.trim() || !firstName.trim() || !lastName.trim() || !address.trim() || !contactNumber.trim() || !email.trim()) {
+            setAlertMessage("Please fill in all required fields.");
             setShowAlert(true);
             return;
         }
@@ -407,7 +407,7 @@ const Register: React.FC = () => {
                     user_password: hashedPassword,
                     is_authenticated: false, // Set to false initially
                     auth_uuid: authData.user.id, // Link to Supabase Auth user
-                    status: 'inactive', // Set default status to inactive
+                    status: 'inactive', // New users are always inactive initially
                     date_registered: new Date().toISOString(),
                 },
             ]);
