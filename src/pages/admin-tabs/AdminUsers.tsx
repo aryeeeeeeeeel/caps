@@ -35,7 +35,8 @@ import {
   statsChartOutline,
   alertCircleOutline,
   documentTextOutline,
-  timeOutline
+  timeOutline,
+  trashOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import { logUserWarning, logUserSuspension, logUserBan, logUserActivation } from '../../utils/activityLogger';
@@ -94,6 +95,9 @@ const AdminUsers: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [prevUnreadCount, setPrevUnreadCount] = useState(0);
   const [showNewNotificationToast, setShowNewNotificationToast] = useState(false);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [showActionConfirmAlert, setShowActionConfirmAlert] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{type: 'warn' | 'suspend' | 'ban' | 'activate' | 'delete', user: User} | null>(null);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -396,6 +400,122 @@ const AdminUsers: React.FC = () => {
     return formatDate(user.last_active_at);
   };
 
+  const handleDeleteUser = async (user: User) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('user_id', user.user_id);
+
+      if (error) throw error;
+
+      // Log the deletion
+      const { data: { user: adminUser } } = await supabase.auth.getUser();
+      if (adminUser?.email) {
+        await supabase.from('system_logs').insert({
+          admin_email: adminUser.email,
+          activity_type: 'user_action',
+          activity_description: 'User deleted from system',
+          target_user_email: user.user_email,
+          details: {
+            action: 'delete_user',
+            user_name: `${user.user_firstname} ${user.user_lastname}`
+          }
+        });
+      }
+
+      setToastMessage('User deleted successfully');
+      setShowToast(true);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      setToastMessage('Error deleting user');
+      setShowToast(true);
+    }
+  };
+
+  // Add this to your delete handler after successful user deletion
+const deleteAuthUser = async (userId: string) => {
+  try {
+    // Note: This requires SUPABASE_SERVICE_ROLE_KEY and should be done server-side
+    // For client-side, you might want to create an edge function
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) console.warn('Could not delete auth user:', error);
+  } catch (error) {
+    console.warn('Error deleting auth user:', error);
+  }
+};
+
+  // Show confirmation dialog for user actions
+  const showConfirmationDialog = (user: User, action: 'warn' | 'suspend' | 'ban' | 'activate' | 'delete') => {
+    setSelectedUser(user);
+    setPendingAction({ type: action, user });
+    setShowActionConfirmAlert(true);
+  };
+
+  // Execute the confirmed action
+  const executeConfirmedAction = async () => {
+    if (!pendingAction || !pendingAction.user) return;
+
+    try {
+      switch (pendingAction.type) {
+        case 'warn':
+        case 'suspend':
+        case 'ban':
+        case 'activate':
+          await handleUserAction(pendingAction.type);
+          break;
+        case 'delete':
+          await handleDeleteUser(pendingAction.user);
+          break;
+      }
+    } catch (error) {
+      console.error('Error executing action:', error);
+      setToastMessage('Error executing action');
+      setShowToast(true);
+    } finally {
+      setPendingAction(null);
+      setShowActionConfirmAlert(false);
+    }
+  };
+
+  // Get confirmation message based on action type
+  const getConfirmationMessage = () => {
+    if (!pendingAction || !pendingAction.user) return '';
+    
+    const userName = `${pendingAction.user.user_firstname} ${pendingAction.user.user_lastname}`;
+    const userEmail = pendingAction.user.user_email;
+    
+    switch (pendingAction.type) {
+      case 'warn':
+        return `Are you sure you want to issue a warning to ${userName} (${userEmail})? This will increment their warning count.`;
+      case 'suspend':
+        return `Are you sure you want to suspend ${userName} (${userEmail})? They will not be able to access the system.`;
+      case 'ban':
+        return `Are you sure you want to ban ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
+      case 'activate':
+        return `Are you sure you want to activate ${userName} (${userEmail})? This will reset their warnings and restore access.`;
+      case 'delete':
+        return `Are you sure you want to delete ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
+      default:
+        return 'Are you sure you want to perform this action?';
+    }
+  };
+
+  // Get confirmation header based on action type
+  const getConfirmationHeader = () => {
+    if (!pendingAction) return 'Confirm Action';
+    
+    switch (pendingAction.type) {
+      case 'warn': return 'Issue Warning';
+      case 'suspend': return 'Suspend User';
+      case 'ban': return 'Ban User';
+      case 'activate': return 'Activate User';
+      case 'delete': return 'Delete User';
+      default: return 'Confirm Action';
+    }
+  };
+
   // Show skeleton loading
   if (isLoading) {
     return (
@@ -605,11 +725,11 @@ const AdminUsers: React.FC = () => {
                       </div>
 
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <IonButton size="small" fill="solid" color="warning" onClick={() => { setSelectedUser(user); setUserAction('warn'); setShowActionAlert(true); }} disabled={user.status === 'banned'}>
+                        <IonButton size="small" fill="solid" color="warning" onClick={() => showConfirmationDialog(user, 'warn')} disabled={user.status === 'banned'}>
                           <IonIcon icon={warningOutline} slot="start" />
                           Warn
                         </IonButton>
-                        <IonButton size="small" fill="solid" color="medium" onClick={() => { setSelectedUser(user); setUserAction(user.status === 'suspended' ? 'activate' : 'suspend'); setShowActionAlert(true); }} disabled={user.status === 'banned'}>
+                        <IonButton size="small" fill="solid" color="medium" onClick={() => showConfirmationDialog(user, user.status === 'suspended' ? 'activate' : 'suspend')} disabled={user.status === 'banned'}>
                           <IonIcon icon={user.status === 'suspended' ? checkmarkCircleOutline : pauseCircleOutline} slot="start" />
                           {user.status === 'suspended' ? 'Activate' : 'Suspend'}
                         </IonButton>
@@ -617,14 +737,19 @@ const AdminUsers: React.FC = () => {
                           size="small"
                           fill="solid"
                           color="danger"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setUserAction(user.status === 'banned' ? 'activate' : 'ban');
-                            setShowActionAlert(true);
-                          }}
+                          onClick={() => showConfirmationDialog(user, user.status === 'banned' ? 'activate' : 'ban')}
                         >
                           <IonIcon icon={banOutline} slot="start" />
                           {user.status === 'banned' ? 'Unban' : 'Ban'}
+                        </IonButton>
+                        <IonButton
+                          size="small"
+                          fill="outline"
+                          color="danger"
+                          onClick={() => showConfirmationDialog(user, 'delete')}
+                        >
+                          <IonIcon icon={trashOutline} slot="start" />
+                          Delete
                         </IonButton>
                       </div>
                     </div>
@@ -633,24 +758,64 @@ const AdminUsers: React.FC = () => {
               </IonList>
 
               {filteredUsers.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
-                  <IonIcon icon={peopleOutline} style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }} />
-                  <div style={{ fontSize: '16px', fontWeight: '500' }}>No users found</div>
-                  <div style={{ fontSize: '14px', marginTop: '4px' }}>{searchText ? 'Try adjusting your search terms' : 'No users match the current filters'}</div>
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af' }}>
+                  <IonIcon icon={peopleOutline} style={{ fontSize: '48px', marginBottom: '16px' }} />
+                  <div>No users found</div>
                 </div>
               )}
             </IonCardContent>
           </IonCard>
         </div>
 
-        {/* Alerts removed; execute actions directly and report via toast */}
-        <IonToast isOpen={showToast} onDidDismiss={() => setShowToast(false)} message={toastMessage} duration={3000} position="top" />
+        {/* Action Confirmation Alert */}
+        <IonAlert
+          isOpen={showActionConfirmAlert}
+          onDidDismiss={() => {
+            setShowActionConfirmAlert(false);
+            setPendingAction(null);
+          }}
+          header={getConfirmationHeader()}
+          message={getConfirmationMessage()}
+          buttons={[
+            {
+              text: 'Cancel',
+              role: 'cancel',
+              cssClass: 'alert-button-cancel'
+            },
+            {
+              text: 'Confirm',
+              role: 'confirm',
+              cssClass: pendingAction?.type === 'delete' ? 'alert-button-danger' : 'alert-button-confirm',
+              handler: executeConfirmedAction
+            }
+          ]}
+        />
+
+        {/* Toast for notifications */}
+        <IonToast
+          isOpen={showToast}
+          onDidDismiss={() => setShowToast(false)}
+          message={toastMessage}
+          duration={3000}
+          position="top"
+        />
+
+        {/* New Notification Toast */}
         <IonToast
           isOpen={showNewNotificationToast}
           onDidDismiss={() => setShowNewNotificationToast(false)}
-          message="There's new notification/s! Check it out!"
+          message={toastMessage}
           duration={3000}
           position="top"
+          color="primary"
+          buttons={[
+            {
+              text: 'View',
+              handler: () => {
+                navigation.push("/iAMUMAta/admin/notifications", "forward", "push");
+              }
+            }
+          ]}
         />
       </IonContent>
     </IonPage>
