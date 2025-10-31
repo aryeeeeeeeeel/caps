@@ -45,7 +45,8 @@ import {
   desktopOutline,
   mapOutline,
   chevronBackOutline,
-  chevronForwardOutline
+  chevronForwardOutline,
+  trashOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
@@ -529,6 +530,39 @@ const AdminIncidents: React.FC = () => {
 
     return data?.signedUrl || '';
   };
+
+const handleDeleteReport = async (report: IncidentReport) => {
+  try {
+    const { error } = await supabase
+      .from('incident_reports')
+      .delete()
+      .eq('id', report.id);
+
+    if (error) throw error;
+
+    // Log the deletion
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.email) {
+      await supabase.from('system_logs').insert({
+        admin_email: user.email,
+        activity_type: 'update_report',
+        activity_description: `Deleted incident report: ${report.title}`,
+        target_user_email: report.reporter_email,
+        target_report_id: report.id,
+        details: { report_title: report.title }
+      });
+    }
+
+    setToastMessage('Report deleted successfully');
+    setShowToast(true);
+    setShowReportModal(false);
+    await fetchReports();
+  } catch (error) {
+    console.error('Error deleting report:', error);
+    setToastMessage('Error deleting report');
+    setShowToast(true);
+  }
+};
 
   // Show skeleton loading screen - FIRST CHECK
   if (isLoading) {
@@ -1202,6 +1236,18 @@ const AdminIncidents: React.FC = () => {
                       >
                         <IonIcon icon={sendOutline} slot="start" />
                         Notify User
+                      </IonButton>
+                      <IonButton
+                        expand="block"
+                        color="danger"
+                        onClick={() => {
+                          if (selectedReport) {
+                            handleDeleteReport(selectedReport);
+                          }
+                        }}
+                      >
+                        <IonIcon icon={trashOutline} slot="start" />
+                        Delete Report
                       </IonButton>
                     </div>
                   </IonCardContent>
