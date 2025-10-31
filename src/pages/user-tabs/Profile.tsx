@@ -70,10 +70,10 @@ const Profile: React.FC = () => {
 
     // Tab configuration
     const tabs = [
-        { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
-        { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
-        { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
-        { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
+        { name: 'Dashboard', tab: 'dashboard', url: '/iAMUMAta/app/dashboard', icon: homeOutline },
+        { name: 'Report an Incident', tab: 'submit', url: '/iAMUMAta/app/submit', icon: addCircleOutline },
+        { name: 'My Reports', tab: 'map', url: '/iAMUMAta/app/map', icon: mapOutline },
+        { name: 'History', tab: 'reports', url: '/iAMUMAta/app/history', icon: timeOutline },
     ];
 
     // Default avatar as an icon (like Facebook)
@@ -599,7 +599,7 @@ const Profile: React.FC = () => {
         await logUserLogout(user?.email);
         await supabase.auth.signOut();
         setShowProfilePopover(false);
-        history.push('/it35-lab2');
+        history.push('/iAMUMAta');
     };
 
     const openProfilePopover = (e: any) => {
@@ -891,7 +891,7 @@ const Profile: React.FC = () => {
                         {/* Notifications Button */}
                         <IonButton
                             fill="clear"
-                            onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
+                            onClick={() => handlePopoverNavigation('/iAMUMAta/app/notifications')}
                             style={{
                                 color: 'white',
                                 position: 'relative'
@@ -926,7 +926,7 @@ const Profile: React.FC = () => {
                                 )}
                             </IonButton>
                         ) : (
-                            <IonButton onClick={() => history.push('/it35-lab2/user-login')} fill="clear" style={{ color: 'white' }}>
+                            <IonButton onClick={() => history.push('/iAMUMAta/user-login')} fill="clear" style={{ color: 'white' }}>
                                 Login
                             </IonButton>
                         )}
@@ -1009,7 +1009,7 @@ const Profile: React.FC = () => {
                                 <div style={{ padding: '12px 0' }}>
                                     <IonItem
                                         button
-                                        onClick={() => handlePopoverNavigation('/it35-lab2/app/profile')}
+                                        onClick={() => handlePopoverNavigation('/iAMUMAta/app/profile')}
                                         style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                                     >
                                         <IonIcon icon={personCircle} slot="start" color="primary" />
@@ -1021,7 +1021,7 @@ const Profile: React.FC = () => {
 
                                     <IonItem
                                         button
-                                        onClick={() => handlePopoverNavigation('/it35-lab2/app/feedback')}
+                                        onClick={() => handlePopoverNavigation('/iAMUMAta/app/feedback')}
                                         style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                                     >
                                         <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
@@ -1033,7 +1033,7 @@ const Profile: React.FC = () => {
 
                                     <IonItem
                                         button
-                                        onClick={() => handlePopoverNavigation('/it35-lab2/app/activity-logs')}
+                                        onClick={() => handlePopoverNavigation('/iAMUMAta/app/activity-logs')}
                                         style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                                     >
                                         <IonIcon icon={documentTextOutline} slot="start" color="primary" />

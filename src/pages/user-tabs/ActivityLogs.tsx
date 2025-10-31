@@ -92,14 +92,14 @@ const ActivityLogs: React.FC = () => {
 
   // Import tabs from Home.tsx for consistency
   const tabs = [
-    { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
-    { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
-    { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
-    { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
+    { name: 'Dashboard', tab: 'dashboard', url: '/iAMUMAta/app/dashboard', icon: homeOutline },
+    { name: 'Report an Incident', tab: 'submit', url: '/iAMUMAta/app/submit', icon: addCircleOutline },
+    { name: 'My Reports', tab: 'map', url: '/iAMUMAta/app/map', icon: mapOutline },
+    { name: 'History', tab: 'reports', url: '/iAMUMAta/app/history', icon: timeOutline },
   ];
 
   // Check if we're on the activity logs page specifically
-  const isActivityLogsPage = location.pathname === '/it35-lab2/app/activity-logs';
+  const isActivityLogsPage = location.pathname === '/iAMUMAta/app/activity-logs';
 
   useEffect(() => {
     let notificationsChannel: any;
@@ -281,7 +281,7 @@ const ActivityLogs: React.FC = () => {
     await logUserLogout(user?.email);
     await supabase.auth.signOut();
     setShowProfilePopover(false);
-    history.push('/it35-lab2');
+    history.push('/iAMUMAta');
   };
 
   const openProfilePopover = (e: any) => {
@@ -561,11 +561,11 @@ const ActivityLogs: React.FC = () => {
             {/* Notifications Button */}
             <IonButton
               fill="clear"
-              onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
+              onClick={() => handlePopoverNavigation('/iAMUMAta/app/notifications')}
               style={{
                 color: 'white',
                 position: 'relative',
-                borderBottom: location.pathname === '/it35-lab2/app/notifications' ? '2px solid white' : 'none'
+                borderBottom: location.pathname === '/iAMUMAta/app/notifications' ? '2px solid white' : 'none'
               }}
             >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
@@ -597,7 +597,7 @@ const ActivityLogs: React.FC = () => {
                 )}
               </IonButton>
             ) : (
-              <IonButton onClick={() => history.push('/it35-lab2/user-login')} fill="clear" style={{ color: 'white' }}>
+              <IonButton onClick={() => history.push('/iAMUMAta/user-login')} fill="clear" style={{ color: 'white' }}>
                 Login
               </IonButton>
             )}
@@ -680,7 +680,7 @@ const ActivityLogs: React.FC = () => {
                 <div style={{ padding: '12px 0' }}>
                   <IonItem
                     button
-                    onClick={() => handlePopoverNavigation('/it35-lab2/app/profile')}
+                    onClick={() => handlePopoverNavigation('/iAMUMAta/app/profile')}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
                     <IonIcon icon={personCircle} slot="start" color="primary" />
@@ -692,7 +692,7 @@ const ActivityLogs: React.FC = () => {
 
                   <IonItem
                     button
-                    onClick={() => handlePopoverNavigation('/it35-lab2/app/feedback')}
+                    onClick={() => handlePopoverNavigation('/iAMUMAta/app/feedback')}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
                     <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
@@ -704,7 +704,7 @@ const ActivityLogs: React.FC = () => {
 
                   <IonItem
                     button
-                    onClick={() => handlePopoverNavigation('/it35-lab2/app/activity-logs')}
+                    onClick={() => handlePopoverNavigation('/iAMUMAta/app/activity-logs')}
                     style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}
                   >
                     <IonIcon icon={documentTextOutline} slot="start" color="primary" />
@@ -932,14 +932,14 @@ const ActivityLogs: React.FC = () => {
           // Tabbed Content
           <IonTabs>
             <IonRouterOutlet>
-              <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
-              <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
-              <Route exact path="/it35-lab2/app/map" component={IncidentMap} />
-              <Route exact path="/it35-lab2/app/history" component={History} />
-              <Route exact path="/it35-lab2/app/notifications" render={() => <Notifications refreshCount={() => {}} />} />
-              <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
-              <Route exact path="/it35-lab2/app">
-                <Redirect to="/it35-lab2/app/dashboard" />
+              <Route exact path="/iAMUMAta/app/dashboard" component={Dashboard} />
+              <Route exact path="/iAMUMAta/app/submit" component={IncidentReport} />
+              <Route exact path="/iAMUMAta/app/map" component={IncidentMap} />
+              <Route exact path="/iAMUMAta/app/history" component={History} />
+              <Route exact path="/iAMUMAta/app/notifications" render={() => <Notifications refreshCount={() => {}} />} />
+              <Route exact path="/iAMUMAta/app/feedback" component={GiveFeedback} />
+              <Route exact path="/iAMUMAta/app">
+                <Redirect to="/iAMUMAta/app/dashboard" />
               </Route>
             </IonRouterOutlet>
 

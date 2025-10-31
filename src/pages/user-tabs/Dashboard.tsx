@@ -194,7 +194,7 @@ const Dashboard: React.FC = () => {
     await logUserLogout(user?.email);
     await supabase.auth.signOut();
     setShowProfilePopover(false);
-    history.push('/it35-lab2');
+    history.push('/iAMUMAta');
   };
 
   const openProfilePopover = (e: any) => {
@@ -318,7 +318,7 @@ const Dashboard: React.FC = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          history.replace('/it35-lab2');
+          history.replace('/iAMUMAta');
           return;
         }
         await fetchUserData();
@@ -360,10 +360,10 @@ const Dashboard: React.FC = () => {
     }
 
     if (type === 'resolved') {
-      history.push('/it35-lab2/app/history');
+      history.push('/iAMUMAta/app/history');
     } else {
       const statusParam = type === 'pending' ? 'pending' : 'active';
-      history.push(`/it35-lab2/app/map?status=${statusParam}`);
+      history.push(`/iAMUMAta/app/map?status=${statusParam}`);
     }
   };
 
@@ -586,10 +586,10 @@ const Dashboard: React.FC = () => {
 
   // Bottom tabs standardized like Profile.tsx
   const tabs = [
-    { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
-    { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
-    { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
-    { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline }
+    { name: 'Dashboard', tab: 'dashboard', url: '/iAMUMAta/app/dashboard', icon: homeOutline },
+    { name: 'Report an Incident', tab: 'submit', url: '/iAMUMAta/app/submit', icon: addCircleOutline },
+    { name: 'My Reports', tab: 'map', url: '/iAMUMAta/app/map', icon: mapOutline },
+    { name: 'History', tab: 'reports', url: '/iAMUMAta/app/history', icon: timeOutline }
   ];
 
   return (
@@ -601,7 +601,7 @@ const Dashboard: React.FC = () => {
           <IonButtons slot="end">
             <IonButton
               fill="clear"
-              onClick={() => handlePopoverNavigation('/it35-lab2/app/notifications')}
+              onClick={() => handlePopoverNavigation('/iAMUMAta/app/notifications')}
               style={{ color: 'white', position: 'relative' }}
             >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
@@ -623,7 +623,7 @@ const Dashboard: React.FC = () => {
                 )}
               </IonButton>
             ) : (
-              <IonButton onClick={() => history.push('/it35-lab2/user-login')} fill="clear" style={{ color: 'white' }}>
+              <IonButton onClick={() => history.push('/iAMUMAta/user-login')} fill="clear" style={{ color: 'white' }}>
                 Login
               </IonButton>
             )}
@@ -672,21 +672,21 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div style={{ padding: '12px 0' }}>
-                  <IonItem button onClick={() => handlePopoverNavigation('/it35-lab2/app/profile')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                  <IonItem button onClick={() => handlePopoverNavigation('/iAMUMAta/app/profile')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
                     <IonIcon icon={personCircle} slot="start" color="primary" />
                     <IonLabel>
                       <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>View Profile</h3>
                       <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Manage account settings</p>
                     </IonLabel>
                   </IonItem>
-                  <IonItem button onClick={() => handlePopoverNavigation('/it35-lab2/app/feedback')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                  <IonItem button onClick={() => handlePopoverNavigation('/iAMUMAta/app/feedback')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
                     <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
                     <IonLabel>
                       <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Give Feedback</h3>
                       <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Rate our response service</p>
                     </IonLabel>
                   </IonItem>
-                  <IonItem button onClick={() => handlePopoverNavigation('/it35-lab2/app/activity-logs')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                  <IonItem button onClick={() => handlePopoverNavigation('/iAMUMAta/app/activity-logs')} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
                     <IonIcon icon={documentTextOutline} slot="start" color="primary" />
                     <IonLabel>
                       <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Activity Logs</h3>
@@ -955,7 +955,7 @@ const Dashboard: React.FC = () => {
                   <IonIcon icon={homeOutline} style={{ fontSize: '48px', color: '#d1d5db' }} />
                   <p style={{ color: '#9ca3af', marginTop: '16px' }}>No reports found</p>
                   <IonButton
-                    routerLink="/it35-lab2/app/submit"
+                    routerLink="/iAMUMAta/app/submit"
                     fill="outline"
                     size="small"
                   >
@@ -968,7 +968,7 @@ const Dashboard: React.FC = () => {
                     <IonItem
                       key={report.id || index}
                       button
-                      routerLink="/it35-lab2/app/map"
+                      routerLink="/iAMUMAta/app/map"
                       style={{
                         '--padding-start': '20px',
                         '--inner-padding-end': '20px',

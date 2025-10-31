@@ -775,7 +775,7 @@ useEffect(() => {
       await clearInputFocus();
 
       // Navigate immediately; Home will perform a safeAuthCheck with retry
-      navigation.push('/it35-lab2/app', 'forward', 'replace');
+      navigation.push('/iAMUMAta/app', 'forward', 'replace');
 
     } catch (error: any) {
       showCustomToast('Login completion failed: ' + error.message, 'danger');
@@ -924,7 +924,7 @@ useEffect(() => {
           <IonButton
             slot="start"
             fill="clear"
-            routerLink="/it35-lab2"
+            routerLink="/iAMUMAta"
             style={{ color: 'white' }}
           >
             <IonIcon icon={arrowBackOutline} />
@@ -1493,7 +1493,7 @@ useEffect(() => {
 
               {/* Create Account Button */}
               <IonButton
-                routerLink="/it35-lab2/register"
+                routerLink="/iAMUMAta/register"
                 expand="block"
                 fill="outline"
                 style={{

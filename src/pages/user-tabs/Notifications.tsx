@@ -82,10 +82,10 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
 
   // Bottom tabs (aligned with Home.tsx)
   const tabs = [
-    { name: 'Dashboard', tab: 'dashboard', url: '/it35-lab2/app/dashboard', icon: homeOutline },
-    { name: 'Report an Incident', tab: 'submit', url: '/it35-lab2/app/submit', icon: addCircleOutline },
-    { name: 'My Reports', tab: 'map', url: '/it35-lab2/app/map', icon: mapOutline },
-    { name: 'History', tab: 'reports', url: '/it35-lab2/app/history', icon: timeOutline },
+    { name: 'Dashboard', tab: 'dashboard', url: '/iAMUMAta/app/dashboard', icon: homeOutline },
+    { name: 'Report an Incident', tab: 'submit', url: '/iAMUMAta/app/submit', icon: addCircleOutline },
+    { name: 'My Reports', tab: 'map', url: '/iAMUMAta/app/map', icon: mapOutline },
+    { name: 'History', tab: 'reports', url: '/iAMUMAta/app/history', icon: timeOutline },
   ];
 
   useEffect(() => {
@@ -131,7 +131,7 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
           read: !!incident.read,
           created_at: incident.updated_at,
           related_report_id: incident.id,
-          action_url: `/it35-lab2/app/reports/${incident.id}`
+          action_url: `/iAMUMAta/app/reports/${incident.id}`
         })))
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -396,8 +396,8 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
           <IonButtons slot="end">
             <IonButton
               fill="clear"
-              onClick={() => history.push('/it35-lab2/app/notifications')}
-              style={{ color: 'white', position: 'relative', borderBottom: location.pathname === '/it35-lab2/app/notifications' ? '2px solid white' : 'none' }}
+              onClick={() => history.push('/iAMUMAta/app/notifications')}
+              style={{ color: 'white', position: 'relative', borderBottom: location.pathname === '/iAMUMAta/app/notifications' ? '2px solid white' : 'none' }}
             >
               <IonIcon icon={notificationsOutline} slot="icon-only" />
               {stats.unread > 0 && (
@@ -426,7 +426,7 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
                 )}
               </IonButton>
             ) : (
-              <IonButton onClick={() => history.push('/it35-lab2/user-login')} fill="clear" style={{ color: 'white' }}>
+              <IonButton onClick={() => history.push('/iAMUMAta/user-login')} fill="clear" style={{ color: 'white' }}>
                 Login
               </IonButton>
             )}
@@ -454,28 +454,28 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
                   <p style={{ margin: '0 0 8px 0', fontSize: '14px', opacity: 0.9, textAlign: 'center' }}>{user.email}</p>
                 </div>
                 <div style={{ padding: '12px 0' }}>
-                  <IonItem button onClick={() => { setShowProfilePopover(false); history.push('/it35-lab2/app/profile'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                  <IonItem button onClick={() => { setShowProfilePopover(false); history.push('/iAMUMAta/app/profile'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
                     <IonIcon icon={personCircle} slot="start" color="primary" />
                     <IonLabel>
                       <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>View Profile</h3>
                       <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Manage account settings</p>
                     </IonLabel>
                   </IonItem>
-                  <IonItem button onClick={() => { setShowProfilePopover(false); history.push('/it35-lab2/app/feedback'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                  <IonItem button onClick={() => { setShowProfilePopover(false); history.push('/iAMUMAta/app/feedback'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
                     <IonIcon icon={chatbubbleOutline} slot="start" color="success" />
                     <IonLabel>
                       <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Give Feedback</h3>
                       <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>Rate our response service</p>
                     </IonLabel>
                   </IonItem>
-                  <IonItem button onClick={() => { setShowProfilePopover(false); history.push('/it35-lab2/app/activity-logs'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                  <IonItem button onClick={() => { setShowProfilePopover(false); history.push('/iAMUMAta/app/activity-logs'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
                     <IonIcon icon={documentTextOutline} slot="start" color="primary" />
                     <IonLabel>
                       <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Activity Logs</h3>
                       <p style={{ margin: '0', fontSize: '13px', color: '#6b7280' }}>View your account activities</p>
                     </IonLabel>
                   </IonItem>
-                  <IonItem button onClick={async () => { await supabase.auth.signOut(); setShowProfilePopover(false); history.push('/it35-lab2'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
+                  <IonItem button onClick={async () => { await supabase.auth.signOut(); setShowProfilePopover(false); history.push('/iAMUMAta'); }} style={{ '--padding-start': '20px', '--inner-padding-end': '20px' }}>
                     <IonIcon icon={logOutOutline} slot="start" color="danger" />
                     <IonLabel>
                       <h3 style={{ margin: '8px 0', fontSize: '15px', fontWeight: '500' }}>Sign Out</h3>

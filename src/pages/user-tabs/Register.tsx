@@ -498,7 +498,7 @@ const Register: React.FC = () => {
                     <IonButton
                         slot="start"
                         fill="clear"
-                        routerLink="/it35-lab2"
+                        routerLink="/iAMUMAta"
                         style={{ color: 'white' }}
                     >
                         <IonIcon icon={arrowBackOutline} />
@@ -925,7 +925,7 @@ const Register: React.FC = () => {
                             </div>
 
                             <IonButton
-                                routerLink="/it35-lab2/user-login"
+                                routerLink="/iAMUMAta/user-login"
                                 expand="block"
                                 fill="outline"
                                 style={{
@@ -1184,7 +1184,7 @@ const Register: React.FC = () => {
                             </div>
 
                             <IonButton
-                                routerLink="/it35-lab2/user-login"
+                                routerLink="/iAMUMAta/user-login"
                                 expand="block"
                                 size="large"
                                 onClick={() => setShowSuccessModal(false)}
