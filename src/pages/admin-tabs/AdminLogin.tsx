@@ -1,4 +1,4 @@
-// src/pages/AdminLogin.tsx - FIXED OTP VERIFICATION & REMOVED REDUNDANT ALERTS
+// src/pages/AdminLogin.tsx - FIXED OTP VERIFICATION & INPUT VALIDATION
 import {
   IonButton,
   IonContent,
@@ -272,53 +272,65 @@ const AdminLogin: React.FC = () => {
   };
 
   const validateCredentials = async (email: string, password: string): Promise<boolean> => {
-  if (!email) {
-    showCustomToast('Please input email', 'warning');
-    return false;
-  }
+    // Validate email - must contain at least one character
+    if (!email || email.trim().length === 0) {
+      showCustomToast('Please input email', 'warning');
+      return false;
+    }
 
-  if (!password) {
-    showCustomToast('Please input password', 'warning');
-    return false;
-  }
+    // Validate password - must contain at least one character
+    if (!password || password.trim().length === 0) {
+      showCustomToast('Please input password', 'warning');
+      // Focus on password field if it's empty
+      setTimeout(() => {
+        passwordInputRef.current?.setFocus();
+      }, 100);
+      return false;
+    }
 
-  try {
-    // Fetch user
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('user_email, role')
-      .eq('user_email', email)
-      .maybeSingle();
-    if (userError || !userData) {
-      showCustomToast('Only an LDRRMO personnel can access admin.', 'danger');
+    try {
+      // Fetch user
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('user_email, role')
+        .eq('user_email', email)
+        .maybeSingle();
+      if (userError || !userData) {
+        showCustomToast('Only an LDRRMO personnel can access admin.', 'danger');
+        return false;
+      }
+      if (userData.role !== 'admin') {
+        showCustomToast('Only an LDRRMO personnel can access admin.', 'danger');
+        return false;
+      }
+      // Now validate password for admin
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        showCustomToast('Credentials incorrect', 'danger');
+        return false;
+      }
+      await supabase.auth.signOut(); // Don't persist session
+      return true;
+    } catch (error: any) {
+      showCustomToast('Login failed', 'danger');
       return false;
     }
-    if (userData.role !== 'admin') {
-      showCustomToast('Only an LDRRMO personnel can access admin.', 'danger');
-      return false;
-    }
-    // Now validate password for admin
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      showCustomToast('Credentials incorrect', 'danger');
-      return false;
-    }
-    await supabase.auth.signOut(); // Don't persist session
-    return true;
-  } catch (error: any) {
-    showCustomToast('Login failed', 'danger');
-    return false;
-  }
-};
+  };
 
   const sendOtp = async () => {
-    if (!email) {
+    // Validate email first
+    if (!email || email.trim().length === 0) {
       showCustomToast('Please enter your administrative email', 'warning');
       return false;
     }
 
-    if (!password) {
+    // Validate password first
+    if (!password || password.trim().length === 0) {
       showCustomToast('Please enter your password', 'warning');
+      // Focus on password field
+      setTimeout(() => {
+        passwordInputRef.current?.setFocus();
+      }, 100);
       return false;
     }
 
@@ -343,6 +355,12 @@ const AdminLogin: React.FC = () => {
       setOtpEmail(email);
       setShowOtpModal(true);
       showCustomToast('Verification code sent to your email! Valid for 60 seconds.', 'success');
+      
+      // Focus on OTP input when modal opens
+      setTimeout(() => {
+        otpInputRef.current?.setFocus();
+      }, 300);
+      
       return true;
     } catch (error: any) {
       console.error('OTP Send Error:', error);
@@ -458,26 +476,15 @@ const AdminLogin: React.FC = () => {
     }
   };
 
-  const handleOtpChange = (e: CustomEvent) => {
-  const value = e.detail.value!;
-  const numericValue = value.replace(/\D/g, '').slice(0, 6);
-  setOtp(numericValue);
-  
-  // Auto-verify when 6 digits are entered
-  if (numericValue.length === 6) {
-    verifyAndLogin();
-  }
-};
-
   const handleLogin = async () => {
-  const currentPassword = password; // Store password before validation
-  const isValid = await validateCredentials(email, currentPassword);
-  if (isValid) {
-    await sendOtp();
-  } else {
-    setPassword(currentPassword); // Restore password if validation fails
-  }
-};
+    const currentPassword = password; // Store password before validation
+    const isValid = await validateCredentials(email, currentPassword);
+    if (isValid) {
+      await sendOtp();
+    } else {
+      setPassword(currentPassword); // Restore password if validation fails
+    }
+  };
 
   return (
     <IonPage>
@@ -827,7 +834,9 @@ const AdminLogin: React.FC = () => {
                         '--border-color': '#e2e8f0',
                         '--padding-start': '16px',
                         '--padding-end': '16px',
-                        fontSize: '16px'
+                        fontSize: '16px',
+                        '--placeholder-text-align': 'center',
+                        'text-align': 'center'
                       } as any}
                     />
                   </div>
@@ -911,4 +920,3 @@ const AdminLogin: React.FC = () => {
 };
 
 export default AdminLogin;
-
