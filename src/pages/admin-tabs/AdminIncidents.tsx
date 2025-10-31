@@ -456,7 +456,7 @@ const AdminIncidents: React.FC = () => {
   const handleViewInMap = () => {
     if (selectedReport) {
       setShowReportModal(false);
-      navigation.push('/it35-lab2/admin-dashboard', 'forward', 'push');
+      navigation.push('/iAMUMAta/admin-dashboard', 'forward', 'push');
     }
   };
 
@@ -621,7 +621,7 @@ const AdminIncidents: React.FC = () => {
               </p>
             </IonText>
             <IonButton
-              onClick={() => navigation.push('/it35-lab2')}
+              onClick={() => navigation.push('/iAMUMAta')}
               style={{ marginTop: '20px' }}
             >
               Return to Home
@@ -641,7 +641,7 @@ const AdminIncidents: React.FC = () => {
           <IonButtons slot="end">
             <IonButton  
               fill="clear"
-              onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")}
+              onClick={() => navigation.push("/iAMUMAta/admin/notifications", "forward", "push")}
               style={{ color: 'white' }}
             >
               <IonIcon icon={notificationsOutline} />
@@ -682,7 +682,7 @@ const AdminIncidents: React.FC = () => {
                   }
                 } finally {
                   await supabase.auth.signOut();
-                  navigation.push('/it35-lab2', 'root', 'replace');
+                  navigation.push('/iAMUMAta', 'root', 'replace');
                 }
               }}
               style={{ color: 'white' }}
@@ -695,11 +695,11 @@ const AdminIncidents: React.FC = () => {
         <IonToolbar style={{ '--background': 'white' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[
-              { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
-              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
-              { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
-              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/it35-lab2/admin/analytics' },
-              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
+              { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/iAMUMAta/admin-dashboard' },
+              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/iAMUMAta/admin/incidents' },
+              { id: 'users', label: 'Users', icon: peopleOutline, route: '/iAMUMAta/admin/users' },
+              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/iAMUMAta/admin/analytics' },
+              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/iAMUMAta/admin/system-logs' }
             ].map(menu => (
               <IonButton
                 key={menu.id}

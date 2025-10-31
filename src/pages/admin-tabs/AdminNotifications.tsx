@@ -629,7 +629,7 @@ if (isLoading) {
           <IonButtons slot="end">
             <IonButton
               fill="clear"
-              onClick={() => navigation.push('/it35-lab2/admin/notifications', 'forward', 'push')}
+              onClick={() => navigation.push('/iAMUMAta/admin/notifications', 'forward', 'push')}
               style={{
                 color: 'white',
                 position: 'relative',
@@ -667,7 +667,7 @@ if (isLoading) {
                   }
                 } finally {
                   await supabase.auth.signOut();
-                  navigation.push('/it35-lab2', 'root', 'replace');
+                  navigation.push('/iAMUMAta', 'root', 'replace');
                 }
               }}
               style={{ color: 'white' }}
@@ -681,11 +681,11 @@ if (isLoading) {
         <IonToolbar style={{ '--background': 'var(--bg-primary)' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[
-              { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
-              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
-              { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
-              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/it35-lab2/admin/analytics' },
-              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
+              { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/iAMUMAta/admin-dashboard' },
+              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/iAMUMAta/admin/incidents' },
+              { id: 'users', label: 'Users', icon: peopleOutline, route: '/iAMUMAta/admin/users' },
+              { id: 'analytics', label: 'Analytics', icon: statsChartOutline, route: '/iAMUMAta/admin/analytics' },
+              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/iAMUMAta/admin/system-logs' }
             ].map(menu => (
               <IonButton
                 key={menu.id}

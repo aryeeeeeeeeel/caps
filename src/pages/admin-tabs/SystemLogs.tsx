@@ -80,11 +80,11 @@ const SystemLogs: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
 
   const adminMenu = [
-    { id: "dashboard", label: "Dashboard", icon: homeOutline, route: "/it35-lab2/admin-dashboard" },
-    { id: "incidents", label: "Incidents", icon: alertCircleOutline, route: "/it35-lab2/admin/incidents" },
-    { id: "users", label: "Users", icon: peopleOutline, route: "/it35-lab2/admin/users" },
-    { id: "analytics", label: "Analytics", icon: statsChartOutline, route: "/it35-lab2/admin/analytics" },
-    { id: "systemlogs", label: "System Logs", icon: documentTextOutline, route: "/it35-lab2/admin/system-logs" },
+    { id: "dashboard", label: "Dashboard", icon: homeOutline, route: "/iAMUMAta/admin-dashboard" },
+    { id: "incidents", label: "Incidents", icon: alertCircleOutline, route: "/iAMUMAta/admin/incidents" },
+    { id: "users", label: "Users", icon: peopleOutline, route: "/iAMUMAta/admin/users" },
+    { id: "analytics", label: "Analytics", icon: statsChartOutline, route: "/iAMUMAta/admin/analytics" },
+    { id: "systemlogs", label: "System Logs", icon: documentTextOutline, route: "/iAMUMAta/admin/system-logs" },
   ];
 
   useEffect(() => {
@@ -103,6 +103,9 @@ const SystemLogs: React.FC = () => {
     fetchUser();
     fetchSystemLogs();
   }, []);
+
+
+
 
   const fetchNotifications = async (_email: string) => {
     try {
@@ -163,7 +166,7 @@ const SystemLogs: React.FC = () => {
     // Log admin logout activity before signing out
     await logAdminLogout(user?.email);
     await supabase.auth.signOut();
-    history.push('/it35-lab2/admin-login');
+    history.push('/iAMUMAta/admin-login');
   };
 
   const handleRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
@@ -344,7 +347,7 @@ const SystemLogs: React.FC = () => {
           <IonButtons slot="end">
             <IonButton
               fill="clear"
-              onClick={() => history.push("/it35-lab2/admin/notifications")}
+              onClick={() => history.push("/iAMUMAta/admin/notifications")}
               style={{ color: 'white' }}
             >
               <IonIcon icon={notificationsOutline} />

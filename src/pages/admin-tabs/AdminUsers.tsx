@@ -472,7 +472,7 @@ const AdminUsers: React.FC = () => {
               <h2 style={{ color: '#2d3748', marginBottom: '16px' }}>Admin Access Restricted</h2>
               <p style={{ color: '#718096', lineHeight: '1.6' }}>This admin page is only accessible from desktop devices.</p>
             </IonText>
-            <IonButton onClick={() => navigation.push('/it35-lab2')} style={{ marginTop: '20px' }}>Return to Home</IonButton>
+            <IonButton onClick={() => navigation.push('/iAMUMAta')} style={{ marginTop: '20px' }}>Return to Home</IonButton>
           </div>
         </IonContent>
       </IonPage>
@@ -485,11 +485,11 @@ const AdminUsers: React.FC = () => {
         <IonToolbar style={{ '--background': 'var(--gradient-primary)', '--color': 'white' } as any}>
           <IonTitle style={{ fontWeight: 'bold' }}>iAMUMA ta - User Management</IonTitle>
           <IonButtons slot="end">
-            <IonButton fill="clear" onClick={() => navigation.push("/it35-lab2/admin/notifications", "forward", "push")} style={{ color: 'white' }}>
+            <IonButton fill="clear" onClick={() => navigation.push("/iAMUMAta/admin/notifications", "forward", "push")} style={{ color: 'white' }}>
               <IonIcon icon={notificationsOutline} />
               {unreadCount > 0 && <IonBadge color="danger" style={{ position: 'absolute', top: '0px', right: '0px', fontSize: '10px', transform: 'translate(25%, -25%)' }}>{unreadCount}</IonBadge>}
             </IonButton>
-            <IonButton fill="clear" onClick={async () => { try { const { data: { user } } = await supabase.auth.getUser(); if (user?.email) { await supabase.from('system_logs').insert({ admin_email: user.email, activity_type: 'logout', activity_description: 'Admin logged out', details: { source: 'AdminUsers' } }); } } finally { await supabase.auth.signOut(); navigation.push('/it35-lab2', 'root', 'replace'); } }} style={{ color: 'white' }}>
+            <IonButton fill="clear" onClick={async () => { try { const { data: { user } } = await supabase.auth.getUser(); if (user?.email) { await supabase.from('system_logs').insert({ admin_email: user.email, activity_type: 'logout', activity_description: 'Admin logged out', details: { source: 'AdminUsers' } }); } } finally { await supabase.auth.signOut(); navigation.push('/iAMUMAta', 'root', 'replace'); } }} style={{ color: 'white' }}>
               <IonIcon icon={logOutOutline} />
             </IonButton>
           </IonButtons>
@@ -498,11 +498,11 @@ const AdminUsers: React.FC = () => {
         <IonToolbar style={{ '--background': 'white' } as any}>
           <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #e5e7eb' }}>
             {[
-              { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/it35-lab2/admin-dashboard' },
-              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/it35-lab2/admin/incidents' },
-              { id: 'users', label: 'Users', icon: peopleOutline, route: '/it35-lab2/admin/users' },
-              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/it35-lab2/admin/analytics' },
-              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/it35-lab2/admin/system-logs' }
+              { id: 'dashboard', label: 'Dashboard', icon: statsChartOutline, route: '/iAMUMAta/admin-dashboard' },
+              { id: 'incidents', label: 'Incidents', icon: alertCircleOutline, route: '/iAMUMAta/admin/incidents' },
+              { id: 'users', label: 'Users', icon: peopleOutline, route: '/iAMUMAta/admin/users' },
+              { id: 'analytics', label: 'Analytics', icon: documentTextOutline, route: '/iAMUMAta/admin/analytics' },
+              { id: 'systemlogs', label: 'System Logs', icon: documentTextOutline, route: '/iAMUMAta/admin/system-logs' }
             ].map(menu => (
               <IonButton key={menu.id} fill="clear" onClick={() => { if (menu.route) navigation.push(menu.route, 'forward', 'push'); }} style={{ '--color': menu.id === 'users' ? '#3b82f6' : '#6b7280', '--background': 'transparent', '--border-radius': '0', borderBottom: menu.id === 'users' ? '2px solid #3b82f6' : '2px solid transparent', margin: 0, flex: 1 } as any}>
                 <IonIcon icon={menu.icon} slot="start" />

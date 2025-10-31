@@ -220,7 +220,7 @@ const AdminLogin: React.FC = () => {
           </IonText>
           <IonButton
             expand="block"
-            onClick={() => navigation.push('/it35-lab2')}
+            onClick={() => navigation.push('/iAMUMAta')}
             style={{
               '--background': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               '--border-radius': '12px',
@@ -446,7 +446,7 @@ const AdminLogin: React.FC = () => {
       setShowOtpModal(false);
 
       setTimeout(() => {
-        navigation.push('/it35-lab2/admin-dashboard', 'forward', 'replace');
+        navigation.push('/iAMUMAta/admin-dashboard', 'forward', 'replace');
       }, 1500);
 
     } catch (error: any) {
@@ -496,7 +496,7 @@ const AdminLogin: React.FC = () => {
           <IonButton
             slot="start"
             fill="clear"
-            routerLink="/it35-lab2"
+            routerLink="/iAMUMAta"
             style={{ color: 'white' }}
             onClick={() => showCustomToast('Returning to home page...', 'primary')}
           >
