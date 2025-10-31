@@ -1,11 +1,11 @@
 {
   "rewrites": [
     {
-      "source": "/it35-lab2",
+      "source": "/iAMUMAta",
       "destination": "/index.html"
     },
     {
-      "source": "/it35-lab2/((?!assets/).*)",
+      "source": "/iAMUMAta/((?!assets/).*)",
       "destination": "/index.html"
     }
   ]
