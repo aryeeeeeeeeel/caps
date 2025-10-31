@@ -2,7 +2,7 @@
 
 A comprehensive incident reporting and management system built with Ionic React and Supabase.
 
-> **Latest Update**: Update Vercel deployment configuration.
+> **Latest Update**: Update registration form validation and error messages.
 
 ## Features
 
