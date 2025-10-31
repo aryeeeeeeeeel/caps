@@ -277,11 +277,16 @@ const ActivityLogs: React.FC = () => {
   };
 
   const handleSignOut = async () => {
-    // Log user logout activity before signing out
-    await logUserLogout(user?.email);
-    await supabase.auth.signOut();
-    setShowProfilePopover(false);
-    history.push('/iAMUMAta');
+    try {
+      // First log the logout activity
+      await logUserLogout(user?.email);
+      // Then sign out
+      await supabase.auth.signOut();
+      setShowProfilePopover(false);
+      history.push('/iAMUMAta');
+    } catch (error) {
+      console.error('Error during sign out:', error);
+    }
   };
 
   const openProfilePopover = (e: any) => {
