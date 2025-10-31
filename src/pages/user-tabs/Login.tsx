@@ -200,26 +200,28 @@ const Login: React.FC = () => {
   }, [resendCooldown]);
 
   // Global Enter key handler
-  useEffect(() => {
-    const handleGlobalKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !showSavedAccounts && !showOTPModal) {
-        const activeElement = document.activeElement;
-        const isFocusedOnInput = activeElement?.tagName === 'INPUT' ||
-          activeElement?.tagName === 'ION-INPUT' ||
-          activeElement?.closest('ion-input');
+useEffect(() => {
+  const handleGlobalKeyPress = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !showSavedAccounts && !showOTPModal) {
+      const activeElement = document.activeElement;
+      const isFocusedOnInput = activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'ION-INPUT' ||
+        activeElement?.closest('ion-input');
 
-        if (!isFocusedOnInput) {
-          handleLogin();
-        }
+      // Only trigger login if not focused on any input field
+      if (!isFocusedOnInput) {
+        e.preventDefault();
+        handleLogin();
       }
-    };
+    }
+  };
 
-    window.addEventListener('keypress', handleGlobalKeyPress);
+  window.addEventListener('keypress', handleGlobalKeyPress);
 
-    return () => {
-      window.removeEventListener('keypress', handleGlobalKeyPress);
-    };
-  }, [loginIdentifier, password, showSavedAccounts, showOTPModal]);
+  return () => {
+    window.removeEventListener('keypress', handleGlobalKeyPress);
+  };
+}, [loginIdentifier, password, showSavedAccounts, showOTPModal]);
 
   // Focus on login identifier input when component mounts
   useEffect(() => {
@@ -617,26 +619,44 @@ const Login: React.FC = () => {
   // Remove per-field key handlers, leave global Enter handler only
   // In handleLogin, perform these checks:
   const handleLogin = async () => {
-    if (!loginIdentifier) {
+    // Input validation
+    const trimmedIdentifier = loginIdentifier.trim();
+    const trimmedPassword = password.trim();
+  
+    if (!trimmedIdentifier) {
       showCustomToast('Please enter your email or username', 'warning');
       return;
     }
-    if (!password) {
+    
+    if (!trimmedPassword) {
       showCustomToast('Please enter your password', 'warning');
       return;
     }
+  
+    // Basic password strength check (at least 1 character)
+    if (trimmedPassword.length === 0) {
+      showCustomToast('Please enter your password', 'warning');
+      return;
+    }
+  
     setIsLoggingIn(true);
+    
     try {
       // Find user (by username or email)
-      let userEmail = loginIdentifier;
+      let userEmail = trimmedIdentifier;
       let userRow = null;
-      if (!loginIdentifier.includes('@')) {
+      
+      // Check if input is email or username
+      if (!trimmedIdentifier.includes('@')) {
+        // Username lookup
         const { data, error } = await supabase
           .from('users')
-          .select('user_email, is_authenticated')
-          .eq('username', loginIdentifier)
+          .select('user_email, is_authenticated, id')
+          .eq('username', trimmedIdentifier)
           .single();
+          
         if (error || !data) {
+          console.log('Username not found:', trimmedIdentifier, error);
           showCustomToast('Account not found. Please check your credentials or create an account.', 'warning');
           setIsLoggingIn(false);
           return;
@@ -644,12 +664,15 @@ const Login: React.FC = () => {
         userEmail = data.user_email;
         userRow = data;
       } else {
+        // Email lookup
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('user_email, is_authenticated')
-          .eq('user_email', loginIdentifier)
+          .select('user_email, is_authenticated, id')
+          .eq('user_email', trimmedIdentifier)
           .maybeSingle();
+          
         if (userError || !userData) {
+          console.log('Email not found:', trimmedIdentifier, userError);
           showCustomToast('Account not found. Please check your credentials or create an account.', 'warning');
           setIsLoggingIn(false);
           return;
@@ -657,27 +680,34 @@ const Login: React.FC = () => {
         userEmail = userData.user_email;
         userRow = userData;
       }
-      // Check password
+  
+      // Check password with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: userEmail,
-        password,
+        password: trimmedPassword,
       });
+  
       if (authError) {
+        console.log('Auth error:', authError);
         showCustomToast('Credentials incorrect', 'danger');
         setIsLoggingIn(false);
         return;
       }
-      // Check authentication
+  
+      // Check authentication status
       if (!userRow.is_authenticated) {
-        showCustomToast('Your account is not authenticated. Please go to your email and look for Supabase Auth in your inbox/spam folder and confirm your signup to confirm your email.', 'warning');
+        showCustomToast('Your account is not authenticated. Please check your email and confirm your signup.', 'warning');
         setIsLoggingIn(false);
         return;
       }
-      // Device trust and OTP logic (unchanged)
+  
+      // Device trust and OTP logic
       setCurrentUserId(authData.user.id);
       const fingerprint = await generateDeviceFingerprint();
       setDeviceFingerprint(fingerprint);
+      
       const isTrusted = await isDeviceTrusted(authData.user.id, fingerprint);
+      
       if (!isTrusted) {
         setOtpEmail(userEmail);
         setShowOTPModal(true);
@@ -685,8 +715,11 @@ const Login: React.FC = () => {
         await sendOTP(userEmail, fingerprint);
         return;
       }
+  
       await completeLogin(authData.user.id, userEmail, fingerprint);
+      
     } catch (error: any) {
+      console.error('Login error:', error);
       showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
       setIsLoggingIn(false);
     }
@@ -778,21 +811,33 @@ const Login: React.FC = () => {
 
   const handleIdentifierKeyPress = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (loginIdentifier) {
-        passwordInputRef.current?.setFocus();
-      } else {
+      e.preventDefault();
+      const trimmedIdentifier = loginIdentifier.trim();
+      
+      if (!trimmedIdentifier) {
         showCustomToast('Please enter your email or username', 'warning');
+        return;
       }
+      
+      // Move focus to password field
+      setTimeout(() => {
+        passwordInputRef.current?.setFocus();
+      }, 50);
     }
   };
-
+  
   const handlePasswordKeyPress = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      if (password) {
-        handleLogin();
-      } else {
+      e.preventDefault();
+      const trimmedPassword = password.trim();
+      
+      if (!trimmedPassword) {
         showCustomToast('Please enter your password', 'warning');
+        return;
       }
+      
+      // Trigger login
+      handleLogin();
     }
   };
 
@@ -1598,7 +1643,7 @@ const Login: React.FC = () => {
                         const numeric = raw.replace(/\D/g, '').slice(0, 6);
                         setOtpCode(numeric);
                         // Optional auto-verify when 6 digits entered
-                        // if (numeric.length === 6 && !isVerifyingOTP) handleOTPVerification();
+                        if (numeric.length === 6 && !isVerifyingOTP) handleOTPVerification();
                       }}
                       onKeyPress={(e: React.KeyboardEvent) => {
                         // Allow only numbers and control keys
