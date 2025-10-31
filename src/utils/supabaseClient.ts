@@ -204,7 +204,7 @@ export const handleAuthError = (error: any): boolean => {
         // Only redirect if not already on login page
         if (!currentPath.includes('/login') && !currentPath.includes('/register')) {
           setTimeout(() => {
-            window.location.href = '/it35-lab2/user-login';
+            window.location.href = '/iAMUMAta/user-login';
           }, 100);
         }
       }

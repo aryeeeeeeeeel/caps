@@ -55,34 +55,34 @@ const App: React.FC = () => (
     <IonReactRouter>
       <IonRouterOutlet>
         {/* Landing and Auth Routes */}
-        <Route exact path="/it35-lab2" component={LandingPage} />
-        <Route exact path="/it35-lab2/user-login" component={Login} />
-        <Route exact path="/it35-lab2/admin-login" component={AdminLogin} />
-        <Route exact path="/it35-lab2/register" component={Register} />
+        <Route exact path="/iAMUMAta" component={LandingPage} />
+        <Route exact path="/iAMUMAta/user-login" component={Login} />
+        <Route exact path="/iAMUMAta/admin-login" component={AdminLogin} />
+        <Route exact path="/iAMUMAta/register" component={Register} />
 
         {/* User App Routes - Using Home component with bottom tabs */}
-        <Route exact path="/it35-lab2/app" render={() => {
-          return <Redirect to="/it35-lab2/app/dashboard" />;
+        <Route exact path="/iAMUMAta/app" render={() => {
+          return <Redirect to="/iAMUMAta/app/dashboard" />;
         }} />
-        <Route exact path="/it35-lab2/app/dashboard" component={Dashboard} />
-        <Route exact path="/it35-lab2/app/submit" component={IncidentReport} />
-        <Route exact path="/it35-lab2/app/map" component={IncidentMap} />
-        <Route exact path="/it35-lab2/app/history" component={History} />
-        <Route exact path="/it35-lab2/app/notifications" component={Notifications} />
-        <Route exact path="/it35-lab2/app/feedback" component={GiveFeedback} />
-        <Route exact path="/it35-lab2/app/activity-logs" component={ActivityLogs} />
-        <Route exact path="/it35-lab2/app/profile" component={Profile} />
+        <Route exact path="/iAMUMAta/app/dashboard" component={Dashboard} />
+        <Route exact path="/iAMUMAta/app/submit" component={IncidentReport} />
+        <Route exact path="/iAMUMAta/app/map" component={IncidentMap} />
+        <Route exact path="/iAMUMAta/app/history" component={History} />
+        <Route exact path="/iAMUMAta/app/notifications" component={Notifications} />
+        <Route exact path="/iAMUMAta/app/feedback" component={GiveFeedback} />
+        <Route exact path="/iAMUMAta/app/activity-logs" component={ActivityLogs} />
+        <Route exact path="/iAMUMAta/app/profile" component={Profile} />
 
         {/* Admin Dashboard Routes */}
-        <Route exact path="/it35-lab2/admin-dashboard" component={AdminDashboard} />
-        <Route exact path="/it35-lab2/admin/system-logs" component={SystemLogs} />
-        <Route exact path="/it35-lab2/admin/notifications" component={AdminNotifications} />
-        <Route exact path="/it35-lab2/admin/analytics" component={AdminAnalytics} />
-        <Route exact path="/it35-lab2/admin/incidents" component={AdminIncidents} />
-        <Route exact path="/it35-lab2/admin/users" component={AdminUsers} />
+        <Route exact path="/iAMUMAta/admin-dashboard" component={AdminDashboard} />
+        <Route exact path="/iAMUMAta/admin/system-logs" component={SystemLogs} />
+        <Route exact path="/iAMUMAta/admin/notifications" component={AdminNotifications} />
+        <Route exact path="/iAMUMAta/admin/analytics" component={AdminAnalytics} />
+        <Route exact path="/iAMUMAta/admin/incidents" component={AdminIncidents} />
+        <Route exact path="/iAMUMAta/admin/users" component={AdminUsers} />
 
         {/* Default redirect */}
-        <Route exact path="/" render={() => <Redirect to="/it35-lab2" />} />
+        <Route exact path="/" render={() => <Redirect to="/iAMUMAta" />} />
       </IonRouterOutlet>
     </IonReactRouter>
   </IonApp>
