@@ -430,7 +430,7 @@ const LandingPage: React.FC = () => {
           {!isMobileDevice && (
             <div slot="end">
               <IonButton
-                routerLink="/it35-lab2/admin-login"
+                routerLink="/iAMUMAta/admin-login"
                 size="small"
                 style={{
                   color: 'white',
@@ -729,7 +729,7 @@ const LandingPage: React.FC = () => {
             <IonCardContent style={{ padding: '30px 24px' }}>
               <IonButton
                 expand="block"
-                routerLink="/it35-lab2/user-login"
+                routerLink="/iAMUMAta/user-login"
                 size="large"
                 style={{
                   '--border-radius': '12px',
@@ -760,7 +760,7 @@ const LandingPage: React.FC = () => {
                   }}>New to the platform?</p>
                 </IonText>
                 <IonButton
-                  routerLink="/it35-lab2/register"
+                  routerLink="/iAMUMAta/register"
                   fill="clear"
                   style={{
                     color: '#667eea',
