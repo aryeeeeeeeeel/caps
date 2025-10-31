@@ -163,10 +163,15 @@ const SystemLogs: React.FC = () => {
   };
 
   const handleSignOut = async () => {
-    // Log admin logout activity before signing out
-    await logAdminLogout(user?.email);
-    await supabase.auth.signOut();
-    history.push('/iAMUMAta/admin-login');
+    try {
+      // First log the logout activity
+      await logAdminLogout(user?.email);
+      // Then sign out
+      await supabase.auth.signOut();
+      history.push('/iAMUMAta');
+    } catch (error) {
+      console.error('Error during sign out:', error);
+    }
   };
 
   const handleRefresh = async (event: CustomEvent<RefresherEventDetail>) => {
