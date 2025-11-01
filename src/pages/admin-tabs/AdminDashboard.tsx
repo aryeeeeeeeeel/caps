@@ -30,6 +30,7 @@ import {
   IonSkeletonText,
   IonText,
   IonLabel,
+  useIonViewWillEnter
 } from "@ionic/react"
 import {
   logOutOutline,
@@ -233,6 +234,18 @@ const AdminDashboard: React.FC = () => {
       })),
     )
   }, [reports])
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    const refreshData = async () => {
+      try {
+        await fetchInitialData()
+      } catch (error) {
+        console.error('Error refreshing admin dashboard data:', error)
+      }
+    }
+    refreshData()
+  })
 
   useEffect(() => {
     verifyAdminAccess()
@@ -793,7 +806,22 @@ const AdminDashboard: React.FC = () => {
 
             case "UPDATE":
               console.log("Incident updated:", payload.new)
-              await handleUpdatedIncident(payload.new as IncidentReport)
+              const updatedReport = payload.new as IncidentReport
+              const oldReport = payload.old as IncidentReport
+              
+              // Show toast for status changes
+              if (updatedReport.status !== oldReport.status) {
+                const statusEmojis: { [key: string]: string } = {
+                  'pending': '⏳',
+                  'active': '🔍',
+                  'resolved': '✅'
+                }
+                const emoji = statusEmojis[updatedReport.status] || '📋'
+                setToastMessage(`${emoji} Report "${updatedReport.title}" status changed to ${updatedReport.status}`)
+                setShowToast(true)
+              }
+              
+              await handleUpdatedIncident(updatedReport)
               break
 
             case "DELETE":
@@ -810,14 +838,35 @@ const AdminDashboard: React.FC = () => {
 
     const usersChannel = supabase
       .channel("users_channel")
-      .on("postgres_changes", { event: "*", schema: "public", table: "users" }, () => {
-        fetchInitialData()
+      .on("postgres_changes", { event: "*", schema: "public", table: "users" }, async (payload) => {
+        // Show toast for new user registrations
+        if (payload.eventType === "INSERT") {
+          const newUser = payload.new as any
+          setToastMessage(`👤 New user registered: ${newUser.user_firstname || ''} ${newUser.user_lastname || ''}`)
+          setShowToast(true)
+        }
+        // Update users list when user status changes (online/offline, suspended, etc.)
+        await fetchInitialData()
+      })
+      .subscribe()
+
+    // Feedback channel for new feedback submissions
+    const feedbackChannel = supabase
+      .channel("feedback_channel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, async (payload) => {
+        if (payload.eventType === "INSERT") {
+          const newFeedback = payload.new as any
+          setToastMessage(`💬 New feedback received: ${newFeedback.overall_rating}/5 stars`)
+          setShowToast(true)
+        }
+        await fetchInitialData()
       })
       .subscribe()
 
     return () => {
       reportsChannel.unsubscribe()
       usersChannel.unsubscribe()
+      feedbackChannel.unsubscribe()
     }
   }
 
@@ -3195,6 +3244,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                                 } as any}
                               >
                                 <IonIcon icon={trashOutline} slot="start" style={{ fontSize: "10px" }} />
+                              DEL
                               </IonButton>
                             </div>
                           </div>
