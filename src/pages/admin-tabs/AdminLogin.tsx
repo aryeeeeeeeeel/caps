@@ -15,9 +15,10 @@ import {
   IonTitle,
   IonText,
   IonSkeletonText,
-  IonIcon
+  IonIcon,
+  IonSpinner
 } from '@ionic/react';
-import { shield, lockClosedOutline, mailOutline, keyOutline, checkmarkCircleOutline, arrowBackOutline, desktopOutline } from 'ionicons/icons';
+import { shield, lockClosedOutline, mailOutline, keyOutline, checkmarkCircleOutline, arrowBackOutline, desktopOutline, refreshOutline, shieldOutline } from 'ionicons/icons';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { logAdminLogin } from '../../utils/activityLogger';
@@ -286,7 +287,7 @@ const AdminLogin: React.FC = () => {
     setIsVerifying(true);
     
     // Validate specific email formats
-    if (!(/^ldrrmo@manolofortich\.gov\.ph$/.test(email) || /^arielsumantin69@gmail\.com$/.test(email))) {
+    if (!(/^ldrrmo@manolofortich\.gov\.ph$/.test(email) || /^arielsagaads@gmail\.com$/.test(email))) {
       showCustomToast('Only LDRRMO personnel can access admin.', 'warning');
       setIsVerifying(false);
       return false;
@@ -739,7 +740,7 @@ const AdminLogin: React.FC = () => {
             setOtp('');
             setVerificationSuccess(false);
           }}
-          backdropDismiss={true}
+          backdropDismiss={!isVerifying}
           style={{
             '--height': 'auto',
             '--width': '90%',
@@ -796,14 +797,8 @@ const AdminLogin: React.FC = () => {
                   fontSize: '13px',
                   color: 'white',
                   fontWeight: '600',
-                  margin: '2px 0 6px 0'
+                  margin: '2px 0 0 0'
                 }}>{email}</p>
-                <p style={{
-                  fontSize: '11px',
-                  color: 'rgba(255,255,255,0.8)',
-                  margin: 0,
-                  fontStyle: 'italic'
-                }}>Code expires in 60 seconds</p>
               </div>
 
               <IonCardContent style={{ padding: '24px 20px' }}>
@@ -824,13 +819,19 @@ const AdminLogin: React.FC = () => {
                     <IonInput
                       ref={otpInputRef}
                       fill="outline"
-                      type="text"
+                      type="tel"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
                       placeholder="000000"
                       value={otp}
+                      maxlength={6}
                       onIonChange={(e) => {
-                        setOtp(e.detail.value || '');
+                        // Only allow numbers and limit to 6 characters
+                        const value = e.detail.value || '';
+                        const numericValue = value.replace(/[^0-9]/g, '').slice(0, 6);
+                        setOtp(numericValue);
                       }}
-                      onKeyDown={(e: React.KeyboardEvent) => {
+                      onKeyPress={(e: React.KeyboardEvent) => {
                         if (e.key === 'Enter') {
                           verifyAndLogin();
                         }
@@ -840,18 +841,41 @@ const AdminLogin: React.FC = () => {
                         '--border-color': '#e2e8f0',
                         '--padding-start': '16px',
                         '--padding-end': '16px',
-                        fontSize: '16px',
-                        '--placeholder-textAlign': 'center',
-                        'textAlign': 'center'
+                        fontSize: '18px',
+                        fontWeight: '600',
+                        textAlign: 'center',
+                        letterSpacing: '8px'
                       } as any}
                     />
+                  </div>
+
+                  <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                    <IonButton
+                      onClick={() => {
+                        setOtp('');
+                        sendOtp();
+                      }}
+                      fill="clear"
+                      disabled={isSendingOtp}
+                      style={{
+                        color: '#667eea',
+                        fontSize: '14px'
+                      }}
+                    >
+                      {isSendingOtp ? (
+                        <IonSpinner name="crescent" style={{ width: '16px', height: '16px' }} />
+                      ) : (
+                        <IonIcon icon={refreshOutline} slot="start" />
+                      )}
+                      {isSendingOtp ? 'Sending...' : 'Resend Code'}
+                    </IonButton>
                   </div>
 
                   <IonButton
                     type="submit"
                     expand="block"
                     size="large"
-                    disabled={isVerifying || !otp}
+                    disabled={isVerifying || otp.length !== 6}
                     style={{
                       '--border-radius': '10px',
                       '--padding-top': '14px',
@@ -864,39 +888,17 @@ const AdminLogin: React.FC = () => {
                       marginBottom: '12px'
                     } as any}
                   >
-                    <IonIcon icon={shield} slot="start" />
+                    <IonIcon icon={shieldOutline} slot="start" />
                     {isVerifying ? 'Verifying...' : 'VERIFY & ACCESS'}
                   </IonButton>
                 </form>
-
-                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                  <p style={{
-                    fontSize: '12px',
-                    color: '#718096',
-                    margin: 0
-                  }}>
-                    Didn't receive the code?{' '}
-                    <span
-                      style={{
-                        color: '#667eea',
-                        cursor: 'pointer',
-                        fontWeight: '500'
-                      }}
-                      onClick={() => {
-                        setOtp('');
-                        sendOtp();
-                      }}
-                    >
-                      Resend
-                    </span>
-                  </p>
-                </div>
 
                 <IonButton
                   expand="block"
                   fill="clear"
                   onClick={() => {
                     setShowOtpModal(false);
+                    setIsVerifying(false);
                     setOtp('');
                   }}
                   style={{
