@@ -31,7 +31,14 @@ import {
   IonLabel as IonTextLabel,
   IonPopover,
   IonAvatar,
-  IonBadge
+  IonBadge,
+  IonModal,
+  IonToggle,
+  IonList,
+  IonListHeader,
+  IonRadioGroup,
+  IonRadio,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   cameraOutline,
@@ -47,7 +54,9 @@ import {
   documentTextOutline,
   logOutOutline,
   warningOutline,
-  homeOutline
+  homeOutline,
+  checkmarkCircleOutline,
+  closeOutline
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
@@ -92,8 +101,117 @@ interface BarangayPolygon {
   centroid: { lat: number; lng: number };
 }
 
+interface PermissionPreferences {
+  camera: {
+    enabled: boolean;
+    duration: 'session' | '24h' | '1w' | 'forever';
+    expiresAt?: number;
+  };
+  location: {
+    enabled: boolean;
+    duration: 'session' | '24h' | '1w' | 'forever';
+    expiresAt?: number;
+  };
+}
+
 const isNativePlatform = () => {
   return Capacitor.isNativePlatform();
+};
+
+// Permission management utilities
+const PERMISSION_STORAGE_KEY = 'iAMUMAta_permissions';
+
+const getPermissionPreferences = (): PermissionPreferences => {
+  try {
+    const stored = localStorage.getItem(PERMISSION_STORAGE_KEY);
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      const now = Date.now();
+      
+      // Check if camera permission expired
+      if (prefs.camera?.expiresAt && prefs.camera.expiresAt < now) {
+        prefs.camera.enabled = false;
+      }
+      
+      // Check if location permission expired
+      if (prefs.location?.expiresAt && prefs.location.expiresAt < now) {
+        prefs.location.enabled = false;
+      }
+      
+      return prefs;
+    }
+  } catch (e) {
+    console.warn('Failed to load permission preferences:', e);
+  }
+  
+  return {
+    camera: { enabled: false, duration: 'session' },
+    location: { enabled: false, duration: 'session' }
+  };
+};
+
+const savePermissionPreferences = (prefs: PermissionPreferences): void => {
+  try {
+    const now = Date.now();
+    const updated = { ...prefs };
+    
+    // Calculate expiration times
+    if (updated.camera.enabled) {
+      switch (updated.camera.duration) {
+        case 'session':
+          // Expires when tab closes (no expiry stored)
+          updated.camera.expiresAt = undefined;
+          break;
+        case '24h':
+          updated.camera.expiresAt = now + (24 * 60 * 60 * 1000);
+          break;
+        case '1w':
+          updated.camera.expiresAt = now + (7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'forever':
+          updated.camera.expiresAt = undefined;
+          break;
+      }
+    }
+    
+    if (updated.location.enabled) {
+      switch (updated.location.duration) {
+        case 'session':
+          updated.location.expiresAt = undefined;
+          break;
+        case '24h':
+          updated.location.expiresAt = now + (24 * 60 * 60 * 1000);
+          break;
+        case '1w':
+          updated.location.expiresAt = now + (7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'forever':
+          updated.location.expiresAt = undefined;
+          break;
+      }
+    }
+    
+    localStorage.setItem(PERMISSION_STORAGE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Failed to save permission preferences:', e);
+  }
+};
+
+const isPermissionValid = (type: 'camera' | 'location'): boolean => {
+  const prefs = getPermissionPreferences();
+  const permission = prefs[type];
+  
+  if (!permission.enabled) return false;
+  
+  if (permission.duration === 'session') {
+    return true; // Valid until tab closes
+  }
+  
+  if (permission.expiresAt) {
+    return permission.expiresAt > Date.now();
+  }
+  
+  return true; // Forever
 };
 
 // FIXED BARANGAY LIST - Original 22 Barangays of Manolo Fortich
@@ -881,6 +999,14 @@ const IncidentReport: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isFormLoading, setIsFormLoading] = useState(true);
+  
+  // Permission management state
+  const [permissionPrefs, setPermissionPrefs] = useState<PermissionPreferences>(getPermissionPreferences());
+  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
+  const [showLocationPermissionModal, setShowLocationPermissionModal] = useState(false);
+  const [selectedDuration, setSelectedDuration] = useState<'session' | '24h' | '1w' | 'forever'>('session');
+  const [cameraInitializing, setCameraInitializing] = useState(false);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
 
   // Show toast message with color
   const showToastMessage = (message: string, color: 'success' | 'danger' | 'warning' = 'success') => {
@@ -888,6 +1014,26 @@ const IncidentReport: React.FC = () => {
     setToastColor(color);
     setShowToast(true);
   };
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    fetchUserProfile();
+    setPermissionPrefs(getPermissionPreferences());
+    // Refresh badge notifications
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: n1 } = await supabase.from('notifications').select('id').eq('user_email', user.email).eq('read', false);
+        const { data: n2 } = await supabase.from('incident_reports').select('id').eq('reporter_email', user.email).not('admin_response', 'is', null).eq('read', false);
+        setUnreadNotifications((n1?.length || 0) + (n2?.length || 0));
+      }
+    })();
+  });
+
+  // Load permission preferences on mount
+  useEffect(() => {
+    setPermissionPrefs(getPermissionPreferences());
+  }, []);
 
   // Fetch user profile when component mounts
   useEffect(() => {
@@ -1114,8 +1260,13 @@ const IncidentReport: React.FC = () => {
     return { file, exif };
   };
 
-  // Simplified permission checking for web compatibility
+  // Enhanced permission checking with user preferences
   const checkPermissions = async (type: 'camera' | 'location'): Promise<boolean> => {
+    // First check user preference
+    if (!isPermissionValid(type)) {
+      return false;
+    }
+    
     try {
       if (isNativePlatform()) {
         // For native apps, we'll rely on Capacitor's built-in permission handling
@@ -1123,8 +1274,13 @@ const IncidentReport: React.FC = () => {
       } else {
         // For web, check navigator permissions if available
         if (navigator.permissions) {
-          const permission = await navigator.permissions.query({ name: type as PermissionName });
-          return permission.state === 'granted' || permission.state === 'prompt';
+          try {
+            const permission = await navigator.permissions.query({ name: type as PermissionName });
+            return permission.state === 'granted' || permission.state === 'prompt';
+          } catch (permError) {
+            // Some browsers don't support permission queries, fall through
+            console.warn('Permission query not supported:', permError);
+          }
         }
         return true; // Assume permission is available for web
       }
@@ -1134,7 +1290,70 @@ const IncidentReport: React.FC = () => {
     }
   };
 
-  // Get current location
+  // Handle permission toggle changes
+  const handleCameraToggle = (enabled: boolean) => {
+    if (enabled) {
+      setSelectedDuration(permissionPrefs.camera.duration || 'session');
+      setShowCameraPermissionModal(true);
+    } else {
+      const updated = { ...permissionPrefs, camera: { ...permissionPrefs.camera, enabled: false } };
+      setPermissionPrefs(updated);
+      savePermissionPreferences(updated);
+    }
+  };
+
+  const handleLocationToggle = (enabled: boolean) => {
+    if (enabled) {
+      setSelectedDuration(permissionPrefs.location.duration || 'session');
+      setShowLocationPermissionModal(true);
+    } else {
+      const updated = { ...permissionPrefs, location: { ...permissionPrefs.location, enabled: false } };
+      setPermissionPrefs(updated);
+      savePermissionPreferences(updated);
+    }
+  };
+
+  // Handle permission confirmation
+  const confirmCameraPermission = () => {
+    const updated = {
+      ...permissionPrefs,
+      camera: {
+        ...permissionPrefs.camera,
+        enabled: true,
+        duration: selectedDuration
+      }
+    };
+    setPermissionPrefs(updated);
+    savePermissionPreferences(updated);
+    setShowCameraPermissionModal(false);
+    showToastMessage('Camera permission enabled!', 'success');
+  };
+
+  const confirmLocationPermission = () => {
+    const updated = {
+      ...permissionPrefs,
+      location: {
+        ...permissionPrefs.location,
+        enabled: true,
+        duration: selectedDuration
+      }
+    };
+    setPermissionPrefs(updated);
+    savePermissionPreferences(updated);
+    setShowLocationPermissionModal(false);
+    showToastMessage('Location permission enabled!', 'success');
+  };
+
+  const denyPermission = (type: 'camera' | 'location') => {
+    if (type === 'camera') {
+      setShowCameraPermissionModal(false);
+    } else {
+      setShowLocationPermissionModal(false);
+    }
+    showToastMessage(`${type === 'camera' ? 'Camera' : 'Location'} permission denied.`, 'warning');
+  };
+
+  // Get current location with better timeout handling
   const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
     try {
       const hasLocationPermission = await checkPermissions('location');
@@ -1144,8 +1363,9 @@ const IncidentReport: React.FC = () => {
       }
 
       const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 10000
+        enableHighAccuracy: false, // Use false for faster response
+        timeout: 15000, // Increased timeout to 15 seconds
+        maximumAge: 60000 // Accept cached location up to 1 minute old
       });
 
       const lat = position.coords.latitude;
@@ -1156,24 +1376,60 @@ const IncidentReport: React.FC = () => {
       }
 
       return null;
-    } catch (error) {
-      console.error('Error getting current location:', error);
+    } catch (error: any) {
+      // Only log if it's not a timeout (timeout is expected sometimes)
+      if (error.code !== 3) { // 3 = TIMEOUT
+        console.warn('Error getting current location:', error);
+      }
       return null;
     }
   };
 
-  // Take photo function
+  // Take photo function - optimized for faster loading
   const takePhoto = async () => {
     try {
-      const hasCameraPermission = await checkPermissions('camera');
-      if (!hasCameraPermission) {
-        showToastMessage('Camera permission is required to take photos.', 'warning');
+      // Check permission preferences first
+      if (!isPermissionValid('camera')) {
+        showToastMessage('Please enable camera permission first.', 'warning');
         return;
       }
 
+      const hasCameraPermission = await checkPermissions('camera');
+      if (!hasCameraPermission) {
+        showToastMessage('Camera permission is required. Please enable it in permissions.', 'warning');
+        return;
+      }
+
+      setCameraInitializing(true);
+
+      // Get location in parallel (non-blocking)
+      let currentLocationPromise: Promise<{ lat: number; lng: number } | null> = Promise.resolve(null);
+      if (isPermissionValid('location')) {
+        currentLocationPromise = getCurrentLocation().catch(() => null);
+      }
+
+      // Initialize camera faster with optimized settings
+      const cameraOptions: any = {
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+        correctOrientation: true,
+        saveToGallery: false, // Faster - don't save to gallery
+        promptLabelHeader: 'Take Photo',
+        promptLabelPhoto: 'From Gallery',
+        promptLabelPicture: 'Take Picture',
+        width: 1920, // Limit resolution for faster processing
+        height: 1080
+      };
+
+      const image = await Camera.getPhoto(cameraOptions);
+      setCameraInitializing(false);
+
+      // Get location now (non-blocking, use if available)
       let currentLocation = null;
       try {
-        currentLocation = await getCurrentLocation();
+        currentLocation = await currentLocationPromise;
         if (currentLocation) {
           console.log('Current location captured:', currentLocation);
         }
@@ -1181,64 +1437,68 @@ const IncidentReport: React.FC = () => {
         console.warn('Could not get current location:', locationError);
       }
 
-      const image = await Camera.getPhoto({
-        quality: 90,
-        allowEditing: false,
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Camera,
-        correctOrientation: true,
-        saveToGallery: true,
-        promptLabelHeader: 'Take Photo',
-        promptLabelPhoto: 'From Gallery',
-        promptLabelPicture: 'Take Picture'
-      });
-
       if (image.webPath) {
-        const response = await fetch(image.webPath);
-        const blob = await response.blob();
+        setPhotoProcessing(true);
+        try {
+          const response = await fetch(image.webPath);
+          const blob = await response.blob();
 
-        const { file, exif } = await processImage(blob);
-        const currentDateTime = getCurrentDateTime();
+          const { file, exif } = await processImage(blob);
+          const currentDateTime = getCurrentDateTime();
 
-        // If EXIF doesn't contain GPS but we have current location, use it
-        let enhancedExif = exif;
-        if (!exif?.gpsLatitude && currentLocation) {
-          enhancedExif = {
-            ...exif,
-            gpsLatitude: currentLocation.lat,
-            gpsLongitude: currentLocation.lng,
-            locationSource: 'device_gps'
-          };
+          // If EXIF doesn't contain GPS but we have current location, use it
+          let enhancedExif = exif;
+          if (!exif?.gpsLatitude && currentLocation) {
+            enhancedExif = {
+              ...exif,
+              gpsLatitude: currentLocation.lat,
+              gpsLongitude: currentLocation.lng,
+              locationSource: 'device_gps'
+            };
 
-          // Detect barangay from device GPS
-          const detectedBarangay = detectBarangayFromCoordinates(currentLocation.lat, currentLocation.lng);
-          if (detectedBarangay) {
-            enhancedExif.detectedBarangay = detectedBarangay;
+            // Detect barangay from device GPS
+            const detectedBarangay = detectBarangayFromCoordinates(currentLocation.lat, currentLocation.lng);
+            if (detectedBarangay) {
+              enhancedExif.detectedBarangay = detectedBarangay;
+            }
           }
+
+          setFormData(prev => ({
+            ...prev,
+            images: [...prev.images, file],
+            current_datetime: currentDateTime
+          }));
+
+          setImagePreview(prev => [...prev, image.webPath!]);
+
+          if (enhancedExif && formData.images.length === 0) {
+            setExtractedExifData(enhancedExif);
+          }
+
+          showToastMessage('Photo added successfully!' + (currentLocation ? ' Location captured.' : ''));
+        } finally {
+          setPhotoProcessing(false);
         }
-
-        setFormData(prev => ({
-          ...prev,
-          images: [...prev.images, file],
-          current_datetime: currentDateTime
-        }));
-
-        setImagePreview(prev => [...prev, image.webPath!]);
-
-        if (enhancedExif && formData.images.length === 0) {
-          setExtractedExifData(enhancedExif);
-        }
-
-        showToastMessage('Photo added successfully!' + (currentLocation ? ' Location captured.' : ''));
       }
     } catch (error: any) {
-      console.error('Camera error:', error);
-      if (!error.message?.includes('User cancelled')) {
-        if (error.message?.includes('Permission')) {
-          showToastMessage('Camera permission denied. Please enable camera access in settings.', 'danger');
-        } else {
-          showToastMessage('Failed to capture photo. Please try again.', 'danger');
-        }
+      setCameraInitializing(false);
+      
+      // Handle user cancellation gracefully - don't show as error
+      const errorMessage = error?.message || error?.toString() || '';
+      if (errorMessage.includes('User cancelled') || 
+          errorMessage.includes('cancelled') ||
+          errorMessage.includes('cancel')) {
+        // User intentionally cancelled - don't show error
+        console.log('User cancelled camera');
+        return;
+      }
+      
+      // Log other errors but don't spam user
+      console.warn('Camera error:', error);
+      if (errorMessage.includes('Permission') || errorMessage.includes('permission')) {
+        showToastMessage('Camera permission denied. Please enable camera access.', 'danger');
+      } else if (!errorMessage.includes('cancelled')) {
+        showToastMessage('Failed to capture photo. Please try again.', 'danger');
       }
     }
   };
@@ -1246,6 +1506,7 @@ const IncidentReport: React.FC = () => {
   // Select from gallery function
   const selectFromGallery = async () => {
     try {
+      setPhotoProcessing(true);
       const image = await Camera.getPhoto({
         quality: 90,
         allowEditing: false,
@@ -1255,27 +1516,34 @@ const IncidentReport: React.FC = () => {
       });
 
       if (image.webPath) {
-        const response = await fetch(image.webPath);
-        const blob = await response.blob();
+        try {
+          const response = await fetch(image.webPath);
+          const blob = await response.blob();
 
-        const { file, exif } = await processImage(blob);
-        const currentDateTime = getCurrentDateTime();
+          const { file, exif } = await processImage(blob);
+          const currentDateTime = getCurrentDateTime();
 
-        setFormData(prev => ({
-          ...prev,
-          images: [...prev.images, file],
-          current_datetime: currentDateTime
-        }));
+          setFormData(prev => ({
+            ...prev,
+            images: [...prev.images, file],
+            current_datetime: currentDateTime
+          }));
 
-        setImagePreview(prev => [...prev, image.webPath!]);
+          setImagePreview(prev => [...prev, image.webPath!]);
 
-        if (exif && formData.images.length === 0) {
-          setExtractedExifData(exif);
+          if (exif && formData.images.length === 0) {
+            setExtractedExifData(exif);
+          }
+
+          showToastMessage('Photo added successfully!');
+        } finally {
+          setPhotoProcessing(false);
         }
-
-        showToastMessage('Photo added successfully!');
+      } else {
+        setPhotoProcessing(false);
       }
     } catch (error: any) {
+      setPhotoProcessing(false);
       if (!error.message?.includes('User cancelled')) {
         showToastMessage('Failed to select image. Please try again.', 'danger');
       }
@@ -1303,6 +1571,7 @@ const IncidentReport: React.FC = () => {
         return;
       }
 
+      setPhotoProcessing(true);
       try {
         const previewUrl = URL.createObjectURL(file);
         const { file: optimizedFile, exif } = await processImage(file);
@@ -1323,6 +1592,8 @@ const IncidentReport: React.FC = () => {
         showToastMessage('Photo added successfully!');
       } catch (error) {
         showToastMessage('Failed to process image. Please try another file.', 'danger');
+      } finally {
+        setPhotoProcessing(false);
       }
     }
     event.target.value = '';
@@ -1741,6 +2012,66 @@ const IncidentReport: React.FC = () => {
           </IonCardContent>
         </IonCard>
 
+        {/* Permissions Section */}
+        <IonCard style={{ borderRadius: '16px', marginBottom: '20px', border: '1px solid #e5e7eb' }}>
+          <IonCardHeader>
+            <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
+              App Permissions
+            </IonCardTitle>
+          </IonCardHeader>
+          <IonCardContent>
+            {/* Camera Permission Toggle */}
+            <IonItem lines="none" style={{ '--padding-start': '0', '--inner-padding-end': '0', marginBottom: '16px' } as any}>
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                  <IonIcon icon={cameraOutline} style={{ fontSize: '24px', color: '#3b82f6', marginRight: '12px', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <IonLabel style={{ fontSize: '16px', fontWeight: '500', color: '#1f2937' }}>
+                      Allow Camera Use
+                    </IonLabel>
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0' }}>
+                      {permissionPrefs.camera.enabled 
+                        ? `Enabled (${permissionPrefs.camera.duration === 'session' ? 'Until tab closes' : permissionPrefs.camera.duration === '24h' ? '24 hours' : permissionPrefs.camera.duration === '1w' ? '1 week' : 'Forever'})`
+                        : 'Disabled - Enable to take photos faster'}
+                    </p>
+                  </div>
+                </div>
+                <IonToggle
+                  checked={permissionPrefs.camera.enabled}
+                  onIonChange={(e) => handleCameraToggle(e.detail.checked)}
+                  color="primary"
+                  style={{ marginLeft: '16px', flexShrink: 0 }}
+                />
+              </div>
+            </IonItem>
+
+            {/* Location Permission Toggle */}
+            <IonItem lines="none" style={{ '--padding-start': '0', '--inner-padding-end': '0' } as any}>
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                  <IonIcon icon={locationOutline} style={{ fontSize: '24px', color: '#10b981', marginRight: '12px', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <IonLabel style={{ fontSize: '16px', fontWeight: '500', color: '#1f2937' }}>
+                      Allow Location Use
+                    </IonLabel>
+                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0' }}>
+                      {permissionPrefs.location.enabled 
+                        ? `Enabled (${permissionPrefs.location.duration === 'session' ? 'Until tab closes' : permissionPrefs.location.duration === '24h' ? '24 hours' : permissionPrefs.location.duration === '1w' ? '1 week' : 'Forever'})`
+                        : 'Disabled - Enable for automatic location capture'}
+                    </p>
+                  </div>
+                </div>
+                <IonToggle
+                  checked={permissionPrefs.location.enabled}
+                  onIonChange={(e) => handleLocationToggle(e.detail.checked)}
+                  color="success"
+                  style={{ marginLeft: '16px', flexShrink: 0 }}
+                />
+              </div>
+            </IonItem>
+          </IonCardContent>
+        </IonCard>
+
         {/* Photo Section */}
         <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
           <IonCardHeader>
@@ -1764,6 +2095,7 @@ const IncidentReport: React.FC = () => {
                     expand="block"
                     fill="outline"
                     onClick={takePhoto}
+                    disabled={cameraInitializing || photoProcessing}
                     style={{
                       '--border-radius': '12px',
                       '--border-color': '#3b82f6',
@@ -1771,8 +2103,12 @@ const IncidentReport: React.FC = () => {
                       height: '60px'
                     } as any}
                   >
-                    <IonIcon icon={cameraOutline} slot="start" />
-                    Take Photo
+                    {cameraInitializing || photoProcessing ? (
+                      <IonSpinner name="lines-small" slot="start" />
+                    ) : (
+                      <IonIcon icon={cameraOutline} slot="start" />
+                    )}
+                    {cameraInitializing ? 'Opening Camera...' : photoProcessing ? 'Processing Photo...' : 'Take Photo'}
                   </IonButton>
                 </IonCol>
                 <IonCol size="6">
@@ -1780,6 +2116,7 @@ const IncidentReport: React.FC = () => {
                     expand="block"
                     fill="outline"
                     onClick={isNativePlatform() ? selectFromGallery : selectFromFileInput}
+                    disabled={cameraInitializing || photoProcessing}
                     style={{
                       '--border-radius': '12px',
                       '--border-color': '#10b981',
@@ -1787,8 +2124,12 @@ const IncidentReport: React.FC = () => {
                       height: '60px'
                     } as any}
                   >
-                    <IonIcon icon={addCircleOutline} slot="start" />
-                    {isNativePlatform() ? 'From Gallery' : 'Select Image'}
+                    {photoProcessing ? (
+                      <IonSpinner name="lines-small" slot="start" />
+                    ) : (
+                      <IonIcon icon={addCircleOutline} slot="start" />
+                    )}
+                    {photoProcessing ? 'Processing...' : (isNativePlatform() ? 'From Gallery' : 'Select Image')}
                   </IonButton>
                 </IonCol>
               </IonRow>
@@ -2015,7 +2356,7 @@ const IncidentReport: React.FC = () => {
 
         {/* Toast */}
         <IonToast
-          isOpen={false}
+          isOpen={showToast}
           onDidDismiss={() => setShowToast(false)}
           message={toastMessage}
           duration={4000}
@@ -2023,6 +2364,194 @@ const IncidentReport: React.FC = () => {
           color={toastColor}
         />
       </IonContent>
+
+      {/* Camera Permission Modal */}
+      <IonModal isOpen={showCameraPermissionModal} onDidDismiss={() => setShowCameraPermissionModal(false)}>
+        <IonHeader>
+          <IonToolbar>
+            <IonTitle>Camera Permission</IonTitle>
+            <IonButtons slot="end">
+              <IonButton onClick={() => setShowCameraPermissionModal(false)}>
+                <IonIcon icon={closeOutline} />
+              </IonButton>
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent style={{ '--padding': '20px' } as any}>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+              <IonIcon icon={cameraOutline} style={{ fontSize: '32px', color: '#3b82f6', marginRight: '12px' }} />
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#1f2937' }}>
+                Enable Camera Access
+              </h2>
+            </div>
+            <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>
+              To take photos faster and improve your experience, please select how long you'd like to allow camera access.
+            </p>
+          </div>
+
+          <IonList>
+            <IonListHeader>
+              <IonLabel>Permission Duration</IonLabel>
+            </IonListHeader>
+            <IonRadioGroup
+              value={selectedDuration}
+              onIonChange={(e) => setSelectedDuration(e.detail.value)}
+            >
+              <IonItem>
+                <IonRadio slot="start" value="session" />
+                <IonLabel>
+                  <h3>Until I close this site</h3>
+                  <p>Permission valid only for this browser session</p>
+                </IonLabel>
+              </IonItem>
+              <IonItem>
+                <IonRadio slot="start" value="24h" />
+                <IonLabel>
+                  <h3>For 24 hours</h3>
+                  <p>Permission expires after 24 hours</p>
+                </IonLabel>
+              </IonItem>
+              <IonItem>
+                <IonRadio slot="start" value="1w" />
+                <IonLabel>
+                  <h3>For 1 week</h3>
+                  <p>Permission expires after 7 days</p>
+                </IonLabel>
+              </IonItem>
+              <IonItem>
+                <IonRadio slot="start" value="forever" />
+                <IonLabel>
+                  <h3>Forever</h3>
+                  <p>Permission remains until manually disabled</p>
+                </IonLabel>
+              </IonItem>
+            </IonRadioGroup>
+          </IonList>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+            <IonButton
+              expand="block"
+              onClick={confirmCameraPermission}
+              style={{
+                '--background': '#10b981',
+                '--color': 'white',
+                flex: 1
+              } as any}
+            >
+              <IonIcon icon={checkmarkCircleOutline} slot="start" />
+              Allow
+            </IonButton>
+            <IonButton
+              expand="block"
+              fill="outline"
+              onClick={() => denyPermission('camera')}
+              style={{
+                '--border-color': '#ef4444',
+                '--color': '#ef4444',
+                flex: 1
+              } as any}
+            >
+              <IonIcon icon={closeOutline} slot="start" />
+              Don't Allow
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonModal>
+
+      {/* Location Permission Modal */}
+      <IonModal isOpen={showLocationPermissionModal} onDidDismiss={() => setShowLocationPermissionModal(false)}>
+        <IonHeader>
+          <IonToolbar>
+            <IonTitle>Location Permission</IonTitle>
+            <IonButtons slot="end">
+              <IonButton onClick={() => setShowLocationPermissionModal(false)}>
+                <IonIcon icon={closeOutline} />
+              </IonButton>
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent style={{ '--padding': '20px' } as any}>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+              <IonIcon icon={locationOutline} style={{ fontSize: '32px', color: '#10b981', marginRight: '12px' }} />
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#1f2937' }}>
+                Enable Location Access
+              </h2>
+            </div>
+            <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>
+              To automatically capture location data when taking photos, please select how long you'd like to allow location access.
+            </p>
+          </div>
+
+          <IonList>
+            <IonListHeader>
+              <IonLabel>Permission Duration</IonLabel>
+            </IonListHeader>
+            <IonRadioGroup
+              value={selectedDuration}
+              onIonChange={(e) => setSelectedDuration(e.detail.value)}
+            >
+              <IonItem>
+                <IonRadio slot="start" value="session" />
+                <IonLabel>
+                  <h3>Until I close this site</h3>
+                  <p>Permission valid only for this browser session</p>
+                </IonLabel>
+              </IonItem>
+              <IonItem>
+                <IonRadio slot="start" value="24h" />
+                <IonLabel>
+                  <h3>For 24 hours</h3>
+                  <p>Permission expires after 24 hours</p>
+                </IonLabel>
+              </IonItem>
+              <IonItem>
+                <IonRadio slot="start" value="1w" />
+                <IonLabel>
+                  <h3>For 1 week</h3>
+                  <p>Permission expires after 7 days</p>
+                </IonLabel>
+              </IonItem>
+              <IonItem>
+                <IonRadio slot="start" value="forever" />
+                <IonLabel>
+                  <h3>Forever</h3>
+                  <p>Permission remains until manually disabled</p>
+                </IonLabel>
+              </IonItem>
+            </IonRadioGroup>
+          </IonList>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+            <IonButton
+              expand="block"
+              onClick={confirmLocationPermission}
+              style={{
+                '--background': '#10b981',
+                '--color': 'white',
+                flex: 1
+              } as any}
+            >
+              <IonIcon icon={checkmarkCircleOutline} slot="start" />
+              Allow
+            </IonButton>
+            <IonButton
+              expand="block"
+              fill="outline"
+              onClick={() => denyPermission('location')}
+              style={{
+                '--border-color': '#ef4444',
+                '--color': '#ef4444',
+                flex: 1
+              } as any}
+            >
+              <IonIcon icon={closeOutline} slot="start" />
+              Don't Allow
+            </IonButton>
+          </div>
+        </IonContent>
+      </IonModal>
       <IonTabBar
         slot="bottom"
         style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
