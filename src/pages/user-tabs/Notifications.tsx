@@ -24,7 +24,8 @@ import {
   IonTabButton,
   IonLabel,
   IonPopover,
-  IonAvatar
+  IonAvatar,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   notificationsOutline,
@@ -87,6 +88,11 @@ const Notifications: React.FC<Props> = ({ refreshCount }) => {
     { name: 'My Reports', tab: 'map', url: '/iAMUMAta/app/map', icon: mapOutline },
     { name: 'History', tab: 'reports', url: '/iAMUMAta/app/history', icon: timeOutline },
   ];
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    fetchNotifications();
+  });
 
   useEffect(() => {
     (async () => {
