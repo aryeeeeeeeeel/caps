@@ -330,7 +330,7 @@ const Register: React.FC = () => {
 
         const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
         if (!passwordRegex.test(password)) {
-            setAlertMessage("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special symbol.");
+            setAlertMessage("Password must be at least 8 characters long and include at least has one uppercase letter, one lowercase letter, one number, and one special symbol.");
             setShowAlert(true);
             return;
         }
@@ -345,93 +345,69 @@ const Register: React.FC = () => {
     };
 
     const doRegister = async () => {
-        setShowVerificationModal(false);
-        setIsRegistering(true);
+    setShowVerificationModal(false);
+    setIsRegistering(true);
 
-        try {
-            // First, check if username already exists
-            const { data: existingUser, error: checkError } = await supabase
-                .from("users")
-                .select("username")
-                .eq("username", username)
-                .single();
-
-            if (existingUser && !checkError) {
-                throw new Error("Username already exists. Please choose a different username.");
-            }
-
-            // Check if email already exists
-            const { data: existingEmail, error: emailCheckError } = await supabase
-                .from("users")
-                .select("user_email")
-                .eq("user_email", email)
-                .single();
-
-            if (existingEmail && !emailCheckError) {
-                throw new Error("Email already registered. Please use a different email or sign in.");
-            }
-
-            // Create Supabase Auth user
-            const { data: authData, error: authError } = await supabase.auth.signUp({ 
-                email, 
-                password,
-                options: {
-                    data: {
-                        username: username,
-                        first_name: firstName,
-                        last_name: lastName
-                    }
+    try {
+        // Create Supabase Auth user first
+        const { data: authData, error: authError } = await supabase.auth.signUp({ 
+            email, 
+            password,
+            options: {
+                data: {
+                    username: username,
+                    first_name: firstName,
+                    last_name: lastName
                 }
-            });
-
-            if (authError) {
-                throw new Error("Account creation failed: " + authError.message);
             }
+        });
 
-            if (!authData.user) {
-                throw new Error("No user data returned from authentication.");
-            }
-
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(password, salt);
-
-            // Insert into users table with is_authenticated = false initially
-            const { error: insertError } = await supabase.from("users").insert([
-                {
-                    username,
-                    user_email: email,
-                    user_firstname: firstName,
-                    user_lastname: lastName,
-                    user_address: address,
-                    user_contact_number: contactNumber,
-                    user_password: hashedPassword,
-                    is_authenticated: false, // Set to false initially
-                    auth_uuid: authData.user.id, // Link to Supabase Auth user
-                    status: 'inactive', // New users are always inactive initially
-                    date_registered: new Date().toISOString(),
-                },
-            ]);
-
-            if (insertError) {
-                console.error('Insert error:', insertError);
-                throw new Error("Failed to save user data: " + insertError.message);
-            }
-
-            // Log user registration activity
-            await logUserRegistration(email, firstName, lastName);
-
-            setShowSuccessModal(true);
-        } catch (err) {
-            if (err instanceof Error) {
-                setAlertMessage(err.message);
-            } else {
-                setAlertMessage("An unknown error occurred during registration.");
-            }
-            setShowAlert(true);
-        } finally {
-            setIsRegistering(false);
+        if (authError) {
+            throw new Error("Account creation failed: " + authError.message);
         }
-    };
+
+        if (!authData.user) {
+            throw new Error("No user data returned from authentication.");
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Use the RPC function for atomic registration
+        const { data: result, error: rpcError } = await supabase.rpc('register_user', {
+            p_username: username,
+            p_email: email,
+            p_first_name: firstName,
+            p_last_name: lastName,
+            p_address: address,
+            p_contact_number: contactNumber,
+            p_password: hashedPassword,
+            p_auth_uuid: authData.user.id
+        });
+
+        if (rpcError) {
+            throw new Error("Registration failed: " + rpcError.message);
+        }
+
+        if (!result.success) {
+            throw new Error(result.error || "Registration failed");
+        }
+
+        // Log user registration activity
+        await logUserRegistration(email, firstName, lastName);
+
+        setShowSuccessModal(true);
+    } catch (err) {
+        if (err instanceof Error) {
+            setAlertMessage(err.message);
+        } else {
+            setAlertMessage("An unknown error occurred during registration.");
+        }
+        setShowAlert(true);
+    } finally {
+        setIsRegistering(false);
+    }
+};
 
     // Handler Logic
     const handleShowTerms = () => setShowTermsModal(true);
