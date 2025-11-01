@@ -23,7 +23,8 @@ import {
   IonSkeletonText,
   IonToast,
   useIonRouter,
-  IonModal
+  IonModal,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   alertCircleOutline,
@@ -67,6 +68,12 @@ const AdminNotifications: React.FC = () => {
   const [selectedNotification, setSelectedNotification] = useState<AdminNotification | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    fetchUnreadCount();
+    fetchAdminNotifications();
+  });
 
   useEffect(() => {
     fetchUnreadCount();
