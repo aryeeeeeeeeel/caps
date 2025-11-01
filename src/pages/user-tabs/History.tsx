@@ -37,7 +37,8 @@ import {
   IonTabButton,
   IonPopover,
   IonAvatar,
-  IonBadge
+  IonBadge,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   imageOutline,
@@ -299,6 +300,11 @@ const History: React.FC = () => {
     }
   };
 
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    fetchResolvedReports();
+  });
+
   useEffect(() => {
     const initializeData = async () => {
       try {
@@ -311,22 +317,36 @@ const History: React.FC = () => {
           const { data: n2 } = await supabase.from('incident_reports').select('id').eq('reporter_email', user.email).not('admin_response', 'is', null).eq('read', false);
           setUnreadNotifications((n1?.length || 0) + (n2?.length || 0));
 
-          // Realtime badge updates
+          // Realtime badge updates and report updates
           const email = user.email || '';
           if (!email) {
             await fetchResolvedReports();
             return;
           }
+          
+          // Badge updates
           const notifChannel = supabase
             .channel('history_badge_notifications')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_email=eq.${email}` }, async () => {
               await refreshUnreadBadge(email);
             })
             .subscribe();
+          
+          // Report updates - refresh history when reports change (especially status changes to resolved)
           const reportsChannel = supabase
             .channel('history_badge_reports')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async (payload) => {
+              // Update badge
               await refreshUnreadBadge(email);
+              
+              // Refresh reports list to show newly resolved reports
+              await fetchResolvedReports();
+              
+              // Show toast when a report becomes resolved
+              if (payload.eventType === 'UPDATE' && payload.new.status === 'resolved') {
+                setToastMessage(`✅ Your report "${payload.new.title}" has been resolved!`);
+                setShowToast(true);
+              }
             })
             .subscribe();
         }
