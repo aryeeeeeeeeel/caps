@@ -21,7 +21,8 @@ import {
   IonBadge,
   IonText,
   IonSearchbar,
-  RefresherEventDetail
+  RefresherEventDetail,
+  useIonViewWillEnter
 } from '@ionic/react';
 import { useHistory, useLocation } from 'react-router-dom';
 import {
@@ -102,7 +103,37 @@ const SystemLogs: React.FC = () => {
 
     fetchUser();
     fetchSystemLogs();
+    
+    // Setup realtime subscription for system logs
+    const logsChannel = supabase
+      .channel('system_logs_realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'system_logs'
+      }, async (payload) => {
+        console.log('Real-time system log update:', payload);
+        // Refresh logs when new ones are added
+        await fetchSystemLogs();
+      })
+      .subscribe();
+
+    return () => {
+      logsChannel.unsubscribe();
+    };
   }, []);
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    fetchSystemLogs();
+    const refreshNotifications = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) {
+        await fetchNotifications(user.email);
+      }
+    };
+    refreshNotifications();
+  });
 
 
 
