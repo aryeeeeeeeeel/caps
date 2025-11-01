@@ -21,7 +21,8 @@ import {
   IonBadge,
   useIonRouter,
   IonText,
-  IonSkeletonText
+  IonSkeletonText,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -153,6 +154,11 @@ const AdminUsers: React.FC = () => {
     filterAndSortUsers();
   }, [users, searchText, statusFilter, activityFilter, sortAlphabetical]);
 
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    fetchUsers();
+  });
+
   useEffect(() => {
     console.log('🔍 AdminUsers component mounted - starting user fetch');
     fetchUsers();
@@ -225,18 +231,66 @@ const AdminUsers: React.FC = () => {
       .channel('users_channel')
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'users' },
-        (payload) => {
+        async (payload) => {
           console.log('🔄 Realtime update received:', payload);
-          fetchUsers();
+          
+          // Show toast for new user registrations
+          if (payload.eventType === 'INSERT') {
+            const newUser = payload.new;
+            setToastMessage(`👤 New user registered: ${newUser.user_firstname} ${newUser.user_lastname}`);
+            setShowToast(true);
+          }
+          
+          // Show toast for user status changes
+          if (payload.eventType === 'UPDATE') {
+            const updatedUser = payload.new;
+            const oldUser = payload.old;
+            
+            // Status changes
+            if (updatedUser.status !== oldUser.status) {
+              const statusEmojis: { [key: string]: string } = {
+                'active': '✅',
+                'inactive': '⏸️',
+                'suspended': '⛔',
+                'banned': '🚫'
+              };
+              const emoji = statusEmojis[updatedUser.status] || '📋';
+              setToastMessage(`${emoji} User ${updatedUser.user_firstname} ${updatedUser.user_lastname} status changed to ${updatedUser.status}`);
+              setShowToast(true);
+            }
+            
+            // Online status changes
+            if (updatedUser.is_online !== oldUser.is_online) {
+              const statusText = updatedUser.is_online ? 'came online' : 'went offline';
+              setToastMessage(`🟢 ${updatedUser.user_firstname} ${updatedUser.user_lastname} ${statusText}`);
+              setShowToast(true);
+            }
+          }
+          
+          // Refresh users list
+          await fetchUsers();
         }
       )
       .subscribe((status) => {
         console.log('📡 Realtime subscription status:', status);
       });
 
+    // Also listen to reports to update user activity
+    const reportsChannel = supabase
+      .channel('users_reports_channel')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'incident_reports' },
+        async () => {
+          // Refresh users when new reports are submitted (to update has_reports flag)
+          await fetchUsers();
+        }
+      )
+      .subscribe();
+
     return () => {
       console.log('🧹 Cleaning up realtime subscription');
       channel.unsubscribe();
+      reportsChannel.unsubscribe();
     };
   };
 
