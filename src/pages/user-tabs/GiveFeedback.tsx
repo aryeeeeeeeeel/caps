@@ -35,7 +35,8 @@ import {
   IonTabButton,
   IonPopover,
   IonAvatar,
-  IonBadge
+  IonBadge,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   chatbubbleOutline,
@@ -131,6 +132,22 @@ const GiveFeedback: React.FC = () => {
     'Follow-up Service',
     'Overall Experience'
   ];
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    const refreshData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.email) {
+          await fetchNotifications(user.email);
+        }
+        await fetchUserReports();
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      }
+    };
+    refreshData();
+  });
 
   useEffect(() => {
     const initializeData = async () => {
@@ -837,6 +854,7 @@ const GiveFeedback: React.FC = () => {
                           style={{
                             marginLeft: 'auto',
                             flexShrink: 0,
+                            marginRight: '0',
                             '--inner-border-radius': '50%',
                             '--border-radius': '50%',
                             '--border-width': '2px',
