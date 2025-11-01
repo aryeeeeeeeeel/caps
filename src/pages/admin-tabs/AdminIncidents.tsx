@@ -26,7 +26,8 @@ import {
   IonCol,
   IonText,
   IonSkeletonText,
-  IonLabel
+  IonLabel,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   logOutOutline,
@@ -195,10 +196,10 @@ const AdminIncidents: React.FC = () => {
     checkDevice();
   }, []);
 
-  useEffect(() => {
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
     fetchReports();
-    setupRealtimeSubscription();
-  }, []);
+  });
 
   useEffect(() => {
     fetchReports();
@@ -252,14 +253,49 @@ const AdminIncidents: React.FC = () => {
             setUnreadCount(prev => prev + 1);
           }
           
+          // Handle status updates
+          if (payload.eventType === 'UPDATE') {
+            const updatedReport = payload.new as IncidentReport;
+            const oldReport = payload.old as IncidentReport;
+            
+            // Show toast for status changes
+            if (updatedReport.status !== oldReport.status) {
+              const statusEmojis: { [key: string]: string } = {
+                'pending': '⏳',
+                'active': '🔍',
+                'resolved': '✅'
+              };
+              const emoji = statusEmojis[updatedReport.status] || '📋';
+              setToastMessage(`${emoji} Report "${updatedReport.title}" status changed to ${updatedReport.status}`);
+              setShowToast(true);
+            }
+          }
+          
           // Refresh the reports list
           await fetchReports();
         }
       )
       .subscribe();
 
+    // Feedback channel for new feedback
+    const feedbackChannel = supabase
+      .channel('incidents_feedback_channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'feedback' },
+        async (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newFeedback = payload.new as any;
+            setToastMessage(`💬 New feedback submitted for a report: ${newFeedback.overall_rating}/5 stars`);
+            setShowToast(true);
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       channel.unsubscribe();
+      feedbackChannel.unsubscribe();
     };
   };
 
