@@ -27,7 +27,8 @@ import {
   IonRouterOutlet,
   IonAvatar,
   IonPopover,
-  RefresherEventDetail
+  RefresherEventDetail,
+  useIonViewWillEnter
 } from '@ionic/react';
 import { Route, Redirect, useHistory, useLocation } from 'react-router-dom';
 import {
@@ -101,6 +102,23 @@ const ActivityLogs: React.FC = () => {
   // Check if we're on the activity logs page specifically
   const isActivityLogsPage = location.pathname === '/iAMUMAta/app/activity-logs';
 
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    const refreshData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && user.email) {
+          await fetchUserReports(user.email);
+          await fetchNotifications(user.email);
+          await fetchActivityLogs();
+        }
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      }
+    };
+    refreshData();
+  });
+
   useEffect(() => {
     let notificationsChannel: any;
     let reportsChannel: any;
@@ -142,11 +160,27 @@ const ActivityLogs: React.FC = () => {
               schema: 'public',
               table: 'incident_reports',
               filter: `reporter_email=eq.${user.email}`
-            }, (payload) => {
+            }, async (payload) => {
               console.log('Change received!', payload);
               if (user.email) {
-                fetchUserReports(user.email);
-                fetchNotifications(user.email); // Also update notifications when reports change
+                await fetchUserReports(user.email);
+                await fetchNotifications(user.email); // Also update notifications when reports change
+                
+                // Show toast for status updates
+                if (payload.eventType === 'UPDATE') {
+                  const updatedReport = payload.new;
+                  const oldReport = payload.old;
+                  if (updatedReport.status !== oldReport.status) {
+                    const statusEmojis: { [key: string]: string } = {
+                      'pending': '⏳',
+                      'active': '🔍',
+                      'resolved': '✅'
+                    };
+                    const emoji = statusEmojis[updatedReport.status] || '📋';
+                    setToastMessage(`${emoji} Your report "${updatedReport.title}" status updated to ${updatedReport.status}`);
+                    setShowToast(true);
+                  }
+                }
               }
             })
             .subscribe();
