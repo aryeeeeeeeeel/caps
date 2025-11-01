@@ -23,7 +23,8 @@ import {
   useIonRouter,
   IonText,
   IonSkeletonText,
-  IonToast
+  IonToast,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   arrowBackOutline,
@@ -181,6 +182,24 @@ const AdminAnalytics: React.FC = () => {
   useEffect(() => {
     setDefaultDates();
   }, [reportPeriod]);
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    // Refresh unread count
+    const refreshUnreadCount = async () => {
+      const { data: reports } = await supabase
+        .from('incident_reports')
+        .select('id')
+        .eq('read', false);
+      const { data: feedback } = await supabase
+        .from('feedback')
+        .select('id')
+        .eq('read', false);
+      const newCount = (reports?.length || 0) + (feedback?.length || 0);
+      setUnreadCount(newCount);
+    };
+    refreshUnreadCount();
+  });
 
   const setDefaultDates = () => {
     const today = new Date();
