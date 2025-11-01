@@ -65,14 +65,20 @@ export const logUserActivity = async (
       });
 
     if (error) {
-      // Suppress expected RLS/unauthorized errors in client to avoid blocking UX
-      const msg = (error as any)?.message || '';
-      const code = (error as any)?.code || '';
-      if (code === '42501' || msg.includes('row-level security') || (error as any)?.status === 401) {
-        console.debug('Activity log skipped due to RLS/unauthorized');
-      } else {
-        console.error('Error logging user activity:', error);
+      // More specific error handling for RLS/unauthorized errors
+      const errorCode = error.code;
+      const errorMessage = error.message;
+      
+      if (errorCode === '42501' || 
+          errorMessage.includes('row-level security') || 
+          errorMessage.includes('policy') ||
+          errorCode === 'PGRST301' ||
+          errorMessage.includes('JWT')) {
+        console.debug('Activity log skipped due to RLS/unauthorized - this is expected for unauthenticated actions');
+        return;
       }
+      
+      console.error('Error logging user activity:', error);
     }
   } catch (error) {
     console.error('Error logging user activity:', error);
