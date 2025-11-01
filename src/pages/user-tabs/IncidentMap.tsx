@@ -32,7 +32,8 @@ import {
   IonTabButton,
   IonPopover,
   IonAvatar,
-  IonBadge
+  IonBadge,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   imageOutline,
@@ -280,6 +281,11 @@ const IncidentMap: React.FC = () => {
 
   // Real-time subscription for new reports
   const [realtimeChannel, setRealtimeChannel] = useState<any>(null);
+
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    fetchActiveReports();
+  });
 
   useEffect(() => {
     const initializeData = async () => {
