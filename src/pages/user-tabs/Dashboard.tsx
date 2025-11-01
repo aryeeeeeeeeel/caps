@@ -30,7 +30,8 @@ import {
   IonTabButton,
   IonPopover,
   IonAvatar,
-  IonBadge
+  IonBadge,
+  useIonViewWillEnter
 } from '@ionic/react';
 import {
   homeOutline,
@@ -227,23 +228,34 @@ const Dashboard: React.FC = () => {
 
   const fetchNotifications = async (email: string) => {
     try {
-      const { data, error } = await supabase
+      // Fetch from notifications table
+      const { data: notificationsData, error: notificationsError } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_email', email)
-        .eq('read', false)
-        .order('created_at', { ascending: false });
+        .eq('read', false);
 
-      if (!error && data) {
-        const newCount = data.length;
-        // Show a toast if unread increases (dashboard-only per requirements)
-        if (newCount > prevUnreadCount) {
-          setToastMessage('You have new notifications');
-          setShowToast(true);
-        }
-        setUnreadNotifications(newCount);
-        setPrevUnreadCount(newCount);
+      // Fetch from incident_reports table (unread reports with admin responses)
+      const { data: incidentUpdates, error: reportsError } = await supabase
+        .from('incident_reports')
+        .select('id')
+        .eq('reporter_email', email)
+        .not('admin_response', 'is', null)
+        .eq('read', false);
+
+      // Calculate total unread count (notifications + admin responses)
+      const unreadFromNotifications = notificationsData?.length || 0;
+      const unreadFromReports = incidentUpdates?.length || 0;
+      const newCount = unreadFromNotifications + unreadFromReports;
+
+      // Show a toast if unread increases (dashboard-only per requirements)
+      if (newCount > prevUnreadCount && prevUnreadCount > 0) {
+        setToastMessage('You have new notifications');
+        setShowToast(true);
       }
+      
+      setUnreadNotifications(newCount);
+      setPrevUnreadCount(newCount);
     } catch (err) {
       console.error('Error fetching notifications:', err);
     }
@@ -313,6 +325,24 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Refresh data when page becomes active
+  useIonViewWillEnter(() => {
+    const refreshData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          history.replace('/iAMUMAta');
+          return;
+        }
+        await fetchUserData();
+        await fetchDashboardData();
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      }
+    };
+    refreshData();
+  });
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -324,23 +354,52 @@ const Dashboard: React.FC = () => {
         await fetchUserData();
         await fetchDashboardData();
 
-        // Realtime: update badge + toast on new notifications/admin updates
+        // Realtime: update badge + toast on new notifications/admin updates + auto-refresh dashboard data
         if (user.email) {
           const email = user.email;
+          
+          // Badge updates for notifications
           const notifChannel = supabase
             .channel('dashboard_badge_notifications')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_email=eq.${email}` }, async () => {
               await fetchNotifications(email);
             })
             .subscribe();
+          
+          // Badge updates and dashboard refresh for reports
           const reportsChannel = supabase
             .channel('dashboard_badge_reports')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
-              // handle unread incident admin responses; reuse fetchNotifications which pulls unread from notifications table only
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async (payload) => {
+              // Update badge
               await fetchNotifications(email);
+              
+              // Refresh dashboard data (stats and recent reports)
+              await fetchDashboardData();
+              
+              // Show toast for status changes
+              if (payload.eventType === 'UPDATE') {
+                const updatedReport = payload.new;
+                if (updatedReport.status) {
+                  const statusEmojis: { [key: string]: string } = {
+                    'pending': '⏳',
+                    'active': '🔍',
+                    'resolved': '✅'
+                  };
+                  const emoji = statusEmojis[updatedReport.status] || '📋';
+                  setToastMessage(`${emoji} Your report "${updatedReport.title}" status updated to ${updatedReport.status}`);
+                  setShowToast(true);
+                }
+                
+                // Show toast for admin responses
+                if (updatedReport.admin_response && !updatedReport.read) {
+                  setToastMessage(`💬 Admin responded to your report: "${updatedReport.title}"`);
+                  setShowToast(true);
+                }
+              }
             })
             .subscribe();
-          // Note: channels will be cleaned when app unmounts; keep lightweight subscriptions
+          
+          // Note: channels will be cleaned when app unmounts
         }
       } catch (error) {
         console.error('Error in checkAuth:', error);
