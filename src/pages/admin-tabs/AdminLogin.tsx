@@ -825,7 +825,7 @@ const AdminLogin: React.FC = () => {
                       ref={otpInputRef}
                       fill="outline"
                       type="text"
-                      placeholder="Enter verification code"
+                      placeholder="000000"
                       value={otp}
                       onIonChange={(e) => {
                         setOtp(e.detail.value || '');
