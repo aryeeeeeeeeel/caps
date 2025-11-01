@@ -827,14 +827,7 @@ useEffect(() => {
   const handlePasswordKeyPress = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const trimmedPassword = password.trim();
-      
-      if (!trimmedPassword) {
-        showCustomToast('Please enter your password', 'warning');
-        return;
-      }
-      
-      // Trigger login
+      // Directly trigger login without validation toast
       handleLogin();
     }
   };
@@ -1533,179 +1526,184 @@ useEffect(() => {
         />
 
         {/* OTP Verification Modal */}
-        <IonModal
-          isOpen={showOTPModal}
-          onDidDismiss={() => {
-            if (!isVerifyingOTP) {
-              setShowOTPModal(false);
-              setOtpCode('');
-            }
-          }}
-          backdropDismiss={!isVerifyingOTP}
-          style={{
-            '--height': 'auto',
-            '--width': '90%',
-            '--max-width': '400px',
-            '--border-radius': '20px'
+<IonModal
+  isOpen={showOTPModal}
+  onDidDismiss={() => {
+    if (!isVerifyingOTP) {
+      setShowOTPModal(false);
+      setOtpCode('');
+    }
+  }}
+  backdropDismiss={!isVerifyingOTP}
+  style={{
+    '--height': 'auto',
+    '--width': '90%',
+    '--max-width': '400px',
+    '--border-radius': '20px'
+  }}
+>
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    background: 'rgba(0,0,0,0.5)'
+  }}>
+    <IonCard style={{
+      width: '100%',
+      borderRadius: '20px',
+      boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
+      overflow: 'hidden',
+      margin: '0'
+    }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
+        padding: '24px 20px',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          background: 'rgba(255,255,255,0.2)',
+          borderRadius: '50%',
+          margin: '0 auto 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <IonIcon icon={checkmarkCircleOutline} style={{
+            fontSize: '24px',
+            color: 'white'
+          }} />
+        </div>
+        <h2 style={{
+          fontSize: '20px',
+          fontWeight: 'bold',
+          color: 'white',
+          margin: '0 0 6px 0'
+        }}>Security Verification</h2>
+        <p style={{
+          fontSize: '13px',
+          color: 'rgba(255,255,255,0.9)',
+          margin: 0
+        }}>We've sent a 6-digit code to</p>
+        <p style={{
+          fontSize: '13px',
+          color: 'white',
+          fontWeight: '600',
+          margin: '2px 0 0 0'
+        }}>{otpEmail}</p>
+      </div>
+
+      <IonCardContent style={{ padding: '24px 20px' }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleOTPVerification();
           }}
         >
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            background: 'rgba(0,0,0,0.5)'
-          }}>
-            <IonCard style={{
-              width: '100%',
-              borderRadius: '20px',
-              boxShadow: '0 20px 64px rgba(0,0,0,0.3)',
-              overflow: 'hidden',
-              margin: '0'
-            }}>
-              <div style={{
-                background: 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
-                padding: '24px 20px',
-                textAlign: 'center'
-              }}>
-                <div style={{
-                  width: '50px',
-                  height: '50px',
-                  background: 'rgba(255,255,255,0.2)',
-                  borderRadius: '50%',
-                  margin: '0 auto 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <IonIcon icon={checkmarkCircleOutline} style={{
-                    fontSize: '24px',
-                    color: 'white'
-                  }} />
-                </div>
-                <h2 style={{
-                  fontSize: '20px',
-                  fontWeight: 'bold',
-                  color: 'white',
-                  margin: '0 0 6px 0'
-                }}>Security Verification</h2>
-                <p style={{
-                  fontSize: '13px',
-                  color: 'rgba(255,255,255,0.9)',
-                  margin: 0
-                }}>We've sent a 6-digit code to</p>
-                <p style={{
-                  fontSize: '13px',
-                  color: 'white',
-                  fontWeight: '600',
-                  margin: '2px 0 0 0'
-                }}>{otpEmail}</p>
-              </div>
-
-              <IonCardContent style={{ padding: '24px 20px' }}>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleOTPVerification();
-                  }}
-                >
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      color: '#2d3748',
-                      display: 'block',
-                      marginBottom: '10px'
-                    }}>Verification Code</label>
-                    <IonInput
-                      fill="outline"
-                      type="text"
-                      placeholder="Enter verification code"
-                      value={otpCode}
-                      onIonChange={(e) => {
-                        setOtpCode(e.detail.value || '');
-                      }}
-                      onKeyPress={(e: React.KeyboardEvent) => {
-                        if (e.key === 'Enter') {
-                          handleOTPVerification();
-                        }
-                      }}
-                      style={{
-                        '--border-radius': '10px',
-                        '--border-color': '#e2e8f0',
-                        '--padding-start': '16px',
-                        '--padding-end': '16px',
-                        fontSize: '16px',
-                        fontWeight: '600',
-                        textAlign: 'center',
-                        letterSpacing: '3px'
-                      } as any}
-                    />
-                  </div>
-
-                  <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-                    <IonButton
-                      onClick={resendOTP}
-                      fill="clear"
-                      disabled={resendCooldown > 0 || isSendingOTP}
-                      style={{
-                        color: '#667eea',
-                        fontSize: '14px'
-                      }}
-                    >
-                      {isSendingOTP ? (
-                        <IonSpinner name="crescent" style={{ width: '16px', height: '16px' }} />
-                      ) : (
-                        <IonIcon icon={refreshOutline} slot="start" />
-                      )}
-                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
-                    </IonButton>
-                  </div>
-
-                  <IonButton
-                    type="submit"
-                    expand="block"
-                    size="large"
-                    disabled={isVerifyingOTP || !otpCode}
-                    onKeyDown={(e) => e.key === 'Enter' && handleOTPVerification()}
-                    style={{
-                      '--border-radius': '10px',
-                      '--padding-top': '14px',
-                      '--padding-bottom': '14px',
-                      fontWeight: '600',
-                      fontSize: '15px',
-                      height: '48px',
-                      '--background': 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
-                      '--color': 'white',
-                      marginBottom: '12px'
-                    } as any}
-                  >
-                    <IonIcon icon={shieldOutline} slot="start" />
-                    {isVerifyingOTP ? 'Verifying...' : 'VERIFY & ACCESS'}
-                  </IonButton>
-                </form>
-
-                <IonButton
-                  expand="block"
-                  fill="clear"
-                  onClick={() => {
-                    setShowOTPModal(false);
-                    setIsLoggingIn(false);
-                    setOtpCode('');
-                    setIsOtpSent(false);
-                  }}
-                  style={{
-                    color: '#718096',
-                    fontWeight: '500',
-                    fontSize: '14px'
-                  }}
-                >
-                  Cancel
-                </IonButton>
-              </IonCardContent>
-            </IonCard>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              fontSize: '13px',
+              fontWeight: '600',
+              color: '#2d3748',
+              display: 'block',
+              marginBottom: '10px'
+            }}>Verification Code</label>
+            <IonInput
+              fill="outline"
+              type="tel"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="000000"
+              value={otpCode}
+              maxlength={6} 
+              onIonInput={(e) => { 
+                // Only allow numbers and limit to 6 characters
+                const value = e.detail.value || '';
+                const numericValue = value.replace(/[^0-9]/g, '').slice(0, 6);
+                setOtpCode(numericValue);
+              }}
+              onKeyPress={(e: React.KeyboardEvent) => {
+                if (e.key === 'Enter') {
+                  handleOTPVerification();
+                }
+              }}
+              style={{
+                '--border-radius': '10px',
+                '--border-color': '#e2e8f0',
+                '--padding-start': '16px',
+                '--padding-end': '16px',
+                fontSize: '18px',
+                fontWeight: '600',
+                textAlign: 'center',
+                letterSpacing: '8px' 
+              } as any}
+            />
           </div>
-        </IonModal>
+
+          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+            <IonButton
+              onClick={resendOTP}
+              fill="clear"
+              disabled={resendCooldown > 0 || isSendingOTP}
+              style={{
+                color: '#667eea',
+                fontSize: '14px'
+              }}
+            >
+              {isSendingOTP ? (
+                <IonSpinner name="crescent" style={{ width: '16px', height: '16px' }} />
+              ) : (
+                <IonIcon icon={refreshOutline} slot="start" />
+              )}
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+            </IonButton>
+          </div>
+
+          <IonButton
+            type="submit"
+            expand="block"
+            size="large"
+            disabled={isVerifyingOTP || otpCode.length !== 6}
+            style={{
+              '--border-radius': '10px',
+              '--padding-top': '14px',
+              '--padding-bottom': '14px',
+              fontWeight: '600',
+              fontSize: '15px',
+              height: '48px',
+              '--background': 'linear-gradient(135deg, #3182ce 0%, #2c5282 100%)',
+              '--color': 'white',
+              marginBottom: '12px'
+            } as any}
+          >
+            <IonIcon icon={shieldOutline} slot="start" />
+            {isVerifyingOTP ? 'Verifying...' : 'VERIFY & ACCESS'}
+          </IonButton>
+        </form>
+
+        <IonButton
+          expand="block"
+          fill="clear"
+          onClick={() => {
+            setShowOTPModal(false);
+            setIsLoggingIn(false);
+            setOtpCode('');
+            setIsOtpSent(false);
+          }}
+          style={{
+            color: '#718096',
+            fontWeight: '500',
+            fontSize: '14px'
+          }}
+        >
+          Cancel
+        </IonButton>
+      </IonCardContent>
+    </IonCard>
+  </div>
+</IonModal>
       </IonContent>
     </IonPage>
   );
