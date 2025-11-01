@@ -28,7 +28,8 @@ import {
     IonTabBar,
     IonTabButton,
     IonTabs,
-    IonRouterOutlet
+    IonRouterOutlet,
+    useIonViewWillEnter
 } from '@ionic/react';
 import { supabase } from '../../utils/supabaseClient';
 import { logUserProfileUpdate, logUserLogout } from '../../utils/activityLogger';
@@ -97,6 +98,23 @@ const Profile: React.FC = () => {
         </div>
     );
 
+    // Refresh data when page becomes active
+    useIonViewWillEnter(() => {
+        const refreshData = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user && user.email) {
+                    await fetchUserProfile(user.email);
+                    await fetchUserReports(user.email);
+                    await fetchNotifications(user.email);
+                }
+            } catch (error) {
+                console.error('Error refreshing profile data:', error);
+            }
+        };
+        refreshData();
+    });
+
     useEffect(() => {
         const fetchUserData = async () => {
             setIsPageLoading(true);
@@ -147,13 +165,40 @@ const Profile: React.FC = () => {
                     .subscribe();
                 const reportsChannel = supabase
                     .channel('profile_badge_reports')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async () => {
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports', filter: `reporter_email=eq.${email}` }, async (payload) => {
                         await fetchNotifications(email);
+                        
+                        // Show toast for status updates
+                        if (payload.eventType === 'UPDATE') {
+                            const updatedReport = payload.new;
+                            const oldReport = payload.old;
+                            if (updatedReport.status !== oldReport.status) {
+                                const statusEmojis: { [key: string]: string } = {
+                                    'pending': '⏳',
+                                    'active': '🔍',
+                                    'resolved': '✅'
+                                };
+                                const emoji = statusEmojis[updatedReport.status] || '📋';
+                                setToastMessage(`${emoji} Your report "${updatedReport.title}" status updated to ${updatedReport.status}`);
+                                setShowToast(true);
+                            }
+                        }
                     })
                     .subscribe();
+                    
+                // Feedback channel
+                const feedbackChannel = supabase
+                    .channel('profile_feedback_channel')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback', filter: `user_email=eq.${email}` }, async () => {
+                        // Refresh user reports to show feedback status
+                        await fetchUserReports(email);
+                    })
+                    .subscribe();
+                    
                 return () => {
                     notifChannel.unsubscribe();
                     reportsChannel.unsubscribe();
+                    feedbackChannel.unsubscribe();
                 };
             }
         })();
