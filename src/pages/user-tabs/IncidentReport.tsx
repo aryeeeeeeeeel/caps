@@ -1269,8 +1269,14 @@ const IncidentReport: React.FC = () => {
     
     try {
       if (isNativePlatform()) {
-        // For native apps, we'll rely on Capacitor's built-in permission handling
-        return true;
+        if (type === 'camera') {
+          const status = await Camera.checkPermissions();
+          return (status.camera === 'granted') || (status.photos === 'granted');
+        } else {
+          const status = await Geolocation.checkPermissions();
+          // iOS/Android return { location: 'granted' | 'prompt' | 'denied' }
+          return (status.location === 'granted');
+        }
       } else {
         // For web, check navigator permissions if available
         if (navigator.permissions) {
@@ -1314,7 +1320,7 @@ const IncidentReport: React.FC = () => {
   };
 
   // Handle permission confirmation
-  const confirmCameraPermission = () => {
+  const confirmCameraPermission = async () => {
     const updated = {
       ...permissionPrefs,
       camera: {
@@ -1325,11 +1331,18 @@ const IncidentReport: React.FC = () => {
     };
     setPermissionPrefs(updated);
     savePermissionPreferences(updated);
+    try {
+      if (isNativePlatform()) {
+        await Camera.requestPermissions({ permissions: ['camera', 'photos'] as any });
+      }
+    } catch (e) {
+      console.warn('Camera permission request failed:', e);
+    }
     setShowCameraPermissionModal(false);
     showToastMessage('Camera permission enabled!', 'success');
   };
 
-  const confirmLocationPermission = () => {
+  const confirmLocationPermission = async () => {
     const updated = {
       ...permissionPrefs,
       location: {
@@ -1340,6 +1353,13 @@ const IncidentReport: React.FC = () => {
     };
     setPermissionPrefs(updated);
     savePermissionPreferences(updated);
+    try {
+      if (isNativePlatform()) {
+        await Geolocation.requestPermissions();
+      }
+    } catch (e) {
+      console.warn('Location permission request failed:', e);
+    }
     setShowLocationPermissionModal(false);
     showToastMessage('Location permission enabled!', 'success');
   };
