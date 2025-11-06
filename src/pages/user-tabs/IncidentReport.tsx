@@ -1002,8 +1002,6 @@ const IncidentReport: React.FC = () => {
   
   // Permission management state
   const [permissionPrefs, setPermissionPrefs] = useState<PermissionPreferences>(getPermissionPreferences());
-  const [showCameraPermissionModal, setShowCameraPermissionModal] = useState(false);
-  const [showLocationPermissionModal, setShowLocationPermissionModal] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState<'session' | '24h' | '1w' | 'forever'>('session');
   const [cameraInitializing, setCameraInitializing] = useState(false);
   const [photoProcessing, setPhotoProcessing] = useState(false);
@@ -1262,11 +1260,6 @@ const IncidentReport: React.FC = () => {
 
   // Enhanced permission checking with user preferences
   const checkPermissions = async (type: 'camera' | 'location'): Promise<boolean> => {
-    // First check user preference
-    if (!isPermissionValid(type)) {
-      return false;
-    }
-    
     try {
       if (isNativePlatform()) {
         if (type === 'camera') {
@@ -1296,82 +1289,7 @@ const IncidentReport: React.FC = () => {
     }
   };
 
-  // Handle permission toggle changes
-  const handleCameraToggle = (enabled: boolean) => {
-    if (enabled) {
-      setSelectedDuration(permissionPrefs.camera.duration || 'session');
-      setShowCameraPermissionModal(true);
-    } else {
-      const updated = { ...permissionPrefs, camera: { ...permissionPrefs.camera, enabled: false } };
-      setPermissionPrefs(updated);
-      savePermissionPreferences(updated);
-    }
-  };
-
-  const handleLocationToggle = (enabled: boolean) => {
-    if (enabled) {
-      setSelectedDuration(permissionPrefs.location.duration || 'session');
-      setShowLocationPermissionModal(true);
-    } else {
-      const updated = { ...permissionPrefs, location: { ...permissionPrefs.location, enabled: false } };
-      setPermissionPrefs(updated);
-      savePermissionPreferences(updated);
-    }
-  };
-
-  // Handle permission confirmation
-  const confirmCameraPermission = async () => {
-    const updated = {
-      ...permissionPrefs,
-      camera: {
-        ...permissionPrefs.camera,
-        enabled: true,
-        duration: selectedDuration
-      }
-    };
-    setPermissionPrefs(updated);
-    savePermissionPreferences(updated);
-    try {
-      if (isNativePlatform()) {
-        await Camera.requestPermissions({ permissions: ['camera', 'photos'] as any });
-      }
-    } catch (e) {
-      console.warn('Camera permission request failed:', e);
-    }
-    setShowCameraPermissionModal(false);
-    showToastMessage('Camera permission enabled!', 'success');
-  };
-
-  const confirmLocationPermission = async () => {
-    const updated = {
-      ...permissionPrefs,
-      location: {
-        ...permissionPrefs.location,
-        enabled: true,
-        duration: selectedDuration
-      }
-    };
-    setPermissionPrefs(updated);
-    savePermissionPreferences(updated);
-    try {
-      if (isNativePlatform()) {
-        await Geolocation.requestPermissions();
-      }
-    } catch (e) {
-      console.warn('Location permission request failed:', e);
-    }
-    setShowLocationPermissionModal(false);
-    showToastMessage('Location permission enabled!', 'success');
-  };
-
-  const denyPermission = (type: 'camera' | 'location') => {
-    if (type === 'camera') {
-      setShowCameraPermissionModal(false);
-    } else {
-      setShowLocationPermissionModal(false);
-    }
-    showToastMessage(`${type === 'camera' ? 'Camera' : 'Location'} permission denied.`, 'warning');
-  };
+  // Removed permission toggle UI and handlers
 
   // Get current location with better timeout handling
   const getCurrentLocation = async (): Promise<{ lat: number; lng: number } | null> => {
@@ -1408,12 +1326,6 @@ const IncidentReport: React.FC = () => {
   // Take photo function - optimized for faster loading
   const takePhoto = async () => {
     try {
-      // Check permission preferences first
-      if (!isPermissionValid('camera')) {
-        showToastMessage('Please enable camera permission first.', 'warning');
-        return;
-      }
-
       const hasCameraPermission = await checkPermissions('camera');
       if (!hasCameraPermission) {
         showToastMessage('Camera permission is required. Please enable it in permissions.', 'warning');
@@ -1423,10 +1335,7 @@ const IncidentReport: React.FC = () => {
       setCameraInitializing(true);
 
       // Get location in parallel (non-blocking)
-      let currentLocationPromise: Promise<{ lat: number; lng: number } | null> = Promise.resolve(null);
-      if (isPermissionValid('location')) {
-        currentLocationPromise = getCurrentLocation().catch(() => null);
-      }
+      let currentLocationPromise: Promise<{ lat: number; lng: number } | null> = getCurrentLocation().catch(() => null);
 
       // Initialize camera faster with optimized settings
       const cameraOptions: any = {
@@ -1697,37 +1606,18 @@ const IncidentReport: React.FC = () => {
   };
 
   const submitReport = async () => {
-    // Basic validation
-    if (!formData.category) {
-      showToastMessage('Please select an incident category.', 'warning');
-      return;
-    }
-
-    // More robust description validation
+    // Unified required validation
     const description = formData.description?.trim() || '';
-    if (description.length === 0 || !description.replace(/\s+/g, '').length) {
-      showToastMessage('Please provide a description of the incident.', 'warning');
-      return;
-    }
+    const missingRequired =
+      !formData.category ||
+      description.length === 0 || !description.replace(/\s+/g, '').length ||
+      !formData.reporter_address?.trim() ||
+      !formData.reporter_contact?.trim() ||
+      !formData.barangay ||
+      formData.images.length === 0;
 
-    // Add validation for new fields
-    if (!formData.reporter_address?.trim()) {
-      showToastMessage('Please provide your complete address for emergency response.', 'warning');
-      return;
-    }
-
-    if (!formData.reporter_contact?.trim()) {
-      showToastMessage('Please provide your contact number for emergency response.', 'warning');
-      return;
-    }
-
-    if (!formData.barangay) {
-      showToastMessage('Please select a barangay.', 'warning');
-      return;
-    }
-
-    if (formData.images.length === 0) {
-      showToastMessage('Please add at least one photo of the incident.', 'warning');
+    if (missingRequired) {
+      showToastMessage('Please iput all required fields', 'warning');
       return;
     }
 
@@ -2032,65 +1922,7 @@ const IncidentReport: React.FC = () => {
           </IonCardContent>
         </IonCard>
 
-        {/* Permissions Section */}
-        <IonCard style={{ borderRadius: '16px', marginBottom: '20px', border: '1px solid #e5e7eb' }}>
-          <IonCardHeader>
-            <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
-              App Permissions
-            </IonCardTitle>
-          </IonCardHeader>
-          <IonCardContent>
-            {/* Camera Permission Toggle */}
-            <IonItem lines="none" style={{ '--padding-start': '0', '--inner-padding-end': '0', marginBottom: '16px' } as any}>
-              <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                  <IonIcon icon={cameraOutline} style={{ fontSize: '24px', color: '#3b82f6', marginRight: '12px', flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <IonLabel style={{ fontSize: '16px', fontWeight: '500', color: '#1f2937' }}>
-                      Allow Camera Use
-                    </IonLabel>
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0' }}>
-                      {permissionPrefs.camera.enabled 
-                        ? `Enabled (${permissionPrefs.camera.duration === 'session' ? 'Until tab closes' : permissionPrefs.camera.duration === '24h' ? '24 hours' : permissionPrefs.camera.duration === '1w' ? '1 week' : 'Forever'})`
-                        : 'Disabled - Enable to take photos faster'}
-                    </p>
-                  </div>
-                </div>
-                <IonToggle
-                  checked={permissionPrefs.camera.enabled}
-                  onIonChange={(e) => handleCameraToggle(e.detail.checked)}
-                  color="primary"
-                  style={{ marginLeft: '16px', flexShrink: 0 }}
-                />
-              </div>
-            </IonItem>
-
-            {/* Location Permission Toggle */}
-            <IonItem lines="none" style={{ '--padding-start': '0', '--inner-padding-end': '0' } as any}>
-              <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                  <IonIcon icon={locationOutline} style={{ fontSize: '24px', color: '#10b981', marginRight: '12px', flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <IonLabel style={{ fontSize: '16px', fontWeight: '500', color: '#1f2937' }}>
-                      Allow Location Use
-                    </IonLabel>
-                    <p style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 0 0' }}>
-                      {permissionPrefs.location.enabled 
-                        ? `Enabled (${permissionPrefs.location.duration === 'session' ? 'Until tab closes' : permissionPrefs.location.duration === '24h' ? '24 hours' : permissionPrefs.location.duration === '1w' ? '1 week' : 'Forever'})`
-                        : 'Disabled - Enable for automatic location capture'}
-                    </p>
-                  </div>
-                </div>
-                <IonToggle
-                  checked={permissionPrefs.location.enabled}
-                  onIonChange={(e) => handleLocationToggle(e.detail.checked)}
-                  color="success"
-                  style={{ marginLeft: '16px', flexShrink: 0 }}
-                />
-              </div>
-            </IonItem>
-          </IonCardContent>
-        </IonCard>
+        {/* Permissions Section removed per request */}
 
         {/* Photo Section */}
         <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
@@ -2266,6 +2098,35 @@ const IncidentReport: React.FC = () => {
                 placeholder="Extract from photo metadata"
               />
             </IonItem>
+            {!formData.coordinates && !(extractedExifData?.gpsLatitude && extractedExifData?.gpsLongitude) && formData.images.length > 0 && (
+              <IonButton
+                expand="block"
+                fill="outline"
+                onClick={async () => {
+                  const loc = await getCurrentLocation();
+                  if (loc) {
+                    const detected = detectBarangayFromCoordinates(loc.lat, loc.lng);
+                    setFormData(prev => ({
+                      ...prev,
+                      coordinates: { lat: loc.lat, lng: loc.lng },
+                      location: `GPS: ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`,
+                      barangay: detected || prev.barangay
+                    }));
+                    if (detected) {
+                      showToastMessage(`Location captured${detected ? ` - ${detected}` : ''}!`);
+                    } else {
+                      showToastMessage('Location captured!');
+                    }
+                  } else {
+                    showToastMessage('Unable to capture location. Please check GPS permissions.', 'warning');
+                  }
+                }}
+                style={{ '--border-radius': '8px', marginBottom: '12px' } as any}
+              >
+                <IonIcon icon={locationOutline} slot="start" />
+                Capture Current Location
+              </IonButton>
+            )}
 
             {/* Barangay */}
             <IonItem style={{ '--border-radius': '12px' } as any}>
@@ -2385,193 +2246,7 @@ const IncidentReport: React.FC = () => {
         />
       </IonContent>
 
-      {/* Camera Permission Modal */}
-      <IonModal isOpen={showCameraPermissionModal} onDidDismiss={() => setShowCameraPermissionModal(false)}>
-        <IonHeader>
-          <IonToolbar>
-            <IonTitle>Camera Permission</IonTitle>
-            <IonButtons slot="end">
-              <IonButton onClick={() => setShowCameraPermissionModal(false)}>
-                <IonIcon icon={closeOutline} />
-              </IonButton>
-            </IonButtons>
-          </IonToolbar>
-        </IonHeader>
-        <IonContent style={{ '--padding': '20px' } as any}>
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-              <IonIcon icon={cameraOutline} style={{ fontSize: '32px', color: '#3b82f6', marginRight: '12px' }} />
-              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#1f2937' }}>
-                Enable Camera Access
-              </h2>
-            </div>
-            <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>
-              To take photos faster and improve your experience, please select how long you'd like to allow camera access.
-            </p>
-          </div>
-
-          <IonList>
-            <IonListHeader>
-              <IonLabel>Permission Duration</IonLabel>
-            </IonListHeader>
-            <IonRadioGroup
-              value={selectedDuration}
-              onIonChange={(e) => setSelectedDuration(e.detail.value)}
-            >
-              <IonItem>
-                <IonRadio slot="start" value="session" />
-                <IonLabel>
-                  <h3>Until I close this site</h3>
-                  <p>Permission valid only for this browser session</p>
-                </IonLabel>
-              </IonItem>
-              <IonItem>
-                <IonRadio slot="start" value="24h" />
-                <IonLabel>
-                  <h3>For 24 hours</h3>
-                  <p>Permission expires after 24 hours</p>
-                </IonLabel>
-              </IonItem>
-              <IonItem>
-                <IonRadio slot="start" value="1w" />
-                <IonLabel>
-                  <h3>For 1 week</h3>
-                  <p>Permission expires after 7 days</p>
-                </IonLabel>
-              </IonItem>
-              <IonItem>
-                <IonRadio slot="start" value="forever" />
-                <IonLabel>
-                  <h3>Forever</h3>
-                  <p>Permission remains until manually disabled</p>
-                </IonLabel>
-              </IonItem>
-            </IonRadioGroup>
-          </IonList>
-
-          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-            <IonButton
-              expand="block"
-              onClick={confirmCameraPermission}
-              style={{
-                '--background': '#10b981',
-                '--color': 'white',
-                flex: 1
-              } as any}
-            >
-              <IonIcon icon={checkmarkCircleOutline} slot="start" />
-              Allow
-            </IonButton>
-            <IonButton
-              expand="block"
-              fill="outline"
-              onClick={() => denyPermission('camera')}
-              style={{
-                '--border-color': '#ef4444',
-                '--color': '#ef4444',
-                flex: 1
-              } as any}
-            >
-              <IonIcon icon={closeOutline} slot="start" />
-              Don't Allow
-            </IonButton>
-          </div>
-        </IonContent>
-      </IonModal>
-
-      {/* Location Permission Modal */}
-      <IonModal isOpen={showLocationPermissionModal} onDidDismiss={() => setShowLocationPermissionModal(false)}>
-        <IonHeader>
-          <IonToolbar>
-            <IonTitle>Location Permission</IonTitle>
-            <IonButtons slot="end">
-              <IonButton onClick={() => setShowLocationPermissionModal(false)}>
-                <IonIcon icon={closeOutline} />
-              </IonButton>
-            </IonButtons>
-          </IonToolbar>
-        </IonHeader>
-        <IonContent style={{ '--padding': '20px' } as any}>
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-              <IonIcon icon={locationOutline} style={{ fontSize: '32px', color: '#10b981', marginRight: '12px' }} />
-              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#1f2937' }}>
-                Enable Location Access
-              </h2>
-            </div>
-            <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', margin: 0 }}>
-              To automatically capture location data when taking photos, please select how long you'd like to allow location access.
-            </p>
-          </div>
-
-          <IonList>
-            <IonListHeader>
-              <IonLabel>Permission Duration</IonLabel>
-            </IonListHeader>
-            <IonRadioGroup
-              value={selectedDuration}
-              onIonChange={(e) => setSelectedDuration(e.detail.value)}
-            >
-              <IonItem>
-                <IonRadio slot="start" value="session" />
-                <IonLabel>
-                  <h3>Until I close this site</h3>
-                  <p>Permission valid only for this browser session</p>
-                </IonLabel>
-              </IonItem>
-              <IonItem>
-                <IonRadio slot="start" value="24h" />
-                <IonLabel>
-                  <h3>For 24 hours</h3>
-                  <p>Permission expires after 24 hours</p>
-                </IonLabel>
-              </IonItem>
-              <IonItem>
-                <IonRadio slot="start" value="1w" />
-                <IonLabel>
-                  <h3>For 1 week</h3>
-                  <p>Permission expires after 7 days</p>
-                </IonLabel>
-              </IonItem>
-              <IonItem>
-                <IonRadio slot="start" value="forever" />
-                <IonLabel>
-                  <h3>Forever</h3>
-                  <p>Permission remains until manually disabled</p>
-                </IonLabel>
-              </IonItem>
-            </IonRadioGroup>
-          </IonList>
-
-          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-            <IonButton
-              expand="block"
-              onClick={confirmLocationPermission}
-              style={{
-                '--background': '#10b981',
-                '--color': 'white',
-                flex: 1
-              } as any}
-            >
-              <IonIcon icon={checkmarkCircleOutline} slot="start" />
-              Allow
-            </IonButton>
-            <IonButton
-              expand="block"
-              fill="outline"
-              onClick={() => denyPermission('location')}
-              style={{
-                '--border-color': '#ef4444',
-                '--color': '#ef4444',
-                flex: 1
-              } as any}
-            >
-              <IonIcon icon={closeOutline} slot="start" />
-              Don't Allow
-            </IonButton>
-          </div>
-        </IonContent>
-      </IonModal>
+      {/* Permission Modals removed per request */}
       <IonTabBar
         slot="bottom"
         style={{ '--background': 'white', '--border': '1px solid #e2e8f0', height: '70px', paddingTop: '8px', paddingBottom: '8px' } as any}
