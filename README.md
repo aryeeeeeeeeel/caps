@@ -2,7 +2,7 @@
 
 A comprehensive incident reporting and management system built with Ionic React and Supabase.
 
-> **Latest Update**: Improve registration flow with better error handling and user feedback.
+> **Latest Update**: GiveFeedback: move feedback filter under title and right-align report selection radios.
 
 ## Features
 
