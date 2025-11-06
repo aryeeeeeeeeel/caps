@@ -836,8 +836,46 @@ useEffect(() => {
     setShowPassword(!showPassword);
   };
 
-  const handleForgotPassword = () => {
-    showCustomToast('Password reset feature is coming soon. Please contact support if you need assistance.', 'warning');
+  const handleForgotPassword = async () => {
+    const identifier = loginIdentifier.trim();
+
+    if (!identifier) {
+      showCustomToast('Enter your email or username to reset password.', 'warning');
+      return;
+    }
+
+    let targetEmail = '';
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+
+    try {
+      if (isEmail) {
+        targetEmail = identifier;
+      } else {
+        // Lookup email by username in users table
+        const { data, error } = await supabase
+          .from('users')
+          .select('user_email')
+          .eq('username', identifier)
+          .single();
+
+        if (error || !data?.user_email) {
+          showCustomToast('Username not found. Enter your email instead.', 'warning');
+          return;
+        }
+        targetEmail = data.user_email;
+      }
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: `${window.location.origin}/iAMUMAta/user-login`
+      });
+      if (resetError) {
+        showCustomToast(resetError.message || 'Failed to send reset email. Try again.', 'danger');
+        return;
+      }
+      showCustomToast('Password reset email sent. Check your inbox or spam folder.', 'success');
+    } catch (e: any) {
+      showCustomToast(e.message || 'Failed to send reset email. Try again.', 'danger');
+    }
   };
 
   const handleAvatarClick = (e: React.MouseEvent) => {
