@@ -291,54 +291,10 @@ const Register: React.FC = () => {
     );
 
     const handleOpenVerificationModal = () => {
-        if (!username.trim() || !firstName.trim() || !lastName.trim() || !address.trim() || !contactNumber.trim() || !email.trim()) {
-            setAlertMessage("Please fill in all required fields.");
-            setShowAlert(true);
-            return;
-        }
-
-        if (!firstName.trim() || !lastName.trim()) {
-            setAlertMessage("Please enter your first and last name.");
-            setShowAlert(true);
-            return;
-        }
-
-        if (!address.trim()) {
-            setAlertMessage("Please enter your address.");
-            setShowAlert(true);
-            return;
-        }
-
-        if (!contactNumber.trim()) {
-            setAlertMessage("Please enter your contact number.");
-            setShowAlert(true);
-            return;
-        }
-
-        if (!email.trim()) {
-            setAlertMessage("Please enter your email address.");
-            setShowAlert(true);
-            return;
-        }
-
+        // Always persist email attempt so it can be used later even if other fields fail
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            setAlertMessage("Please enter a valid email address.");
-            setShowAlert(true);
-            return;
-        }
-
-        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
-        if (!passwordRegex.test(password)) {
-            setAlertMessage("Password must be at least 8 characters long and include at least has one uppercase letter, one lowercase letter, one number, and one special symbol.");
-            setShowAlert(true);
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            setAlertMessage("Passwords do not match. Please check and try again.");
-            setShowAlert(true);
-            return;
+        if (email && emailRegex.test(email)) {
+            try { localStorage.setItem('pending_registration_email', email); } catch {}
         }
 
         setShowVerificationModal(true);
@@ -347,6 +303,37 @@ const Register: React.FC = () => {
     const doRegister = async () => {
         setShowVerificationModal(false);
         setIsRegistering(true);
+
+        // Validate all fields first
+        if (!username.trim() || !firstName.trim() || !lastName.trim() || !address.trim() || !contactNumber.trim() || !email.trim()) {
+            setAlertMessage("Please fill in all required fields.");
+            setShowAlert(true);
+            setIsRegistering(false);
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setAlertMessage("Please enter a valid email address.");
+            setShowAlert(true);
+            setIsRegistering(false);
+            return;
+        }
+
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            setAlertMessage("Password must be at least 8 characters long and include at least has one uppercase letter, one lowercase letter, one number, and one special symbol.");
+            setShowAlert(true);
+            setIsRegistering(false);
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            setAlertMessage("Passwords do not match. Please check and try again.");
+            setShowAlert(true);
+            setIsRegistering(false);
+            return;
+        }
 
         try {
             // Create Supabase Auth user first
