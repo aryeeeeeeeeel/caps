@@ -680,8 +680,26 @@ const GiveFeedback: React.FC = () => {
             <IonCardTitle style={{ fontSize: '18px', color: '#1f2937' }}>
               Select Report to Review
             </IonCardTitle>
-            {/* Feedback filter */}
-            <div style={{ position: 'absolute', right: '16px', top: '12px', display: 'flex', gap: '6px' }}>
+            {selectedReport && (
+              <IonButton
+                fill="clear"
+                size="small"
+                onClick={() => setSelectedReport('')}
+                style={{
+                  position: 'absolute',
+                  right: '16px',
+                  top: '16px',
+                  '--padding-start': '8px',
+                  '--padding-end': '8px'
+                } as any}
+              >
+                <IonIcon icon={closeOutline} slot="icon-only" />
+              </IonButton>
+            )}
+          </IonCardHeader>
+          <IonCardContent>
+            {/* Feedback filter moved below the title per request */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
               {[
                 { key: 'all', label: 'All' },
                 { key: 'feedbacked', label: 'Feedbacked' },
@@ -704,24 +722,6 @@ const GiveFeedback: React.FC = () => {
                 </button>
               ))}
             </div>
-            {selectedReport && (
-              <IonButton
-                fill="clear"
-                size="small"
-                onClick={() => setSelectedReport('')}
-                style={{
-                  position: 'absolute',
-                  right: '16px',
-                  top: '16px',
-                  '--padding-start': '8px',
-                  '--padding-end': '8px'
-                } as any}
-              >
-                <IonIcon icon={closeOutline} slot="icon-only" />
-              </IonButton>
-            )}
-          </IonCardHeader>
-          <IonCardContent>
             {isReportsLoading ? (
               <div>
                 <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -847,22 +847,22 @@ const GiveFeedback: React.FC = () => {
                           </div>
                         </div>
 
-                        <IonRadio
-                          value={report.id}
-                          aria-checked={selectedReport === report.id}
-                          disabled={report.has_feedback}
-                          style={{
-                            marginLeft: 'auto',
-                            flexShrink: 0,
-                            marginRight: '0',
-                            '--inner-border-radius': '50%',
-                            '--border-radius': '50%',
-                            '--border-width': '2px',
-                            '--border-color': report.has_feedback ? '#d1d5db' : '#d1d5db',
-                            '--color': report.has_feedback ? '#9ca3af' : '#10b981',
-                            '--color-checked': report.has_feedback ? '#9ca3af' : '#10b981'
-                          } as any}
-                        />
+                        <div style={{ marginLeft: 'auto', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minWidth: 'fit-content' }}>
+                          <IonRadio
+                            value={report.id}
+                            aria-checked={selectedReport === report.id}
+                            disabled={report.has_feedback}
+                            style={{
+                              flexShrink: 0,
+                              '--inner-border-radius': '50%',
+                              '--border-radius': '50%',
+                              '--border-width': '2px',
+                              '--border-color': report.has_feedback ? '#d1d5db' : '#d1d5db',
+                              '--color': report.has_feedback ? '#9ca3af' : '#10b981',
+                              '--color-checked': report.has_feedback ? '#9ca3af' : '#10b981'
+                            } as any}
+                          />
+                        </div>
                       </div>
                     </IonItem>
                   ))}
