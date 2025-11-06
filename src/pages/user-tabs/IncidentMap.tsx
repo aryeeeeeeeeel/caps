@@ -1354,19 +1354,7 @@ const IncidentMap: React.FC = () => {
                             </IonButton>
                           </div>
 
-                          <IonButton
-                            fill="clear"
-                            onClick={() => {
-                              centerMapOnReport(report);
-                              viewReport(report);
-                            }}
-                            style={{
-                              '--padding-start': '4px',
-                              '--padding-end': '4px'
-                            } as any}
-                          >
-                            <IonIcon icon={eyeOutline} color="primary" />
-                          </IonButton>
+                          {/* Right-side quick view button removed per request */}
                         </div>
                       </IonCardContent>
                     </IonCard>
