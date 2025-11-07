@@ -335,6 +335,9 @@ const Register: React.FC = () => {
             return;
         }
 
+        let authUserCreated = false;
+        let authUserId: string | null = null;
+
         try {
             // Create Supabase Auth user first
             const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -357,6 +360,10 @@ const Register: React.FC = () => {
                 throw new Error("No user data returned from authentication.");
             }
 
+            // Mark that auth user was created
+            authUserCreated = true;
+            authUserId = authData.user.id;
+
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -373,22 +380,60 @@ const Register: React.FC = () => {
             });
 
             if (rpcError) {
-                throw new Error("Registration failed: " + rpcError.message);
+                // RPC failed - auth user exists but user table entry was not created
+                console.error('RPC registration failed:', rpcError);
+                console.error('ORPHANED AUTH USER DETECTED - Requires cleanup:', {
+                    userId: authUserId,
+                    email: email,
+                    timestamp: new Date().toISOString(),
+                    error: rpcError.message
+                });
+                
+                throw new Error("Registration failed: " + rpcError.message + ". The authentication account was created but user data was not saved. Please contact support if this issue persists.");
             }
 
-            if (!result.success) {
-                throw new Error(result.error || "Registration failed");
+            if (!result || !result.success) {
+                // RPC returned failure - auth user exists but user table entry was not created
+                console.error('RPC registration returned failure:', result);
+                console.error('ORPHANED AUTH USER DETECTED - Requires cleanup:', {
+                    userId: authUserId,
+                    email: email,
+                    timestamp: new Date().toISOString(),
+                    error: result?.error || 'Unknown error'
+                });
+                
+                throw new Error((result?.error || "Registration failed") + ". The authentication account was created but user data was not saved. Please contact support if this issue persists.");
             }
 
-            // Log user registration activity
+            // Success - log user registration activity
             await logUserRegistration(email, firstName, lastName);
 
             setShowSuccessModal(true);
         } catch (err) {
+            // Note: Client-side cannot delete Supabase Auth users without admin privileges
+            // The RPC function should handle rollback, or orphaned auth users need admin cleanup
+            // We log the issue for tracking and inform the user
+            
+            if (authUserCreated && authUserId) {
+                // Log orphaned user for admin cleanup
+                console.error('REGISTRATION FAILED - Orphaned Auth User Created:', {
+                    userId: authUserId,
+                    email: email,
+                    username: username,
+                    timestamp: new Date().toISOString(),
+                    error: err instanceof Error ? err.message : 'Unknown error'
+                });
+            }
+
             if (err instanceof Error) {
-                setAlertMessage(err.message);
+                // Provide clear error message
+                let errorMsg = err.message;
+                if (authUserCreated) {
+                    errorMsg += " The authentication account was created but user profile data was not saved. If this error persists, please contact support.";
+                }
+                setAlertMessage(errorMsg);
             } else {
-                setAlertMessage("An unknown error occurred during registration.");
+                setAlertMessage("An unknown error occurred during registration." + (authUserCreated ? " The authentication account was created but user profile data was not saved. Please contact support." : ""));
             }
             setShowAlert(true);
         } finally {
