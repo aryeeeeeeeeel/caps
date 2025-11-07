@@ -1326,6 +1326,12 @@ const IncidentReport: React.FC = () => {
   // Take photo function - optimized for faster loading
   const takePhoto = async () => {
     try {
+      // Check if Camera is available
+      if (!Camera || typeof Camera.getPhoto !== 'function') {
+        showToastMessage('Camera is not available on this device. Please use "Select Image" instead.', 'warning');
+        return;
+      }
+
       const hasCameraPermission = await checkPermissions('camera');
       if (!hasCameraPermission) {
         showToastMessage('Camera permission is required. Please enable it in permissions.', 'warning');
@@ -1352,7 +1358,23 @@ const IncidentReport: React.FC = () => {
         height: 1080
       };
 
-      const image = await Camera.getPhoto(cameraOptions);
+      let image;
+      try {
+        image = await Camera.getPhoto(cameraOptions);
+      } catch (cameraError: any) {
+        setCameraInitializing(false);
+        const errorMsg = cameraError?.message || cameraError?.toString() || '';
+        
+        // Check for specific camera plugin errors
+        if (errorMsg.includes('takePhoto') || errorMsg.includes('undefined')) {
+          showToastMessage('Camera plugin error. Please try selecting an image from your gallery instead.', 'danger');
+          return;
+        }
+        
+        // Re-throw to be handled by outer catch
+        throw cameraError;
+      }
+      
       setCameraInitializing(false);
 
       // Get location now (non-blocking, use if available)
@@ -1426,8 +1448,10 @@ const IncidentReport: React.FC = () => {
       console.warn('Camera error:', error);
       if (errorMessage.includes('Permission') || errorMessage.includes('permission')) {
         showToastMessage('Camera permission denied. Please enable camera access.', 'danger');
+      } else if (errorMessage.includes('takePhoto') || errorMessage.includes('undefined') || errorMessage.includes('plugin')) {
+        showToastMessage('Camera plugin error. Please use "Select Image" from gallery instead.', 'danger');
       } else if (!errorMessage.includes('cancelled')) {
-        showToastMessage('Failed to capture photo. Please try again.', 'danger');
+        showToastMessage('Failed to capture photo. Please try using "Select Image" from gallery.', 'danger');
       }
     }
   };
