@@ -2,7 +2,7 @@
 
 A comprehensive incident reporting and management system built with Ionic React and Supabase.
 
-> **Latest Update**: Registration Session Fix.
+> **Latest Update**: Registration Session Fix 2.0.
 
 ## Features
 
