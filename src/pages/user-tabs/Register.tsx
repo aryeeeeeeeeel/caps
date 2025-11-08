@@ -378,64 +378,35 @@ const Register: React.FC = () => {
                 authUserId: authData.user.id
             });
 
-            // OPTION 1: Try using the RPC function with corrected parameter names
-            try {
-                const { data: result, error: rpcError } = await supabase.rpc('register_user', {
-                    p_username: username,
-                    p_email: email,
-                    p_first_name: firstName,
-                    p_last_name: lastName,
-                    p_address: address,
-                    p_contact_number: contactNumber,
-                    p_password: hashedPassword,
-                    p_auth_uuid: authData.user.id
-                });
+            // Try direct insertion with correct column names
+            const { data: profileData, error: profileError } = await supabase
+                .from('users')
+                .insert([
+                    {
+                        username: username,
+                        user_email: email,
+                        user_firstname: firstName,
+                        user_lastname: lastName,
+                        user_address: address,
+                        user_contact_number: contactNumber,
+                        user_password: hashedPassword,
+                        auth_uuid: authData.user.id,
+                        role: 'user',
+                        status: 'inactive',
+                        is_authenticated: false,
+                        date_registered: new Date().toISOString()
+                    }
+                ])
+                .select();
 
-                if (rpcError) {
-                    console.error('RPC registration failed:', rpcError);
-                    throw new Error("Registration failed: " + rpcError.message);
-                }
-
-                if (!result || !result.success) {
-                    console.error('RPC registration returned failure:', result);
-                    throw new Error(result?.error || "Registration failed");
-                }
-
-                // Success - log user registration activity
-                await logUserRegistration(email, firstName, lastName);
-                setShowSuccessModal(true);
-                
-            } catch (rpcError) {
-                // OPTION 2: If RPC fails, try direct insertion as fallback
-                console.warn('RPC failed, trying direct insertion:', rpcError);
-                
-                const { data: profileData, error: profileError } = await supabase
-                    .from('users')
-                    .insert([
-                        {
-                            username: username,
-                            email: email,
-                            first_name: firstName,
-                            last_name: lastName,
-                            address: address,
-                            contact_number: contactNumber,
-                            password: hashedPassword,
-                            auth_uuid: authData.user.id,
-                            created_at: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
-                        }
-                    ])
-                    .select();
-
-                if (profileError) {
-                    console.error('Direct insertion also failed:', profileError);
-                    throw new Error("Registration failed: " + profileError.message);
-                }
-
-                // Success with direct insertion
-                await logUserRegistration(email, firstName, lastName);
-                setShowSuccessModal(true);
+            if (profileError) {
+                console.error('Direct insertion failed:', profileError);
+                throw new Error("Registration failed: " + profileError.message);
             }
+
+            // Success with direct insertion
+            await logUserRegistration(email, firstName, lastName);
+            setShowSuccessModal(true);
 
         } catch (err) {
             console.error('Registration error:', err);
