@@ -290,12 +290,72 @@ const Register: React.FC = () => {
         </div>
     );
 
-    const handleOpenVerificationModal = () => {
-        // Always persist email attempt so it can be used later even if other fields fail
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (email && emailRegex.test(email)) {
-            try { localStorage.setItem('pending_registration_email', email); } catch {}
+    // Validate all fields before proceeding
+    const validateAllFields = (): { isValid: boolean; message: string } => {
+        // Check for empty required fields
+        if (!username.trim()) {
+            return { isValid: false, message: "Username is required." };
         }
+        if (!firstName.trim()) {
+            return { isValid: false, message: "First name is required." };
+        }
+        if (!lastName.trim()) {
+            return { isValid: false, message: "Last name is required." };
+        }
+        if (!address.trim()) {
+            return { isValid: false, message: "Address is required." };
+        }
+        if (!contactNumber.trim()) {
+            return { isValid: false, message: "Contact number is required." };
+        }
+        if (!email.trim()) {
+            return { isValid: false, message: "Email address is required." };
+        }
+        if (!password) {
+            return { isValid: false, message: "Password is required." };
+        }
+        if (!confirmPassword) {
+            return { isValid: false, message: "Please confirm your password." };
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return { isValid: false, message: "Please enter a valid email address." };
+        }
+
+        // Validate password strength
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return { isValid: false, message: "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special symbol." };
+        }
+
+        // Check password match
+        if (password !== confirmPassword) {
+            return { isValid: false, message: "Passwords do not match. Please check and try again." };
+        }
+
+        // Check terms acceptance
+        if (!termsChecked) {
+            return { isValid: false, message: "You must accept the Terms and Conditions to create an account." };
+        }
+
+        return { isValid: true, message: "" };
+    };
+
+    const handleOpenVerificationModal = () => {
+        // Validate all fields before showing verification modal
+        const validation = validateAllFields();
+        if (!validation.isValid) {
+            setAlertMessage(validation.message);
+            setShowAlert(true);
+            return;
+        }
+
+        // Always persist email attempt so it can be used later even if other fields fail
+        try { 
+            localStorage.setItem('pending_registration_email', email); 
+        } catch {}
 
         setShowVerificationModal(true);
     };
@@ -304,32 +364,10 @@ const Register: React.FC = () => {
         setShowVerificationModal(false);
         setIsRegistering(true);
 
-        // Validate all fields first
-        if (!username.trim() || !firstName.trim() || !lastName.trim() || !address.trim() || !contactNumber.trim() || !email.trim()) {
-            setAlertMessage("Please fill in all required fields.");
-            setShowAlert(true);
-            setIsRegistering(false);
-            return;
-        }
-
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            setAlertMessage("Please enter a valid email address.");
-            setShowAlert(true);
-            setIsRegistering(false);
-            return;
-        }
-
-        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
-        if (!passwordRegex.test(password)) {
-            setAlertMessage("Password must be at least 8 characters long and include at least has one uppercase letter, one lowercase letter, one number, and one special symbol.");
-            setShowAlert(true);
-            setIsRegistering(false);
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            setAlertMessage("Passwords do not match. Please check and try again.");
+        // Final validation before registration
+        const validation = validateAllFields();
+        if (!validation.isValid) {
+            setAlertMessage(validation.message);
             setShowAlert(true);
             setIsRegistering(false);
             return;
@@ -370,25 +408,25 @@ const Register: React.FC = () => {
             // DEBUG: Log the data being sent
             console.log('Sending registration data:', {
                 username,
-                email,
-                firstName,
-                lastName,
-                address,
-                contactNumber,
-                authUserId: authData.user.id
+                user_email: email,
+                user_firstname: firstName,
+                user_lastname: lastName,
+                user_address: address,
+                user_contact_number: contactNumber,
+                auth_uuid: authData.user.id
             });
 
-            // Try direct insertion with correct column names
+            // Insert into users table with proper column names matching your schema
             const { data: profileData, error: profileError } = await supabase
                 .from('users')
                 .insert([
                     {
-                        username: username,
-                        user_email: email,
-                        user_firstname: firstName,
-                        user_lastname: lastName,
-                        user_address: address,
-                        user_contact_number: contactNumber,
+                        username: username.trim(),
+                        user_email: email.trim(),
+                        user_firstname: firstName.trim(),
+                        user_lastname: lastName.trim(),
+                        user_address: address.trim(),
+                        user_contact_number: contactNumber.trim(),
                         user_password: hashedPassword,
                         auth_uuid: authData.user.id,
                         role: 'user',
@@ -400,11 +438,28 @@ const Register: React.FC = () => {
                 .select();
 
             if (profileError) {
-                console.error('Direct insertion failed:', profileError);
+                console.error('Database insertion failed:', profileError);
+                
+                // Check if it's a duplicate error
+                if (profileError.code === '23505') { // Unique violation
+                    if (profileError.message.includes('username')) {
+                        throw new Error("Username already exists. Please choose a different username.");
+                    } else if (profileError.message.includes('user_email')) {
+                        throw new Error("Email address is already registered. Please use a different email or try logging in.");
+                    } else if (profileError.message.includes('auth_uuid')) {
+                        throw new Error("Authentication error. Please try again.");
+                    }
+                }
+                
                 throw new Error("Registration failed: " + profileError.message);
             }
 
-            // Success with direct insertion
+            if (!profileData || profileData.length === 0) {
+                throw new Error("Registration failed: No data returned after insertion.");
+            }
+
+            // Success with database insertion
+            console.log('Registration successful:', profileData);
             await logUserRegistration(email, firstName, lastName);
             setShowSuccessModal(true);
 
@@ -598,7 +653,7 @@ const Register: React.FC = () => {
                                                     fontSize: '13px',
                                                     fontWeight: '600',
                                                     color: '#2d3748'
-                                                }}>First Name</label>
+                                                }}>First Name *</label>
                                             </div>
                                             <IonInput
                                                 fill="outline"
@@ -613,6 +668,7 @@ const Register: React.FC = () => {
                                                     '--padding-end': '12px',
                                                     fontSize: '15px'
                                                 } as any}
+                                                required
                                             />
                                         </div>
                                     </IonCol>
@@ -632,7 +688,7 @@ const Register: React.FC = () => {
                                                     fontSize: '13px',
                                                     fontWeight: '600',
                                                     color: '#2d3748'
-                                                }}>Last Name</label>
+                                                }}>Last Name *</label>
                                             </div>
                                             <IonInput
                                                 fill="outline"
@@ -647,6 +703,7 @@ const Register: React.FC = () => {
                                                     '--padding-end': '12px',
                                                     fontSize: '15px'
                                                 } as any}
+                                                required
                                             />
                                         </div>
                                     </IonCol>
@@ -668,7 +725,7 @@ const Register: React.FC = () => {
                                         fontSize: '13px',
                                         fontWeight: '600',
                                         color: '#2d3748'
-                                    }}>Username</label>
+                                    }}>Username *</label>
                                 </div>
                                 <IonInput
                                     fill="outline"
@@ -683,6 +740,7 @@ const Register: React.FC = () => {
                                         '--padding-end': '12px',
                                         fontSize: '15px'
                                     } as any}
+                                    required
                                 />
                             </div>
 
@@ -701,7 +759,7 @@ const Register: React.FC = () => {
                                         fontSize: '13px',
                                         fontWeight: '600',
                                         color: '#2d3748'
-                                    }}>Email Address</label>
+                                    }}>Email Address *</label>
                                 </div>
                                 <IonInput
                                     fill="outline"
@@ -716,6 +774,7 @@ const Register: React.FC = () => {
                                         '--padding-end': '12px',
                                         fontSize: '15px'
                                     } as any}
+                                    required
                                 />
                             </div>
 
@@ -734,7 +793,7 @@ const Register: React.FC = () => {
                                         fontSize: '13px',
                                         fontWeight: '600',
                                         color: '#2d3748'
-                                    }}>Address</label>
+                                    }}>Address *</label>
                                 </div>
                                 <IonInput
                                     fill="outline"
@@ -749,6 +808,7 @@ const Register: React.FC = () => {
                                         '--padding-end': '12px',
                                         fontSize: '15px'
                                     } as any}
+                                    required
                                 />
                             </div>
 
@@ -767,7 +827,7 @@ const Register: React.FC = () => {
                                         fontSize: '13px',
                                         fontWeight: '600',
                                         color: '#2d3748'
-                                    }}>Contact Number</label>
+                                    }}>Contact Number *</label>
                                 </div>
                                 <IonInput
                                     fill="outline"
@@ -782,6 +842,7 @@ const Register: React.FC = () => {
                                         '--padding-end': '12px',
                                         fontSize: '15px'
                                     } as any}
+                                    required
                                 />
                             </div>
 
@@ -803,7 +864,7 @@ const Register: React.FC = () => {
                                                     fontSize: '13px',
                                                     fontWeight: '600',
                                                     color: '#2d3748'
-                                                }}>Password</label>
+                                                }}>Password *</label>
                                             </div>
                                             <IonInput
                                                 fill="outline"
@@ -818,6 +879,7 @@ const Register: React.FC = () => {
                                                     '--padding-end': '12px',
                                                     fontSize: '15px'
                                                 } as any}
+                                                required
                                             >
                                                 <IonInputPasswordToggle slot="end" />
                                             </IonInput>
@@ -839,7 +901,7 @@ const Register: React.FC = () => {
                                                     fontSize: '13px',
                                                     fontWeight: '600',
                                                     color: '#2d3748'
-                                                }}>Confirm</label>
+                                                }}>Confirm *</label>
                                             </div>
                                             <IonInput
                                                 fill="outline"
@@ -854,6 +916,7 @@ const Register: React.FC = () => {
                                                     '--padding-end': '12px',
                                                     fontSize: '15px'
                                                 } as any}
+                                                required
                                             >
                                                 <IonInputPasswordToggle slot="end" />
                                             </IonInput>
