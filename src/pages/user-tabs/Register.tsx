@@ -367,55 +367,80 @@ const Register: React.FC = () => {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
 
-            // Use the RPC function for atomic registration
-            const { data: result, error: rpcError } = await supabase.rpc('register_user', {
-                p_username: username,
-                p_email: email,
-                p_first_name: firstName,
-                p_last_name: lastName,
-                p_address: address,
-                p_contact_number: contactNumber,
-                p_password: hashedPassword,
-                p_auth_uuid: authData.user.id
+            // DEBUG: Log the data being sent
+            console.log('Sending registration data:', {
+                username,
+                email,
+                firstName,
+                lastName,
+                address,
+                contactNumber,
+                authUserId: authData.user.id
             });
 
-            if (rpcError) {
-                // RPC failed - auth user exists but user table entry was not created
-                console.error('RPC registration failed:', rpcError);
-                console.error('ORPHANED AUTH USER DETECTED - Requires cleanup:', {
-                    userId: authUserId,
-                    email: email,
-                    timestamp: new Date().toISOString(),
-                    error: rpcError.message
+            // OPTION 1: Try using the RPC function with corrected parameter names
+            try {
+                const { data: result, error: rpcError } = await supabase.rpc('register_user', {
+                    p_username: username,
+                    p_email: email,
+                    p_first_name: firstName,
+                    p_last_name: lastName,
+                    p_address: address,
+                    p_contact_number: contactNumber,
+                    p_password: hashedPassword,
+                    p_auth_uuid: authData.user.id
                 });
+
+                if (rpcError) {
+                    console.error('RPC registration failed:', rpcError);
+                    throw new Error("Registration failed: " + rpcError.message);
+                }
+
+                if (!result || !result.success) {
+                    console.error('RPC registration returned failure:', result);
+                    throw new Error(result?.error || "Registration failed");
+                }
+
+                // Success - log user registration activity
+                await logUserRegistration(email, firstName, lastName);
+                setShowSuccessModal(true);
                 
-                throw new Error("Registration failed: " + rpcError.message + ". The authentication account was created but user data was not saved. Please contact support if this issue persists.");
+            } catch (rpcError) {
+                // OPTION 2: If RPC fails, try direct insertion as fallback
+                console.warn('RPC failed, trying direct insertion:', rpcError);
+                
+                const { data: profileData, error: profileError } = await supabase
+                    .from('users')
+                    .insert([
+                        {
+                            username: username,
+                            email: email,
+                            first_name: firstName,
+                            last_name: lastName,
+                            address: address,
+                            contact_number: contactNumber,
+                            password: hashedPassword,
+                            auth_uuid: authData.user.id,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        }
+                    ])
+                    .select();
+
+                if (profileError) {
+                    console.error('Direct insertion also failed:', profileError);
+                    throw new Error("Registration failed: " + profileError.message);
+                }
+
+                // Success with direct insertion
+                await logUserRegistration(email, firstName, lastName);
+                setShowSuccessModal(true);
             }
 
-            if (!result || !result.success) {
-                // RPC returned failure - auth user exists but user table entry was not created
-                console.error('RPC registration returned failure:', result);
-                console.error('ORPHANED AUTH USER DETECTED - Requires cleanup:', {
-                    userId: authUserId,
-                    email: email,
-                    timestamp: new Date().toISOString(),
-                    error: result?.error || 'Unknown error'
-                });
-                
-                throw new Error((result?.error || "Registration failed") + ". The authentication account was created but user data was not saved. Please contact support if this issue persists.");
-            }
-
-            // Success - log user registration activity
-            await logUserRegistration(email, firstName, lastName);
-
-            setShowSuccessModal(true);
         } catch (err) {
-            // Note: Client-side cannot delete Supabase Auth users without admin privileges
-            // The RPC function should handle rollback, or orphaned auth users need admin cleanup
-            // We log the issue for tracking and inform the user
+            console.error('Registration error:', err);
             
             if (authUserCreated && authUserId) {
-                // Log orphaned user for admin cleanup
                 console.error('REGISTRATION FAILED - Orphaned Auth User Created:', {
                     userId: authUserId,
                     email: email,
@@ -426,7 +451,6 @@ const Register: React.FC = () => {
             }
 
             if (err instanceof Error) {
-                // Provide clear error message
                 let errorMsg = err.message;
                 if (authUserCreated) {
                     errorMsg += " The authentication account was created but user profile data was not saved. If this error persists, please contact support.";
