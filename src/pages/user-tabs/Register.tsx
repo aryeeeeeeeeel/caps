@@ -291,90 +291,121 @@ const Register: React.FC = () => {
     );
 
     // Validate all fields before proceeding
-const validateAllFields = (): { isValid: boolean; message: string } => {
-    // Check for empty required fields with trim
-    const fields = [
-        { value: username.trim(), name: "Username" },
-        { value: firstName.trim(), name: "First name" },
-        { value: lastName.trim(), name: "Last name" },
-        { value: address.trim(), name: "Address" },
-        { value: contactNumber.trim(), name: "Contact number" },
-        { value: email.trim(), name: "Email address" },
-        { value: password, name: "Password" },
-        { value: confirmPassword, name: "Password confirmation" }
-    ];
+    const validateAllFields = (): { isValid: boolean; message: string } => {
+        // Check for empty required fields with trim
+        const fields = [
+            { value: username.trim(), name: "Username" },
+            { value: firstName.trim(), name: "First name" },
+            { value: lastName.trim(), name: "Last name" },
+            { value: address.trim(), name: "Address" },
+            { value: contactNumber.trim(), name: "Contact number" },
+            { value: email.trim(), name: "Email address" },
+            { value: password, name: "Password" },
+            { value: confirmPassword, name: "Password confirmation" }
+        ];
 
-    for (const field of fields) {
-        if (!field.value) {
-            return { isValid: false, message: `${field.name} is required and cannot be empty.` };
-        }
-    }
-
-    // Rest of your validation logic remains the same...
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        return { isValid: false, message: "Please enter a valid email address." };
-    }
-
-    // Validate password strength
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
-    if (!passwordRegex.test(password)) {
-        return { isValid: false, message: "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special symbol." };
-    }
-
-    // Check password match
-    if (password !== confirmPassword) {
-        return { isValid: false, message: "Passwords do not match. Please check and try again." };
-    }
-
-    // Validate contact number format (Philippine format)
-    const contactRegex = /^(\+639|09)\d{9}$/;
-    if (!contactRegex.test(contactNumber.trim())) {
-        return { isValid: false, message: "Please enter a valid Philippine contact number (e.g., +639123456789 or 09123456789)." };
-    }
-
-    // Check terms acceptance
-    if (!termsChecked) {
-        return { isValid: false, message: "You must accept the Terms and Conditions to create an account." };
-    }
-
-    return { isValid: true, message: "" };
-};
-
-   // Check for duplicates in database
-const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: string }> => {
-    try {
-        // Check for username, email, and contact number duplicates
-        const { data: existingUsers, error: checkError } = await supabase
-            .from('users')
-            .select('username, user_email, user_contact_number, user_firstname, user_lastname')
-            .or(`username.eq.${username},user_email.eq.${email},user_contact_number.eq.${contactNumber}`);
-
-        if (checkError) {
-            throw new Error("Failed to verify account details: " + checkError.message);
-        }
-
-        if (existingUsers && existingUsers.length > 0) {
-            for (const user of existingUsers) {
-                if (user.username === username.trim()) {
-                    return { hasDuplicates: true, message: "Username already exists. Please choose a different username." };
-                }
-                if (user.user_email === email.trim()) {
-                    return { hasDuplicates: true, message: "Email address is already registered. Please use a different email or try logging in." };
-                }
-                if (user.user_contact_number === contactNumber.trim()) {
-                    return { hasDuplicates: true, message: "Contact number is already registered. Please use a different number." };
-                }
+        for (const field of fields) {
+            if (!field.value) {
+                return { isValid: false, message: `${field.name} is required and cannot be empty.` };
             }
         }
 
-        return { hasDuplicates: false, message: "" };
-    } catch (error) {
-        console.error('Duplicate check error:', error);
-        return { hasDuplicates: true, message: "Failed to verify account uniqueness. Please try again." };
-    }
-};
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return { isValid: false, message: "Please enter a valid email address." };
+        }
+
+        // Validate password strength
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~])[A-Za-z\d!@#$%^&*()\-_=+\[\]{};:'",.<>/?\\|`~]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return { isValid: false, message: "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special symbol." };
+        }
+
+        // Check password match
+        if (password !== confirmPassword) {
+            return { isValid: false, message: "Passwords do not match. Please check and try again." };
+        }
+
+        // Validate contact number format (Philippine format)
+        const contactRegex = /^(\+639|09)\d{9}$/;
+        if (!contactRegex.test(contactNumber.trim())) {
+            return { isValid: false, message: "Please enter a valid Philippine contact number (e.g., +639123456789 or 09123456789)." };
+        }
+
+        // Check terms acceptance
+        if (!termsChecked) {
+            return { isValid: false, message: "You must accept the Terms and Conditions to create an account." };
+        }
+
+        return { isValid: true, message: "" };
+    };
+
+    // Check for duplicates in database
+    const checkDuplicates = async (username: string, email: string, contactNumber: string) => {
+        try {
+            // Use direct query to avoid RLS recursion issues
+            const { data, error } = await supabase
+                .from('users')
+                .select('username, user_email, user_contact_number')
+                .or(`username.eq.${username},user_email.eq.${email}${contactNumber ? `,user_contact_number.eq.${contactNumber}` : ''}`);
+
+            if (error) throw error;
+
+            const usernameExists = data?.some(user => user.username === username) || false;
+            const emailExists = data?.some(user => user.user_email === email) || false;
+            const contactExists = contactNumber ? data?.some(user => user.user_contact_number === contactNumber) || false : false;
+
+            return {
+                usernameExists,
+                emailExists,
+                contactExists
+            };
+        } catch (error) {
+            console.error('Duplicate check error:', error);
+            throw new Error('Failed to verify account details');
+        }
+    };
+
+    // Check for duplicates wrapper function
+    const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: string }> => {
+        try {
+            const duplicates = await checkDuplicates(
+                username.trim(), 
+                email.trim(), 
+                contactNumber.trim()
+            );
+
+            if (duplicates.usernameExists) {
+                return { 
+                    hasDuplicates: true, 
+                    message: "Username already exists. Please choose a different username." 
+                };
+            }
+            
+            if (duplicates.emailExists) {
+                return { 
+                    hasDuplicates: true, 
+                    message: "Email address is already registered. Please use a different email." 
+                };
+            }
+            
+            if (duplicates.contactExists) {
+                return { 
+                    hasDuplicates: true, 
+                    message: "Contact number is already registered. Please use a different number." 
+                };
+            }
+
+            return { hasDuplicates: false, message: "" };
+        } catch (error) {
+            console.error('Duplicate check error:', error);
+            return { 
+                hasDuplicates: true, 
+                message: "Failed to verify account details. Please try again." 
+            };
+        }
+    };
 
     const handleOpenVerificationModal = async () => {
         // Validate all fields before showing verification modal
@@ -405,69 +436,102 @@ const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: 
     };
 
     const doRegister = async () => {
-    setShowVerificationModal(false);
-    setIsRegistering(true);
+        setShowVerificationModal(false);
+        setIsRegistering(true);
 
-    try {
-        // STEP 1: Final validation before registration
-        const validation = validateAllFields();
-        if (!validation.isValid) {
-            throw new Error(validation.message);
-        }
+        try {
+            // STEP 1: Final validation before registration
+            const validation = validateAllFields();
+            if (!validation.isValid) {
+                throw new Error(validation.message);
+            }
 
-        // STEP 2: Final duplicate check
-        const duplicateCheck = await checkForDuplicates();
-        if (duplicateCheck.hasDuplicates) {
-            throw new Error(duplicateCheck.message);
-        }
+            // STEP 2: Final duplicate check
+            const duplicateCheck = await checkForDuplicates();
+            if (duplicateCheck.hasDuplicates) {
+                throw new Error(duplicateCheck.message);
+            }
 
-        // STEP 3: Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+            // STEP 3: Hash password
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
 
-        // STEP 4: Create auth account FIRST
-        console.log('Creating auth user...');
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: email.trim(),
-            password: password,
-            options: {
-                data: {
-                    username: username.trim(),
-                    first_name: firstName.trim(),
-                    last_name: lastName.trim()
+            // STEP 4: Create auth account FIRST
+            console.log('Creating auth user...');
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: email.trim(),
+                password: password,
+                options: {
+                    data: {
+                        username: username.trim(),
+                        first_name: firstName.trim(),
+                        last_name: lastName.trim()
+                    }
                 }
+            });
+
+            if (authError) {
+                console.error('Auth creation failed:', authError);
+                if (authError.message.includes('already registered')) {
+                    throw new Error("This email is already registered. Please try logging in or use a different email.");
+                }
+                throw new Error("Account creation failed: " + authError.message);
             }
-        });
 
-        if (authError) {
-            console.error('Auth creation failed:', authError);
-            if (authError.message.includes('already registered')) {
-                throw new Error("This email is already registered. Please try logging in or use a different email.");
+            if (!authData.user) {
+                throw new Error("No user data returned from authentication.");
             }
-            throw new Error("Account creation failed: " + authError.message);
-        }
 
-        if (!authData.user) {
-            throw new Error("No user data returned from authentication.");
-        }
+            console.log('Auth user created successfully:', authData.user.id);
 
-        console.log('Auth user created successfully:', authData.user.id);
+            // STEP 5: Check if user profile already exists with this auth_uuid
+            const { data: existingProfile, error: checkError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('auth_uuid', authData.user.id)
+                .maybeSingle();
 
-        // STEP 5: Check if user profile already exists with this auth_uuid
-        const { data: existingProfile, error: checkError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('auth_uuid', authData.user.id)
-            .maybeSingle();
+            if (checkError) {
+                console.error('Error checking existing profile:', checkError);
+            }
 
-        if (checkError) {
-            console.error('Error checking existing profile:', checkError);
-        }
+            // If profile already exists, UPDATE it instead of inserting
+            if (existingProfile) {
+                console.log('Profile already exists, updating with new data...');
+                
+                const userData = {
+                    username: username.trim(),
+                    user_email: email.trim(),
+                    user_firstname: firstName.trim(),
+                    user_lastname: lastName.trim(),
+                    user_address: address.trim(),
+                    user_contact_number: contactNumber.trim(),
+                    user_password: hashedPassword,
+                    auth_uuid: authData.user.id,
+                    role: 'user',
+                    status: 'inactive',
+                    is_authenticated: false,
+                    date_registered: new Date().toISOString()
+                };
 
-        // If profile already exists, UPDATE it instead of inserting
-        if (existingProfile) {
-            console.log('Profile already exists, updating with new data...');
-            
+                const { data: updatedProfile, error: updateError } = await supabase
+                    .from('users')
+                    .update(userData)
+                    .eq('auth_uuid', authData.user.id)
+                    .select();
+
+                if (updateError) {
+                    console.error('Profile update failed:', updateError);
+                    throw new Error("Registration failed: Unable to update user profile. Please try again.");
+                }
+
+                console.log('Profile updated successfully:', updatedProfile);
+                await logUserRegistration(email, firstName, lastName);
+                setShowSuccessModal(true);
+                return;
+            }
+
+            // STEP 6: Prepare user data with ALL fields
             const userData = {
                 username: username.trim(),
                 user_email: email.trim(),
@@ -483,127 +547,94 @@ const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: 
                 date_registered: new Date().toISOString()
             };
 
-            const { data: updatedProfile, error: updateError } = await supabase
+            // Validate that no required fields are empty
+            const requiredFields = ['username', 'user_email', 'user_firstname', 'user_lastname', 'user_address', 'user_contact_number', 'user_password', 'auth_uuid'];
+            for (const field of requiredFields) {
+                if (!userData[field as keyof typeof userData]) {
+                    throw new Error(`Registration failed: Required field ${field} is empty`);
+                }
+            }
+
+            console.log('Inserting user profile with complete data:', userData);
+
+            // STEP 7: Insert into users table
+            const { data: profileData, error: profileError } = await supabase
                 .from('users')
-                .update(userData)
-                .eq('auth_uuid', authData.user.id)
+                .insert([userData])
                 .select();
 
-            if (updateError) {
-                console.error('Profile update failed:', updateError);
-                throw new Error("Registration failed: Unable to update user profile. Please try again.");
+            if (profileError) {
+                console.error('Database insertion failed:', profileError);
+                
+                // If it's a duplicate key error, check if the profile was created in another session
+                if (profileError.code === '23505') {
+                    const { data: finalCheck } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('auth_uuid', authData.user.id)
+                        .maybeSingle();
+                    
+                    if (finalCheck) {
+                        // Profile exists now, consider it success
+                        console.log('Profile created in parallel, registration complete');
+                        await logUserRegistration(email, firstName, lastName);
+                        setShowSuccessModal(true);
+                        return;
+                    } else {
+                        // Check which constraint was violated
+                        if (profileError.message.includes('username')) {
+                            throw new Error("Username already exists. Please choose a different username.");
+                        } else if (profileError.message.includes('user_email')) {
+                            throw new Error("Email address is already registered. Please use a different email.");
+                        } else if (profileError.message.includes('user_contact_number')) {
+                            throw new Error("Contact number is already registered. Please use a different number.");
+                        } else {
+                            throw new Error("Account details already exist. Please use different information.");
+                        }
+                    }
+                } else {
+                    throw new Error("Registration failed: Unable to save user profile. Please try again.");
+                }
             }
 
-            console.log('Profile updated successfully:', updatedProfile);
+            if (!profileData || profileData.length === 0) {
+                throw new Error("Registration failed: No data returned after insertion.");
+            }
+
+            // STEP 8: Verify the inserted data
+            console.log('Profile created successfully, verifying data...');
+            const insertedUser = profileData[0];
+            
+            // Check that all fields have values
+            const emptyFields = [];
+            for (const [key, value] of Object.entries(insertedUser)) {
+                if (value === null || value === undefined || value === '') {
+                    emptyFields.push(key);
+                }
+            }
+
+            if (emptyFields.length > 0) {
+                console.warn('Some fields are empty in the inserted record:', emptyFields);
+            }
+
+            // Success!
+            console.log('Registration completed successfully:', insertedUser);
             await logUserRegistration(email, firstName, lastName);
             setShowSuccessModal(true);
-            return;
-        }
 
-        // STEP 6: Prepare user data with ALL fields
-        const userData = {
-            username: username.trim(),
-            user_email: email.trim(),
-            user_firstname: firstName.trim(),
-            user_lastname: lastName.trim(),
-            user_address: address.trim(),
-            user_contact_number: contactNumber.trim(),
-            user_password: hashedPassword,
-            auth_uuid: authData.user.id,
-            role: 'user',
-            status: 'inactive',
-            is_authenticated: false,
-            date_registered: new Date().toISOString()
-        };
-
-        // Validate that no required fields are empty
-        const requiredFields = ['username', 'user_email', 'user_firstname', 'user_lastname', 'user_address', 'user_contact_number', 'user_password', 'auth_uuid'];
-        for (const field of requiredFields) {
-            if (!userData[field as keyof typeof userData]) {
-                throw new Error(`Registration failed: Required field ${field} is empty`);
-            }
-        }
-
-        console.log('Inserting user profile with complete data:', userData);
-
-        // STEP 7: Insert into users table
-        const { data: profileData, error: profileError } = await supabase
-            .from('users')
-            .insert([userData])
-            .select();
-
-        if (profileError) {
-            console.error('Database insertion failed:', profileError);
+        } catch (err) {
+            console.error('Registration error:', err);
             
-            // If it's a duplicate key error, check if the profile was created in another session
-            if (profileError.code === '23505') {
-                const { data: finalCheck } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('auth_uuid', authData.user.id)
-                    .maybeSingle();
-                
-                if (finalCheck) {
-                    // Profile exists now, consider it success
-                    console.log('Profile created in parallel, registration complete');
-                    await logUserRegistration(email, firstName, lastName);
-                    setShowSuccessModal(true);
-                    return;
-                } else {
-                    // Check which constraint was violated
-                    if (profileError.message.includes('username')) {
-                        throw new Error("Username already exists. Please choose a different username.");
-                    } else if (profileError.message.includes('user_email')) {
-                        throw new Error("Email address is already registered. Please use a different email.");
-                    } else if (profileError.message.includes('user_contact_number')) {
-                        throw new Error("Contact number is already registered. Please use a different number.");
-                    } else {
-                        throw new Error("Account details already exist. Please use different information.");
-                    }
-                }
+            if (err instanceof Error) {
+                setAlertMessage(err.message);
             } else {
-                throw new Error("Registration failed: Unable to save user profile. Please try again.");
+                setAlertMessage("An unexpected error occurred during registration. Please try again.");
             }
+            setShowAlert(true);
+        } finally {
+            setIsRegistering(false);
         }
-
-        if (!profileData || profileData.length === 0) {
-            throw new Error("Registration failed: No data returned after insertion.");
-        }
-
-        // STEP 8: Verify the inserted data
-        console.log('Profile created successfully, verifying data...');
-        const insertedUser = profileData[0];
-        
-        // Check that all fields have values
-        const emptyFields = [];
-        for (const [key, value] of Object.entries(insertedUser)) {
-            if (value === null || value === undefined || value === '') {
-                emptyFields.push(key);
-            }
-        }
-
-        if (emptyFields.length > 0) {
-            console.warn('Some fields are empty in the inserted record:', emptyFields);
-        }
-
-        // Success!
-        console.log('Registration completed successfully:', insertedUser);
-        await logUserRegistration(email, firstName, lastName);
-        setShowSuccessModal(true);
-
-    } catch (err) {
-        console.error('Registration error:', err);
-        
-        if (err instanceof Error) {
-            setAlertMessage(err.message);
-        } else {
-            setAlertMessage("An unexpected error occurred during registration. Please try again.");
-        }
-        setShowAlert(true);
-    } finally {
-        setIsRegistering(false);
-    }
-};
+    };
 
     // Handler Logic
     const handleShowTerms = () => setShowTermsModal(true);
