@@ -619,170 +619,161 @@ useEffect(() => {
   // Remove per-field key handlers, leave global Enter handler only
   // In handleLogin, perform these checks:
   const handleLogin = async () => {
-    // Input validation
-    const trimmedIdentifier = loginIdentifier.trim();
-    const trimmedPassword = password.trim();
+  // Input validation
+  const trimmedIdentifier = loginIdentifier.trim();
+  const trimmedPassword = password.trim();
+
+  if (!trimmedIdentifier) {
+    showCustomToast('Please enter your email or username', 'warning');
+    return;
+  }
   
-    if (!trimmedIdentifier) {
-      showCustomToast('Please enter your email or username', 'warning');
-      return;
-    }
+  if (!trimmedPassword) {
+    showCustomToast('Please enter your password', 'warning');
+    return;
+  }
+
+  setIsLoggingIn(true);
+  
+  try {
+    // Determine if it's an email or username
+    let loginEmail = trimmedIdentifier;
     
-    if (!trimmedPassword) {
-      showCustomToast('Please enter your password', 'warning');
-      return;
-    }
-  
-    // Basic password strength check (at least 1 character)
-    if (trimmedPassword.length === 0) {
-      showCustomToast('Please enter your password', 'warning');
-      return;
-    }
-  
-    setIsLoggingIn(true);
-    
-    try {
-      // Find user (by username or email)
-      let userEmail = trimmedIdentifier;
-      let userRow = null;
-      
-      // Check if input is email or username
-      if (!trimmedIdentifier.includes('@')) {
-        // Username lookup
-        const { data, error } = await supabase
-          .from('users')
-          .select('user_email, is_authenticated, id')
-          .eq('username', trimmedIdentifier)
-          .single();
-          
-        if (error || !data) {
-          console.log('Username not found:', trimmedIdentifier, error);
-          showCustomToast('Account not found. Please check your credentials or create an account.', 'warning');
-          setIsLoggingIn(false);
-          return;
-        }
-        userEmail = data.user_email;
-        userRow = data;
-      } else {
-        // Email lookup
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('user_email, is_authenticated, id')
-          .eq('user_email', trimmedIdentifier)
-          .maybeSingle();
-          
-        if (userError || !userData) {
-          console.log('Email not found:', trimmedIdentifier, userError);
-          showCustomToast('Account not found. Please check your credentials or create an account.', 'warning');
-          setIsLoggingIn(false);
-          return;
-        }
-        userEmail = userData.user_email;
-        userRow = userData;
-      }
-  
-      // Check password with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: userEmail,
-        password: trimmedPassword,
-      });
-  
-      if (authError) {
-        console.log('Auth error:', authError);
-        showCustomToast('Credentials incorrect', 'danger');
+    // If it's not an email (no @), look up the email from username
+    if (!trimmedIdentifier.includes('@')) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('user_email, is_authenticated, id')
+        .eq('username', trimmedIdentifier)
+        .single();
+        
+      if (userError || !userData) {
+        showCustomToast('Username not found. Please check your credentials.', 'warning');
         setIsLoggingIn(false);
         return;
       }
-  
-      // Check authentication status
-      if (!userRow.is_authenticated) {
+      
+      if (!userData.is_authenticated) {
         showCustomToast('Your account is not authenticated. Please check your email and confirm your signup.', 'warning');
         setIsLoggingIn(false);
         return;
       }
-  
-      // Device trust and OTP logic
-      setCurrentUserId(authData.user.id);
-      const fingerprint = await generateDeviceFingerprint();
-      setDeviceFingerprint(fingerprint);
       
-      const isTrusted = await isDeviceTrusted(authData.user.id, fingerprint);
-      
-      if (!isTrusted) {
-        setOtpEmail(userEmail);
-        setShowOTPModal(true);
-        setIsLoggingIn(false);
-        await sendOTP(userEmail, fingerprint);
-        return;
-      }
-  
-      await completeLogin(authData.user.id, userEmail, fingerprint);
-      
-    } catch (error: any) {
-      console.error('Login error:', error);
-      showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
-      setIsLoggingIn(false);
+      loginEmail = userData.user_email;
     }
-  };
+
+    // Direct Supabase Auth login - let Supabase handle the authentication
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: trimmedPassword,
+    });
+
+    if (authError) {
+      console.log('Auth error:', authError);
+      
+      // More specific error messages
+      if (authError.message.includes('Invalid login credentials')) {
+        showCustomToast('Invalid email/username or password. Please try again.', 'danger');
+      } else if (authError.message.includes('Email not confirmed')) {
+        showCustomToast('Please check your email and confirm your account before logging in.', 'warning');
+      } else {
+        showCustomToast(authError.message || 'Login failed. Please try again.', 'danger');
+      }
+      
+      setIsLoggingIn(false);
+      return;
+    }
+
+    // If we get here, login was successful
+    console.log('Login successful:', authData.user);
+    
+    // Generate device fingerprint
+    const fingerprint = await generateDeviceFingerprint();
+    setDeviceFingerprint(fingerprint);
+    setCurrentUserId(authData.user.id);
+    
+    // Check if device is trusted
+    const isTrusted = await isDeviceTrusted(authData.user.id, fingerprint);
+    
+    if (!isTrusted) {
+      setOtpEmail(loginEmail);
+      setShowOTPModal(true);
+      setIsLoggingIn(false);
+      await sendOTP(loginEmail, fingerprint);
+      return;
+    }
+
+    // Complete the login process
+    await completeLogin(authData.user.id, loginEmail, fingerprint);
+    
+  } catch (error: any) {
+    console.error('Login error:', error);
+    showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
+    setIsLoggingIn(false);
+  }
+};
 
   const completeLogin = async (userId: string, userEmail: string, fingerprint: string) => {
-    try {
-      await supabase
-        .from('device_fingerprints')
-        .update({ last_used_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .eq('device_fingerprint', fingerprint);
+  try {
+    // Update device usage
+    await supabase
+      .from('device_fingerprints')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('device_fingerprint', fingerprint);
 
-      // Update last_active_at in users table
-      await supabase
-        .from('users')
-        .update({ last_active_at: new Date().toISOString() })
-        .eq('user_email', userEmail);
+    // Update last_active_at in users table
+    await supabase
+      .from('users')
+      .update({ last_active_at: new Date().toISOString() })
+      .eq('user_email', userEmail);
 
-      if (rememberMe) {
-        saveAccount(loginIdentifier, password);
-        setSavedAccounts(getSavedAccounts());
-        localStorage.setItem('rememberMe', 'true');
-      } else {
-        localStorage.removeItem('rememberMe');
+    // Save to remembered accounts if enabled
+    if (rememberMe) {
+      saveAccount(loginIdentifier, password);
+      setSavedAccounts(getSavedAccounts());
+      localStorage.setItem('rememberMe', 'true');
+    } else {
+      localStorage.removeItem('rememberMe');
+    }
+
+    showCustomToast('Welcome back! Redirecting to your dashboard...', 'success');
+
+    // Fire-and-forget activity log
+    logUserLogin(userEmail).catch(() => {});
+
+    // Clear input focus
+    const clearInputFocus = async () => {
+      if (loginIdentifierInputRef.current) {
+        try {
+          const el = await loginIdentifierInputRef.current.getInputElement();
+          el.blur();
+        } catch (err) {
+          console.warn('Could not blur login identifier input:', err);
+        }
       }
 
-      showCustomToast('Welcome back! Redirecting to your dashboard...', 'success');
-
-      // Fire-and-forget activity log; do not block navigation
-      logUserLogin(userEmail).catch(() => {});
-
-      const clearInputFocus = async () => {
-        if (loginIdentifierInputRef.current) {
-          try {
-            const el = await loginIdentifierInputRef.current.getInputElement();
-            el.blur();
-          } catch (err) {
-            console.warn('Could not blur login identifier input:', err);
-          }
+      if (passwordInputRef.current) {
+        try {
+          const el = await passwordInputRef.current.getInputElement();
+          el.blur();
+        } catch (err) {
+          console.warn('Could not blur password input:', err);
         }
+      }
+    };
 
-        if (passwordInputRef.current) {
-          try {
-            const el = await passwordInputRef.current.getInputElement();
-            el.blur();
-          } catch (err) {
-            console.warn('Could not blur password input:', err);
-          }
-        }
-      };
+    await clearInputFocus();
 
-      await clearInputFocus();
+    // Navigate to app
+    navigation.push('/iAMUMAta/app', 'forward', 'replace');
 
-      // Navigate immediately; Home will perform a safeAuthCheck with retry
-      navigation.push('/iAMUMAta/app', 'forward', 'replace');
-
-    } catch (error: any) {
-      showCustomToast('Login completion failed: ' + error.message, 'danger');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
+  } catch (error: any) {
+    console.error('Login completion error:', error);
+    showCustomToast('Login completion failed: ' + error.message, 'danger');
+    setIsLoggingIn(false);
+  }
+};
 
   const handleOTPVerification = async () => {
     if (!otpCode) {
