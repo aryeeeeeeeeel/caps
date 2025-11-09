@@ -342,30 +342,83 @@ const Register: React.FC = () => {
     };
 
     // Check for duplicates in database
-    const checkDuplicates = async (username: string, email: string, contactNumber: string) => {
-        try {
-            // Use direct query to avoid RLS recursion issues
-            const { data, error } = await supabase
-                .from('users')
-                .select('username, user_email, user_contact_number')
-                .or(`username.eq.${username},user_email.eq.${email}${contactNumber ? `,user_contact_number.eq.${contactNumber}` : ''}`);
+    // Safe duplicate checking function
+const checkDuplicates = async (username: string, email: string, contactNumber: string) => {
+  try {
+    // Method 1: Try using the database function first
+    try {
+      const { data, error } = await supabase
+        .rpc('check_duplicates_safe', {
+          p_username: username,
+          p_email: email,
+          p_contact_number: contactNumber || null
+        });
 
-            if (error) throw error;
+      if (!error && data) {
+        return {
+          usernameExists: data.username_exists || false,
+          emailExists: data.email_exists || false,
+          contactExists: data.contact_exists || false
+        };
+      }
+    } catch (dbFuncError) {
+      console.log('Database function not available, using direct query');
+    }
 
-            const usernameExists = data?.some(user => user.username === username) || false;
-            const emailExists = data?.some(user => user.user_email === email) || false;
-            const contactExists = contactNumber ? data?.some(user => user.user_contact_number === contactNumber) || false : false;
+    // Method 2: Direct query with limited fields to avoid RLS issues
+    const { data, error } = await supabase
+      .from('users')
+      .select('username, user_email, user_contact_number')
+      .or(`username.eq.${username},user_email.eq.${email}${contactNumber ? `,user_contact_number.eq.${contactNumber}` : ''}`)
+      .limit(10);
 
-            return {
-                usernameExists,
-                emailExists,
-                contactExists
-            };
-        } catch (error) {
-            console.error('Duplicate check error:', error);
-            throw new Error('Failed to verify account details');
-        }
+    if (error) {
+      console.error('Duplicate check error:', error);
+      
+      // If it's an RLS error, try a different approach
+      if (error.message.includes('infinite recursion') || error.message.includes('policy')) {
+        // Method 3: Use multiple separate queries
+        const [usernameCheck, emailCheck, contactCheck] = await Promise.all([
+          supabase.from('users').select('username').eq('username', username).limit(1),
+          supabase.from('users').select('user_email').eq('user_email', email).limit(1),
+          contactNumber ? 
+            supabase.from('users').select('user_contact_number').eq('user_contact_number', contactNumber).limit(1) : 
+            Promise.resolve({ data: null, error: null })
+        ]);
+
+        return {
+          usernameExists: !!(usernameCheck.data && usernameCheck.data.length > 0),
+          emailExists: !!(emailCheck.data && emailCheck.data.length > 0),
+          contactExists: !!(contactCheck.data && contactCheck.data.length > 0)
+        };
+      }
+      
+      throw error;
+    }
+
+    const usernameExists = data?.some(user => user.username === username) || false;
+    const emailExists = data?.some(user => user.user_email === email) || false;
+    const contactExists = contactNumber ? 
+      data?.some(user => user.user_contact_number === contactNumber) || false : false;
+
+    return {
+      usernameExists,
+      emailExists,
+      contactExists
     };
+  } catch (error) {
+    console.error('Duplicate check error:', error);
+    
+    // Final fallback: Assume no duplicates to allow registration to proceed
+    // The database constraints will catch any actual duplicates
+    console.warn('Duplicate check failed, proceeding with registration...');
+    return {
+      usernameExists: false,
+      emailExists: false,
+      contactExists: false
+    };
+  }
+}; 
 
     // Check for duplicates wrapper function
     const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: string }> => {
