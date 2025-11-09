@@ -1,4 +1,4 @@
-// src/pages/Register.tsx - WITH SKELETON LOADING & is_authenticated COLUMN
+// src/pages/Register.tsx - UPDATED WITH PROPER AUTH FLOW
 import React, { useState, useEffect } from 'react';
 import {
     IonButton,
@@ -335,6 +335,12 @@ const Register: React.FC = () => {
             return { isValid: false, message: "Passwords do not match. Please check and try again." };
         }
 
+        // Validate contact number format (Philippine format)
+        const contactRegex = /^(\+639|09)\d{9}$/;
+        if (!contactRegex.test(contactNumber.trim())) {
+            return { isValid: false, message: "Please enter a valid Philippine contact number (e.g., +639123456789 or 09123456789)." };
+        }
+
         // Check terms acceptance
         if (!termsChecked) {
             return { isValid: false, message: "You must accept the Terms and Conditions to create an account." };
@@ -343,7 +349,45 @@ const Register: React.FC = () => {
         return { isValid: true, message: "" };
     };
 
-    const handleOpenVerificationModal = () => {
+    // Check for duplicates in database
+    const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: string }> => {
+        try {
+            // Check for username, email, and contact number duplicates
+            const { data: existingUsers, error: checkError } = await supabase
+                .from('users')
+                .select('username, user_email, user_contact_number, user_firstname, user_lastname')
+                .or(`username.eq.${username.trim()},user_email.eq.${email.trim()},user_contact_number.eq.${contactNumber.trim()}`);
+
+            if (checkError) {
+                throw new Error("Failed to verify account details: " + checkError.message);
+            }
+
+            if (existingUsers && existingUsers.length > 0) {
+                for (const user of existingUsers) {
+                    if (user.username === username.trim()) {
+                        return { hasDuplicates: true, message: "Username already exists. Please choose a different username." };
+                    }
+                    if (user.user_email === email.trim()) {
+                        return { hasDuplicates: true, message: "Email address is already registered. Please use a different email or try logging in." };
+                    }
+                    if (user.user_contact_number === contactNumber.trim()) {
+                        return { hasDuplicates: true, message: "Contact number is already registered. Please use a different number." };
+                    }
+                    // Check for first name + last name combination
+                    if (user.user_firstname === firstName.trim() && user.user_lastname === lastName.trim()) {
+                        return { hasDuplicates: true, message: "An account with this first name and last name combination already exists." };
+                    }
+                }
+            }
+
+            return { hasDuplicates: false, message: "" };
+        } catch (error) {
+            console.error('Duplicate check error:', error);
+            return { hasDuplicates: true, message: "Failed to verify account uniqueness. Please try again." };
+        }
+    };
+
+    const handleOpenVerificationModal = async () => {
         // Validate all fields before showing verification modal
         const validation = validateAllFields();
         if (!validation.isValid) {
@@ -351,6 +395,17 @@ const Register: React.FC = () => {
             setShowAlert(true);
             return;
         }
+
+        // Check for duplicates
+        setIsRegistering(true);
+        const duplicateCheck = await checkForDuplicates();
+        if (duplicateCheck.hasDuplicates) {
+            setAlertMessage(duplicateCheck.message);
+            setShowAlert(true);
+            setIsRegistering(false);
+            return;
+        }
+        setIsRegistering(false);
 
         // Always persist email attempt so it can be used later even if other fields fail
         try { 
@@ -364,87 +419,27 @@ const Register: React.FC = () => {
         setShowVerificationModal(false);
         setIsRegistering(true);
 
-        // Final validation before registration
-        const validation = validateAllFields();
-        if (!validation.isValid) {
-            setAlertMessage(validation.message);
-            setShowAlert(true);
-            setIsRegistering(false);
-            return;
-        }
-
         try {
-            // STEP 1: Check for duplicates BEFORE creating auth user
-            const { data: existingUsers, error: checkError } = await supabase
-                .from('users')
-                .select('username, user_email, user_contact_number')
-                .or(`username.eq.${username.trim()},user_email.eq.${email.trim()},user_contact_number.eq.${contactNumber.trim()}`);
-
-            if (checkError) {
-                throw new Error("Failed to verify account details: " + checkError.message);
+            // STEP 1: Final validation before registration
+            const validation = validateAllFields();
+            if (!validation.isValid) {
+                throw new Error(validation.message);
             }
 
-            // Check for specific duplicates
-            if (existingUsers && existingUsers.length > 0) {
-                const duplicate = existingUsers[0];
-                if (duplicate.username === username.trim()) {
-                    throw new Error("Username already exists. Please choose a different username.");
-                }
-                if (duplicate.user_email === email.trim()) {
-                    throw new Error("Email address is already registered. Please use a different email or try logging in.");
-                }
-                if (duplicate.user_contact_number === contactNumber.trim()) {
-                    throw new Error("Contact number is already registered. Please use a different number.");
-                }
+            // STEP 2: Final duplicate check
+            const duplicateCheck = await checkForDuplicates();
+            if (duplicateCheck.hasDuplicates) {
+                throw new Error(duplicateCheck.message);
             }
 
-            // Validate email format
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                throw new Error("Please enter a valid email address.");
-            }
-
-            // Validate contact number format (Philippine format)
-            const contactRegex = /^(\+639|09)\d{9}$/;
-            if (!contactRegex.test(contactNumber.trim())) {
-                throw new Error("Please enter a valid Philippine contact number (e.g., +639123456789 or 09123456789).");
-            }
-
-            // Validate password match
-            if (password !== confirmPassword) {
-                throw new Error("Passwords do not match. Please check and try again.");
-            }
-
-            // Hash password before creating auth user
+            // STEP 3: Hash password
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
 
-            // STEP 2: Create Supabase Auth user only after validations pass
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: email.trim(),
-                password,
-                options: {
-                    data: {
-                        username: username.trim(),
-                        first_name: firstName.trim(),
-                        last_name: lastName.trim()
-                    }
-                }
-            });
+            // STEP 4: Generate a temporary UUID for the database insertion
+            const tempUuid = crypto.randomUUID();
 
-            if (authError) {
-                // Handle specific auth errors
-                if (authError.message.includes('already registered')) {
-                    throw new Error("This email is already registered. Please try logging in or use a different email.");
-                }
-                throw new Error("Account creation failed: " + authError.message);
-            }
-
-            if (!authData.user) {
-                throw new Error("No user data returned from authentication.");
-            }
-
-            // STEP 3: Insert into users table with the auth_uuid
+            // STEP 5: Insert into users table FIRST (without auth_uuid initially)
             const { data: profileData, error: profileError } = await supabase
                 .from('users')
                 .insert([
@@ -456,7 +451,7 @@ const Register: React.FC = () => {
                         user_address: address.trim(),
                         user_contact_number: contactNumber.trim(),
                         user_password: hashedPassword,
-                        auth_uuid: authData.user.id,
+                        auth_uuid: tempUuid, // Temporary UUID
                         role: 'user',
                         status: 'inactive',
                         is_authenticated: false,
@@ -467,23 +462,58 @@ const Register: React.FC = () => {
 
             if (profileError) {
                 console.error('Database insertion failed:', profileError);
-                
-                // If database insertion fails, we should ideally delete the auth user
-                // However, Supabase doesn't allow this from client side for security
-                // Log this as an orphaned auth account
-                console.error('ORPHANED AUTH ACCOUNT CREATED:', {
-                    userId: authData.user.id,
-                    email: email.trim(),
-                    username: username.trim(),
-                    timestamp: new Date().toISOString(),
-                    error: profileError.message
-                });
-                
-                throw new Error("Registration failed: Unable to save user profile. Please contact support with this timestamp: " + new Date().toISOString());
+                throw new Error("Registration failed: Unable to save user profile. Please try again.");
             }
 
             if (!profileData || profileData.length === 0) {
                 throw new Error("Registration failed: No data returned after insertion.");
+            }
+
+            // STEP 6: Only create auth account AFTER successful database insertion
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: email.trim(),
+                password: password,
+                options: {
+                    data: {
+                        username: username.trim(),
+                        first_name: firstName.trim(),
+                        last_name: lastName.trim()
+                    }
+                }
+            });
+
+            if (authError) {
+                // If auth creation fails, delete the user profile we just created
+                await supabase
+                    .from('users')
+                    .delete()
+                    .eq('username', username.trim());
+
+                if (authError.message.includes('already registered')) {
+                    throw new Error("This email is already registered. Please try logging in or use a different email.");
+                }
+                throw new Error("Account creation failed: " + authError.message);
+            }
+
+            if (!authData.user) {
+                // If no user data returned, delete the profile
+                await supabase
+                    .from('users')
+                    .delete()
+                    .eq('username', username.trim());
+                throw new Error("No user data returned from authentication.");
+            }
+
+            // STEP 7: Update the user profile with the actual auth UUID
+            const { error: updateError } = await supabase
+                .from('users')
+                .update({ auth_uuid: authData.user.id })
+                .eq('username', username.trim());
+
+            if (updateError) {
+                console.error('Failed to update auth_uuid:', updateError);
+                // We don't throw here since the account was created successfully
+                // The auth_uuid can be updated later if needed
             }
 
             // Success!
