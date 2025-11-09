@@ -636,14 +636,13 @@ useEffect(() => {
   setIsLoggingIn(true);
   
   try {
-    // Determine if it's an email or username
     let loginEmail = trimmedIdentifier;
     
-    // If it's not an email (no @), look up the email from username
+    // If it's not an email, look up the email from username
     if (!trimmedIdentifier.includes('@')) {
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('user_email, is_authenticated, id')
+        .select('user_email, status, id')
         .eq('username', trimmedIdentifier)
         .single();
         
@@ -653,8 +652,8 @@ useEffect(() => {
         return;
       }
       
-      if (!userData.is_authenticated) {
-        showCustomToast('Your account is not authenticated. Please check your email and confirm your signup.', 'warning');
+      if (userData.status !== 'active') {
+        showCustomToast('Your account is not active. Please contact support.', 'warning');
         setIsLoggingIn(false);
         return;
       }
@@ -662,7 +661,7 @@ useEffect(() => {
       loginEmail = userData.user_email;
     }
 
-    // Direct Supabase Auth login - let Supabase handle the authentication
+    // Direct Supabase Auth login
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: trimmedPassword,
@@ -671,22 +670,28 @@ useEffect(() => {
     if (authError) {
       console.log('Auth error:', authError);
       
-      // More specific error messages
       if (authError.message.includes('Invalid login credentials')) {
         showCustomToast('Invalid email/username or password. Please try again.', 'danger');
       } else if (authError.message.includes('Email not confirmed')) {
         showCustomToast('Please check your email and confirm your account before logging in.', 'warning');
       } else {
-        showCustomToast(authError.message || 'Login failed. Please try again.', 'danger');
+        showCustomToast('Login failed. Please try again.', 'danger');
       }
       
       setIsLoggingIn(false);
       return;
     }
 
-    // If we get here, login was successful
-    console.log('Login successful:', authData.user);
-    
+    // Login successful - update user status
+    await supabase
+      .from('users')
+      .update({ 
+        last_active_at: new Date().toISOString(),
+        is_online: true,
+        status: 'active'
+      })
+      .eq('id', authData.user.id);
+
     // Generate device fingerprint
     const fingerprint = await generateDeviceFingerprint();
     setDeviceFingerprint(fingerprint);
@@ -708,7 +713,7 @@ useEffect(() => {
     
   } catch (error: any) {
     console.error('Login error:', error);
-    showCustomToast(error.message || 'Login failed. Please check your credentials and try again.', 'danger');
+    showCustomToast('Login failed. Please check your credentials and try again.', 'danger');
     setIsLoggingIn(false);
   }
 };
