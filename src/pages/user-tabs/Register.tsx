@@ -416,124 +416,112 @@ const Register: React.FC = () => {
     };
 
     const doRegister = async () => {
-        setShowVerificationModal(false);
-        setIsRegistering(true);
+    setShowVerificationModal(false);
+    setIsRegistering(true);
 
-        try {
-            // STEP 1: Final validation before registration
-            const validation = validateAllFields();
-            if (!validation.isValid) {
-                throw new Error(validation.message);
-            }
-
-            // STEP 2: Final duplicate check
-            const duplicateCheck = await checkForDuplicates();
-            if (duplicateCheck.hasDuplicates) {
-                throw new Error(duplicateCheck.message);
-            }
-
-            // STEP 3: Hash password
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(password, salt);
-
-            // STEP 4: Generate a temporary UUID for the database insertion
-            const tempUuid = crypto.randomUUID();
-
-            // STEP 5: Insert into users table FIRST (without auth_uuid initially)
-            const { data: profileData, error: profileError } = await supabase
-                .from('users')
-                .insert([
-                    {
-                        username: username.trim(),
-                        user_email: email.trim(),
-                        user_firstname: firstName.trim(),
-                        user_lastname: lastName.trim(),
-                        user_address: address.trim(),
-                        user_contact_number: contactNumber.trim(),
-                        user_password: hashedPassword,
-                        auth_uuid: tempUuid, // Temporary UUID
-                        role: 'user',
-                        status: 'inactive',
-                        is_authenticated: false,
-                        date_registered: new Date().toISOString()
-                    }
-                ])
-                .select();
-
-            if (profileError) {
-                console.error('Database insertion failed:', profileError);
-                throw new Error("Registration failed: Unable to save user profile. Please try again.");
-            }
-
-            if (!profileData || profileData.length === 0) {
-                throw new Error("Registration failed: No data returned after insertion.");
-            }
-
-            // STEP 6: Only create auth account AFTER successful database insertion
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: email.trim(),
-                password: password,
-                options: {
-                    data: {
-                        username: username.trim(),
-                        first_name: firstName.trim(),
-                        last_name: lastName.trim()
-                    }
-                }
-            });
-
-            if (authError) {
-                // If auth creation fails, delete the user profile we just created
-                await supabase
-                    .from('users')
-                    .delete()
-                    .eq('username', username.trim());
-
-                if (authError.message.includes('already registered')) {
-                    throw new Error("This email is already registered. Please try logging in or use a different email.");
-                }
-                throw new Error("Account creation failed: " + authError.message);
-            }
-
-            if (!authData.user) {
-                // If no user data returned, delete the profile
-                await supabase
-                    .from('users')
-                    .delete()
-                    .eq('username', username.trim());
-                throw new Error("No user data returned from authentication.");
-            }
-
-            // STEP 7: Update the user profile with the actual auth UUID
-            const { error: updateError } = await supabase
-                .from('users')
-                .update({ auth_uuid: authData.user.id })
-                .eq('username', username.trim());
-
-            if (updateError) {
-                console.error('Failed to update auth_uuid:', updateError);
-                // We don't throw here since the account was created successfully
-                // The auth_uuid can be updated later if needed
-            }
-
-            // Success!
-            console.log('Registration successful:', profileData);
-            await logUserRegistration(email, firstName, lastName);
-            setShowSuccessModal(true);
-
-        } catch (err) {
-            console.error('Registration error:', err);
-            
-            if (err instanceof Error) {
-                setAlertMessage(err.message);
-            } else {
-                setAlertMessage("An unexpected error occurred during registration. Please try again.");
-            }
-            setShowAlert(true);
-        } finally {
-            setIsRegistering(false);
+    try {
+        // STEP 1: Final validation before registration
+        const validation = validateAllFields();
+        if (!validation.isValid) {
+            throw new Error(validation.message);
         }
-    };
+
+        // STEP 2: Final duplicate check
+        const duplicateCheck = await checkForDuplicates();
+        if (duplicateCheck.hasDuplicates) {
+            throw new Error(duplicateCheck.message);
+        }
+
+        // STEP 3: Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // STEP 4: Create auth account FIRST
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: email.trim(),
+            password: password,
+            options: {
+                data: {
+                    username: username.trim(),
+                    first_name: firstName.trim(),
+                    last_name: lastName.trim()
+                }
+            }
+        });
+
+        if (authError) {
+            if (authError.message.includes('already registered')) {
+                throw new Error("This email is already registered. Please try logging in or use a different email.");
+            }
+            throw new Error("Account creation failed: " + authError.message);
+        }
+
+        if (!authData.user) {
+            throw new Error("No user data returned from authentication.");
+        }
+
+        // STEP 5: Insert into users table with the actual auth UUID
+        const { data: profileData, error: profileError } = await supabase
+            .from('users')
+            .insert([
+                {
+                    username: username.trim(),
+                    user_email: email.trim(),
+                    user_firstname: firstName.trim(),
+                    user_lastname: lastName.trim(),
+                    user_address: address.trim(),
+                    user_contact_number: contactNumber.trim(),
+                    user_password: hashedPassword,
+                    auth_uuid: authData.user.id, // Use actual auth UUID
+                    role: 'user',
+                    status: 'inactive',
+                    is_authenticated: false,
+                    date_registered: new Date().toISOString()
+                }
+            ])
+            .select();
+
+        if (profileError) {
+            console.error('Database insertion failed:', profileError);
+            
+            // If profile creation fails, try to delete the auth user
+            try {
+                await supabase.auth.admin.deleteUser(authData.user.id);
+            } catch (deleteError) {
+                console.error('Failed to cleanup auth user:', deleteError);
+            }
+            
+            throw new Error("Registration failed: Unable to save user profile. Please try again.");
+        }
+
+        if (!profileData || profileData.length === 0) {
+            // If no profile data returned, try to delete the auth user
+            try {
+                await supabase.auth.admin.deleteUser(authData.user.id);
+            } catch (deleteError) {
+                console.error('Failed to cleanup auth user:', deleteError);
+            }
+            throw new Error("Registration failed: No data returned after insertion.");
+        }
+
+        // Success!
+        console.log('Registration successful:', profileData);
+        await logUserRegistration(email, firstName, lastName);
+        setShowSuccessModal(true);
+
+    } catch (err) {
+        console.error('Registration error:', err);
+        
+        if (err instanceof Error) {
+            setAlertMessage(err.message);
+        } else {
+            setAlertMessage("An unexpected error occurred during registration. Please try again.");
+        }
+        setShowAlert(true);
+    } finally {
+        setIsRegistering(false);
+    }
+};
 
     // Handler Logic
     const handleShowTerms = () => setShowTermsModal(true);
