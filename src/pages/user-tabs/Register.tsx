@@ -373,24 +373,70 @@ const Register: React.FC = () => {
             return;
         }
 
-        let authUserCreated = false;
-        let authUserId: string | null = null;
-
         try {
-            // Create Supabase Auth user first
+            // STEP 1: Check for duplicates BEFORE creating auth user
+            const { data: existingUsers, error: checkError } = await supabase
+                .from('users')
+                .select('username, user_email, user_contact_number')
+                .or(`username.eq.${username.trim()},user_email.eq.${email.trim()},user_contact_number.eq.${contactNumber.trim()}`);
+
+            if (checkError) {
+                throw new Error("Failed to verify account details: " + checkError.message);
+            }
+
+            // Check for specific duplicates
+            if (existingUsers && existingUsers.length > 0) {
+                const duplicate = existingUsers[0];
+                if (duplicate.username === username.trim()) {
+                    throw new Error("Username already exists. Please choose a different username.");
+                }
+                if (duplicate.user_email === email.trim()) {
+                    throw new Error("Email address is already registered. Please use a different email or try logging in.");
+                }
+                if (duplicate.user_contact_number === contactNumber.trim()) {
+                    throw new Error("Contact number is already registered. Please use a different number.");
+                }
+            }
+
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                throw new Error("Please enter a valid email address.");
+            }
+
+            // Validate contact number format (Philippine format)
+            const contactRegex = /^(\+639|09)\d{9}$/;
+            if (!contactRegex.test(contactNumber.trim())) {
+                throw new Error("Please enter a valid Philippine contact number (e.g., +639123456789 or 09123456789).");
+            }
+
+            // Validate password match
+            if (password !== confirmPassword) {
+                throw new Error("Passwords do not match. Please check and try again.");
+            }
+
+            // Hash password before creating auth user
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+
+            // STEP 2: Create Supabase Auth user only after validations pass
             const { data: authData, error: authError } = await supabase.auth.signUp({
-                email,
+                email: email.trim(),
                 password,
                 options: {
                     data: {
-                        username: username,
-                        first_name: firstName,
-                        last_name: lastName
+                        username: username.trim(),
+                        first_name: firstName.trim(),
+                        last_name: lastName.trim()
                     }
                 }
             });
 
             if (authError) {
+                // Handle specific auth errors
+                if (authError.message.includes('already registered')) {
+                    throw new Error("This email is already registered. Please try logging in or use a different email.");
+                }
                 throw new Error("Account creation failed: " + authError.message);
             }
 
@@ -398,25 +444,7 @@ const Register: React.FC = () => {
                 throw new Error("No user data returned from authentication.");
             }
 
-            // Mark that auth user was created
-            authUserCreated = true;
-            authUserId = authData.user.id;
-
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(password, salt);
-
-            // DEBUG: Log the data being sent
-            console.log('Sending registration data:', {
-                username,
-                user_email: email,
-                user_firstname: firstName,
-                user_lastname: lastName,
-                user_address: address,
-                user_contact_number: contactNumber,
-                auth_uuid: authData.user.id
-            });
-
-            // Insert into users table with proper column names matching your schema
+            // STEP 3: Insert into users table with the auth_uuid
             const { data: profileData, error: profileError } = await supabase
                 .from('users')
                 .insert([
@@ -440,25 +468,25 @@ const Register: React.FC = () => {
             if (profileError) {
                 console.error('Database insertion failed:', profileError);
                 
-                // Check if it's a duplicate error
-                if (profileError.code === '23505') { // Unique violation
-                    if (profileError.message.includes('username')) {
-                        throw new Error("Username already exists. Please choose a different username.");
-                    } else if (profileError.message.includes('user_email')) {
-                        throw new Error("Email address is already registered. Please use a different email or try logging in.");
-                    } else if (profileError.message.includes('auth_uuid')) {
-                        throw new Error("Authentication error. Please try again.");
-                    }
-                }
+                // If database insertion fails, we should ideally delete the auth user
+                // However, Supabase doesn't allow this from client side for security
+                // Log this as an orphaned auth account
+                console.error('ORPHANED AUTH ACCOUNT CREATED:', {
+                    userId: authData.user.id,
+                    email: email.trim(),
+                    username: username.trim(),
+                    timestamp: new Date().toISOString(),
+                    error: profileError.message
+                });
                 
-                throw new Error("Registration failed: " + profileError.message);
+                throw new Error("Registration failed: Unable to save user profile. Please contact support with this timestamp: " + new Date().toISOString());
             }
 
             if (!profileData || profileData.length === 0) {
                 throw new Error("Registration failed: No data returned after insertion.");
             }
 
-            // Success with database insertion
+            // Success!
             console.log('Registration successful:', profileData);
             await logUserRegistration(email, firstName, lastName);
             setShowSuccessModal(true);
@@ -466,24 +494,10 @@ const Register: React.FC = () => {
         } catch (err) {
             console.error('Registration error:', err);
             
-            if (authUserCreated && authUserId) {
-                console.error('REGISTRATION FAILED - Orphaned Auth User Created:', {
-                    userId: authUserId,
-                    email: email,
-                    username: username,
-                    timestamp: new Date().toISOString(),
-                    error: err instanceof Error ? err.message : 'Unknown error'
-                });
-            }
-
             if (err instanceof Error) {
-                let errorMsg = err.message;
-                if (authUserCreated) {
-                    errorMsg += " The authentication account was created but user profile data was not saved. If this error persists, please contact support.";
-                }
-                setAlertMessage(errorMsg);
+                setAlertMessage(err.message);
             } else {
-                setAlertMessage("An unknown error occurred during registration." + (authUserCreated ? " The authentication account was created but user profile data was not saved. Please contact support." : ""));
+                setAlertMessage("An unexpected error occurred during registration. Please try again.");
             }
             setShowAlert(true);
         } finally {
