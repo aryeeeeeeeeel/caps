@@ -2,12 +2,12 @@
 
 A comprehensive incident reporting and management system built with Ionic React and Supabase.
 
-> **Latest Update**: Registration Session Fix 6.0.
+> **Latest Update**: Registration Session Fix 7.0.
 
 ## Features
 
 - 🚨 **Incident Reporting**: Report incidents with photos, location, and detailed descriptions
-- 📍 **Interactive Map**: View incidents on an interactive map with real-time updates
+- 📍 **Interactivgit e Map**: View incidents on an interactive map with real-time updates
 - 👥 **User Management**: Separate interfaces for users and administrators
 - 📊 **Analytics Dashboard**: Comprehensive analytics and reporting for administrators
 - 🔔 **Real-time Notifications**: Instant notifications for incident updates
