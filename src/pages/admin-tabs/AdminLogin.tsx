@@ -287,7 +287,7 @@ const AdminLogin: React.FC = () => {
     setIsVerifying(true);
     
     // Validate specific email formats
-    if (!(/^ldrrmo@manolofortich\.gov\.ph$/.test(email) || /^arielsagaads@gmail\.com$/.test(email))) {
+    if (!(/^ldrrmo@manolofortich\.gov\.ph$/.test(email) || /^appleresano@gmail\.com$/.test(email))) {
       showCustomToast('Only LDRRMO personnel can access admin.', 'warning');
       setIsVerifying(false);
       return false;
