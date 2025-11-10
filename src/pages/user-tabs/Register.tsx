@@ -340,36 +340,37 @@ const Register: React.FC = () => {
         return { isValid: true, message: "" };
     };
 
-    // Check for duplicates in database
-    // Safe duplicate checking function
-    const checkDuplicates = async (username: string, email: string, contactNumber: string) => {
-        try {
-            // Use separate queries to avoid RLS policy issues
-            const [usernameCheck, emailCheck, contactCheck] = await Promise.all([
-                supabase.from('users').select('username').eq('username', username).limit(1),
-                supabase.from('users').select('user_email').eq('user_email', email).limit(1),
-                contactNumber ?
-                    supabase.from('users').select('user_contact_number').eq('user_contact_number', contactNumber).limit(1) :
-                    Promise.resolve({ data: null, error: null })
-            ]);
+    // Updated duplicate checking using database function
+const checkDuplicates = async (username: string, email: string, contactNumber: string) => {
+    try {
+        const { data, error } = await supabase
+            .rpc('check_user_duplicates', {
+                p_username: username,
+                p_email: email,
+                p_contact_number: contactNumber
+            });
 
-            return {
-                usernameExists: !!(usernameCheck.data && usernameCheck.data.length > 0),
-                emailExists: !!(emailCheck.data && emailCheck.data.length > 0),
-                contactExists: !!(contactCheck.data && contactCheck.data.length > 0)
-            };
-        } catch (error) {
-            console.error('Duplicate check error:', error);
-
-            // If duplicate check fails, proceed with registration and let database constraints handle it
-            console.warn('Duplicate check failed, proceeding with registration...');
-            return {
-                usernameExists: false,
-                emailExists: false,
-                contactExists: false
-            };
+        if (error) {
+            console.error('Database function error:', error);
+            throw error;
         }
-    };
+
+        console.log('Duplicate check results:', data);
+
+        return {
+            usernameExists: data?.[0]?.username_exists || false,
+            emailExists: data?.[0]?.email_exists || false,
+            contactExists: data?.[0]?.contact_exists || false
+        };
+    } catch (error) {
+        console.error('Duplicate check error:', error);
+        return {
+            usernameExists: false,
+            emailExists: false,
+            contactExists: false
+        };
+    }
+};
 
     // Check for duplicates wrapper function
     const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: string }> => {
@@ -440,128 +441,102 @@ const Register: React.FC = () => {
     };
 
     const doRegister = async () => {
-        setShowVerificationModal(false);
-        setIsRegistering(true);
+    setShowVerificationModal(false);
+    setIsRegistering(true);
 
-        try {
-            // STEP 1: Final validation before registration
-            const validation = validateAllFields();
-            if (!validation.isValid) {
-                throw new Error(validation.message);
-            }
-
-            // STEP 2: Final duplicate check
-            const duplicateCheck = await checkForDuplicates();
-            if (duplicateCheck.hasDuplicates) {
-                throw new Error(duplicateCheck.message);
-            }
-
-            // STEP 3: Create auth account FIRST
-            console.log('Creating auth user...');
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: email.trim(),
-                password: password,
-                options: {
-                    data: {
-                        username: username.trim(),
-                        first_name: firstName.trim(),
-                        last_name: lastName.trim(),
-                        address: address.trim(),
-                        contact_number: contactNumber.trim()
-                    },
-                    emailRedirectTo: `${window.location.origin}/iAMUMAta/user-login`
-                }
-            });
-
-            if (authError) {
-                console.error('Auth creation failed:', authError);
-                if (authError.message.includes('already registered')) {
-                    throw new Error("This email is already registered. Please try logging in or use a different email.");
-                }
-                throw new Error("Account creation failed: " + authError.message);
-            }
-
-            if (!authData.user) {
-                throw new Error("No user data returned from authentication.");
-            }
-
-            console.log('Auth user created successfully:', authData.user.id);
-
-            // STEP 4: Create user profile in public.users table
-            console.log('Creating user profile...');
-
-            const userData = {
-                // Let the database generate the id automatically
-                username: username.trim(),
-                user_email: email.trim(),
-                user_firstname: firstName.trim(),
-                user_lastname: lastName.trim(),
-                user_address: address.trim(),        // This should now work
-                user_contact_number: contactNumber.trim(),  // This should now work
-                auth_user_id: authData.user.id, // Link to auth user
-                role: 'user',
-                status: 'active',
-                is_authenticated: true
-            };
-
-            console.log('Inserting user with data:', {
-                username: username.trim(),
-                user_email: email.trim(),
-                user_firstname: firstName.trim(),
-                user_lastname: lastName.trim(),
-                user_address: address.trim(),
-                user_contact_number: contactNumber.trim(),
-                auth_user_id: authData.user.id
-            });
-
-
-            console.log('Inserting user profile with data:', userData);
-
-            const { data: profileData, error: profileError } = await supabase
-                .from('users')
-                .insert([userData])
-                .select();
-
-            if (profileError) {
-                console.error('Profile creation failed:', profileError);
-
-                // Handle specific constraint violations
-                if (profileError.code === '23505') {
-                    if (profileError.message.includes('username')) {
-                        throw new Error("Username already exists. Please choose a different username.");
-                    } else if (profileError.message.includes('user_email')) {
-                        throw new Error("Email address is already registered. Please use a different email.");
-                    } else if (profileError.message.includes('user_contact_number')) {
-                        throw new Error("Contact number is already registered. Please use a different number.");
-                    } else if (profileError.message.includes('auth_user_id')) {
-                        // This shouldn't happen, but handle it anyway
-                        throw new Error("Account already exists. Please try logging in.");
-                    }
-                }
-                throw new Error("Registration failed: Unable to create user profile. Please try again.");
-            }
-
-            console.log('User profile created successfully:', profileData);
-
-            // STEP 5: Log registration activity
-            await logUserRegistration(email, firstName, lastName);
-
-            // STEP 6: Show success modal
-            setShowSuccessModal(true);
-
-        } catch (err) {
-            console.error('Registration error:', err);
-
-            if (err instanceof Error) {
-                setAlertMessage(err.message);
-            } else {
-                setAlertMessage("An unexpected error occurred during registration. Please try again.");
-            }
-            setShowAlert(true);
-        } finally {
-            setIsRegistering(false);
+    try {
+        // STEP 1: Final validation
+        const validation = validateAllFields();
+        if (!validation.isValid) {
+            throw new Error(validation.message);
         }
-    };
+
+        // STEP 2: Final duplicate check
+        const duplicateCheck = await checkForDuplicates();
+        if (duplicateCheck.hasDuplicates) {
+            throw new Error(duplicateCheck.message);
+        }
+
+        // STEP 3: Create auth account FIRST
+        console.log('Creating auth user...');
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: email.trim(),
+            password: password,
+            options: {
+                data: {
+                    username: username.trim(),
+                    first_name: firstName.trim(),
+                    last_name: lastName.trim(),
+                    address: address.trim(),
+                    contact_number: contactNumber.trim()
+                },
+                emailRedirectTo: `${window.location.origin}/iAMUMAta/user-login`
+            }
+        });
+
+        if (authError) {
+            console.error('Auth creation failed:', authError);
+            if (authError.message.includes('already registered')) {
+                throw new Error("This email is already registered. Please try logging in or use a different email.");
+            }
+            throw new Error("Account creation failed: " + authError.message);
+        }
+
+        if (!authData.user) {
+            throw new Error("No user data returned from authentication.");
+        }
+
+        console.log('Auth user created successfully:', authData.user.id);
+
+        // STEP 4: Use database function to create public user profile
+        console.log('Creating user profile via database function...');
+        
+        const { data: userId, error: dbError } = await supabase
+            .rpc('complete_user_registration', {
+                p_username: username.trim(),
+                p_user_email: email.trim(),
+                p_user_firstname: firstName.trim(),
+                p_user_lastname: lastName.trim(),
+                p_user_address: address.trim(),
+                p_user_contact_number: contactNumber.trim(),
+                p_auth_user_id: authData.user.id
+            });
+
+        if (dbError) {
+            console.error('Database function error:', dbError);
+            
+            if (dbError.message.includes('Username already exists')) {
+                throw new Error("Username already exists. Please choose a different username.");
+            } else if (dbError.message.includes('Email already exists')) {
+                throw new Error("Email address is already registered. Please use a different email.");
+            } else if (dbError.message.includes('Contact number already exists')) {
+                throw new Error("Contact number is already registered. Please use a different number.");
+            }
+            
+            throw new Error("Registration failed: " + dbError.message);
+        }
+
+        console.log('User profile created successfully with ID:', userId);
+
+        // STEP 5: Log registration activity
+        await logUserRegistration(email, firstName, lastName);
+        
+        // STEP 6: Show success modal
+        setShowSuccessModal(true);
+
+    } catch (err) {
+        console.error('Registration error:', err);
+        
+        if (err instanceof Error) {
+            setAlertMessage(err.message);
+        } else {
+            setAlertMessage("An unexpected error occurred during registration. Please try again.");
+        }
+        setShowAlert(true);
+    } finally {
+        setIsRegistering(false);
+    }
+};
 
     // Add this function to debug registration issues
     const checkUserStatus = async (userId: string) => {
