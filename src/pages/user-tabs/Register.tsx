@@ -456,20 +456,22 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
             throw new Error(duplicateCheck.message);
         }
 
-        // STEP 3: Create auth account FIRST (Supabase Auth handles password hashing)
+        // STEP 3: Create auth account FIRST
         console.log('Creating auth user...');
         const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: email.trim(),
-    password: password,
-    options: {
-        data: {
-            username: username.trim(),
-            first_name: firstName.trim(),
-            last_name: lastName.trim()
-        },
-        emailRedirectTo: `${window.location.origin}/iAMUMAta/user-login`
-    }
-});
+            email: email.trim(),
+            password: password,
+            options: {
+                data: {
+                    username: username.trim(),
+                    first_name: firstName.trim(),
+                    last_name: lastName.trim(),
+                    address: address.trim(),
+                    contact_number: contactNumber.trim()
+                },
+                emailRedirectTo: `${window.location.origin}/iAMUMAta/user-login`
+            }
+        });
 
         if (authError) {
             console.error('Auth creation failed:', authError);
@@ -485,83 +487,55 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
 
         console.log('Auth user created successfully:', authData.user.id);
 
-        // STEP 4: Wait for the trigger to create the public user profile
-        console.log('Waiting for trigger to create user profile...');
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for trigger
+        // STEP 4: Create user profile in public.users table
+        console.log('Creating user profile...');
+        
+        const userData = {
+            // Let the database generate the id automatically
+            username: username.trim(),
+            user_email: email.trim(),
+            user_firstname: firstName.trim(),
+            user_lastname: lastName.trim(),
+            user_address: address.trim(),
+            user_contact_number: contactNumber.trim(),
+            auth_user_id: authData.user.id, // Link to auth user
+            role: 'user',
+            status: 'active',
+            is_authenticated: true
+        };
 
-        // STEP 5: Check if user profile was created by trigger
-        const { data: existingProfile, error: checkError } = await supabase
+        console.log('Inserting user profile with data:', userData);
+
+        const { data: profileData, error: profileError } = await supabase
             .from('users')
-            .select('*')
-            .eq('id', authData.user.id) // Use 'id' NOT 'auth_uuid'
-            .maybeSingle();
+            .insert([userData])
+            .select();
 
-        if (checkError) {
-            console.error('Error checking existing profile:', checkError);
-        }
-
-        // STEP 6: If trigger didn't work, create profile manually
-        if (!existingProfile) {
-            console.log('Profile not created by trigger, creating manually...');
+        if (profileError) {
+            console.error('Profile creation failed:', profileError);
             
-            const userData = {
-                id: authData.user.id, // Use 'id' NOT 'auth_uuid'
-                username: username.trim(),
-                user_email: email.trim(),
-                user_firstname: firstName.trim(),
-                user_lastname: lastName.trim(),
-                user_address: address.trim(),
-                user_contact_number: contactNumber.trim(),
-                role: 'user',
-                status: 'active', // Set to active since Supabase Auth handles email verification
-                is_authenticated: true
-            };
-
-            console.log('Inserting user profile with data:', userData);
-
-            const { data: profileData, error: profileError } = await supabase
-                .from('users')
-                .insert([userData])
-                .select();
-
-            if (profileError) {
-                console.error('Manual profile creation failed:', profileError);
-                
-                // Handle specific constraint violations
-                if (profileError.code === '23505') {
-                    if (profileError.message.includes('username')) {
-                        throw new Error("Username already exists. Please choose a different username.");
-                    } else if (profileError.message.includes('user_email')) {
-                        throw new Error("Email address is already registered. Please use a different email.");
-                    } else if (profileError.message.includes('user_contact_number')) {
-                        throw new Error("Contact number is already registered. Please use a different number.");
-                    }
+            // Handle specific constraint violations
+            if (profileError.code === '23505') {
+                if (profileError.message.includes('username')) {
+                    throw new Error("Username already exists. Please choose a different username.");
+                } else if (profileError.message.includes('user_email')) {
+                    throw new Error("Email address is already registered. Please use a different email.");
+                } else if (profileError.message.includes('user_contact_number')) {
+                    throw new Error("Contact number is already registered. Please use a different number.");
+                } else if (profileError.message.includes('auth_user_id')) {
+                    // This shouldn't happen, but handle it anyway
+                    throw new Error("Account already exists. Please try logging in.");
                 }
-                throw new Error("Registration failed: Unable to create user profile. Please try again.");
             }
-
-            console.log('Manual profile creation successful:', profileData);
-        } else {
-            console.log('Profile created by trigger:', existingProfile);
-            
-            // Update the profile with additional data if needed
-            const { error: updateError } = await supabase
-                .from('users')
-                .update({
-                    user_address: address.trim(),
-                    user_contact_number: contactNumber.trim()
-                })
-                .eq('id', authData.user.id);
-
-            if (updateError) {
-                console.warn('Could not update profile with additional data:', updateError);
-            }
+            throw new Error("Registration failed: Unable to create user profile. Please try again.");
         }
 
-        // STEP 7: Log registration activity
+        console.log('User profile created successfully:', profileData);
+
+        // STEP 5: Log registration activity
         await logUserRegistration(email, firstName, lastName);
         
-        // STEP 8: Show success modal
+        // STEP 6: Show success modal
         setShowSuccessModal(true);
 
     } catch (err) {

@@ -1641,7 +1641,7 @@ const IncidentReport: React.FC = () => {
       formData.images.length === 0;
 
     if (missingRequired) {
-      showToastMessage('Please iput all required fields', 'warning');
+      showToastMessage('Please input all required fields', 'warning');
       return;
     }
 
