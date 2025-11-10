@@ -287,7 +287,7 @@ const AdminLogin: React.FC = () => {
     setIsVerifying(true);
     
     // Validate specific email formats
-    if (!(/^ldrrmo@manolofortich\.gov\.ph$/.test(email) || /^appleresano@gmail\.com$/.test(email))) {
+    if (!(/^ldrrmo@manolofortich\.gov\.ph$/.test(email) || /^arielsumantin69@gmail\.com$/.test(email))) {
       showCustomToast('Only LDRRMO personnel can access admin.', 'warning');
       setIsVerifying(false);
       return false;
@@ -371,21 +371,20 @@ const AdminLogin: React.FC = () => {
   };
 
   const verifyAndLogin = async () => {
-    if (!otp) {
-      return;
-    }
+  if (!otp) {
+    return;
+  }
 
   setIsVerifying(true);
   try {
     // Verify OTP token with proper validation
     const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
       email: otpEmail || email,
-      token: otp.trim(), // Use trimmed OTP
+      token: otp.trim(),
       type: 'email'
     });
 
     if (verifyError) {
-      // Handle specific error cases
       if (verifyError.message.includes('expired') || verifyError.message.includes('Token has expired')) {
         showCustomToast('Verification code expired. Please request a new one.', 'warning');
         setShowOtpModal(false);
@@ -410,12 +409,12 @@ const AdminLogin: React.FC = () => {
       throw new Error('Authentication failed. Please try again.');
     }
 
-    // Check admin role
-    const { data: userData, error: dbError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('auth_uuid', user.id)
-      .maybeSingle();
+    // FIXED: Use auth_user_id instead of auth_uuid
+   const { data: userData, error: dbError } = await supabase
+  .from('users')
+  .select('id, role, user_email')
+  .eq('auth_user_id', user.id) // ← FIXED: auth_uuid -> auth_user_id
+  .maybeSingle();
 
     if (dbError) {
       console.error('Database error:', dbError);

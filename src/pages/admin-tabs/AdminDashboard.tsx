@@ -1752,7 +1752,7 @@ const AdminDashboard: React.FC = () => {
       const { error } = await supabase
         .from("users")
         .update(updates)
-        .eq("user_id", selectedUserForAction.user_id)
+        .eq("id", selectedUserForAction.id)
 
       if (error) throw error
 

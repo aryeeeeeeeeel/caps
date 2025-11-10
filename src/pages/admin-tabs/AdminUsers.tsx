@@ -376,7 +376,7 @@ const AdminUsers: React.FC = () => {
       const { error } = await supabase
         .from('users')
         .update(updates)
-        .eq('user_id', selectedUser.user_id);
+        .eq('id', selectedUser.id);
 
       if (error) throw error;
 
