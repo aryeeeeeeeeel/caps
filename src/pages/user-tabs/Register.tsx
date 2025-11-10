@@ -342,71 +342,71 @@ const Register: React.FC = () => {
 
     // Check for duplicates in database
     // Safe duplicate checking function
-const checkDuplicates = async (username: string, email: string, contactNumber: string) => {
-    try {
-        // Use separate queries to avoid RLS policy issues
-        const [usernameCheck, emailCheck, contactCheck] = await Promise.all([
-            supabase.from('users').select('username').eq('username', username).limit(1),
-            supabase.from('users').select('user_email').eq('user_email', email).limit(1),
-            contactNumber ? 
-                supabase.from('users').select('user_contact_number').eq('user_contact_number', contactNumber).limit(1) : 
-                Promise.resolve({ data: null, error: null })
-        ]);
+    const checkDuplicates = async (username: string, email: string, contactNumber: string) => {
+        try {
+            // Use separate queries to avoid RLS policy issues
+            const [usernameCheck, emailCheck, contactCheck] = await Promise.all([
+                supabase.from('users').select('username').eq('username', username).limit(1),
+                supabase.from('users').select('user_email').eq('user_email', email).limit(1),
+                contactNumber ?
+                    supabase.from('users').select('user_contact_number').eq('user_contact_number', contactNumber).limit(1) :
+                    Promise.resolve({ data: null, error: null })
+            ]);
 
-        return {
-            usernameExists: !!(usernameCheck.data && usernameCheck.data.length > 0),
-            emailExists: !!(emailCheck.data && emailCheck.data.length > 0),
-            contactExists: !!(contactCheck.data && contactCheck.data.length > 0)
-        };
-    } catch (error) {
-        console.error('Duplicate check error:', error);
-        
-        // If duplicate check fails, proceed with registration and let database constraints handle it
-        console.warn('Duplicate check failed, proceeding with registration...');
-        return {
-            usernameExists: false,
-            emailExists: false,
-            contactExists: false
-        };
-    }
-}; 
+            return {
+                usernameExists: !!(usernameCheck.data && usernameCheck.data.length > 0),
+                emailExists: !!(emailCheck.data && emailCheck.data.length > 0),
+                contactExists: !!(contactCheck.data && contactCheck.data.length > 0)
+            };
+        } catch (error) {
+            console.error('Duplicate check error:', error);
+
+            // If duplicate check fails, proceed with registration and let database constraints handle it
+            console.warn('Duplicate check failed, proceeding with registration...');
+            return {
+                usernameExists: false,
+                emailExists: false,
+                contactExists: false
+            };
+        }
+    };
 
     // Check for duplicates wrapper function
     const checkForDuplicates = async (): Promise<{ hasDuplicates: boolean; message: string }> => {
         try {
             const duplicates = await checkDuplicates(
-                username.trim(), 
-                email.trim(), 
+                username.trim(),
+                email.trim(),
                 contactNumber.trim()
             );
 
             if (duplicates.usernameExists) {
-                return { 
-                    hasDuplicates: true, 
-                    message: "Username already exists. Please choose a different username." 
+                return {
+                    hasDuplicates: true,
+                    message: "Username already exists. Please choose a different username."
                 };
             }
-            
+
             if (duplicates.emailExists) {
-                return { 
-                    hasDuplicates: true, 
-                    message: "Email address is already registered. Please use a different email." 
+                return {
+                    hasDuplicates: true,
+                    message: "Email address is already registered. Please use a different email."
                 };
             }
-            
+
             if (duplicates.contactExists) {
-                return { 
-                    hasDuplicates: true, 
-                    message: "Contact number is already registered. Please use a different number." 
+                return {
+                    hasDuplicates: true,
+                    message: "Contact number is already registered. Please use a different number."
                 };
             }
 
             return { hasDuplicates: false, message: "" };
         } catch (error) {
             console.error('Duplicate check error:', error);
-            return { 
-                hasDuplicates: true, 
-                message: "Failed to verify account details. Please try again." 
+            return {
+                hasDuplicates: true,
+                message: "Failed to verify account details. Please try again."
             };
         }
     };
@@ -432,146 +432,157 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
         setIsRegistering(false);
 
         // Always persist email attempt so it can be used later even if other fields fail
-        try { 
-            localStorage.setItem('pending_registration_email', email); 
-        } catch {}
+        try {
+            localStorage.setItem('pending_registration_email', email);
+        } catch { }
 
         setShowVerificationModal(true);
     };
 
     const doRegister = async () => {
-    setShowVerificationModal(false);
-    setIsRegistering(true);
+        setShowVerificationModal(false);
+        setIsRegistering(true);
 
-    try {
-        // STEP 1: Final validation before registration
-        const validation = validateAllFields();
-        if (!validation.isValid) {
-            throw new Error(validation.message);
-        }
-
-        // STEP 2: Final duplicate check
-        const duplicateCheck = await checkForDuplicates();
-        if (duplicateCheck.hasDuplicates) {
-            throw new Error(duplicateCheck.message);
-        }
-
-        // STEP 3: Create auth account FIRST
-        console.log('Creating auth user...');
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: email.trim(),
-            password: password,
-            options: {
-                data: {
-                    username: username.trim(),
-                    first_name: firstName.trim(),
-                    last_name: lastName.trim(),
-                    address: address.trim(),
-                    contact_number: contactNumber.trim()
-                },
-                emailRedirectTo: `${window.location.origin}/iAMUMAta/user-login`
+        try {
+            // STEP 1: Final validation before registration
+            const validation = validateAllFields();
+            if (!validation.isValid) {
+                throw new Error(validation.message);
             }
-        });
 
-        if (authError) {
-            console.error('Auth creation failed:', authError);
-            if (authError.message.includes('already registered')) {
-                throw new Error("This email is already registered. Please try logging in or use a different email.");
+            // STEP 2: Final duplicate check
+            const duplicateCheck = await checkForDuplicates();
+            if (duplicateCheck.hasDuplicates) {
+                throw new Error(duplicateCheck.message);
             }
-            throw new Error("Account creation failed: " + authError.message);
-        }
 
-        if (!authData.user) {
-            throw new Error("No user data returned from authentication.");
-        }
-
-        console.log('Auth user created successfully:', authData.user.id);
-
-        // STEP 4: Create user profile in public.users table
-        console.log('Creating user profile...');
-        
-        const userData = {
-            // Let the database generate the id automatically
-            username: username.trim(),
-            user_email: email.trim(),
-            user_firstname: firstName.trim(),
-            user_lastname: lastName.trim(),
-            user_address: address.trim(),
-            user_contact_number: contactNumber.trim(),
-            auth_user_id: authData.user.id, // Link to auth user
-            role: 'user',
-            status: 'active',
-            is_authenticated: true
-        };
-
-        console.log('Inserting user profile with data:', userData);
-
-        const { data: profileData, error: profileError } = await supabase
-            .from('users')
-            .insert([userData])
-            .select();
-
-        if (profileError) {
-            console.error('Profile creation failed:', profileError);
-            
-            // Handle specific constraint violations
-            if (profileError.code === '23505') {
-                if (profileError.message.includes('username')) {
-                    throw new Error("Username already exists. Please choose a different username.");
-                } else if (profileError.message.includes('user_email')) {
-                    throw new Error("Email address is already registered. Please use a different email.");
-                } else if (profileError.message.includes('user_contact_number')) {
-                    throw new Error("Contact number is already registered. Please use a different number.");
-                } else if (profileError.message.includes('auth_user_id')) {
-                    // This shouldn't happen, but handle it anyway
-                    throw new Error("Account already exists. Please try logging in.");
+            // STEP 3: Create auth account FIRST
+            console.log('Creating auth user...');
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: email.trim(),
+                password: password,
+                options: {
+                    data: {
+                        username: username.trim(),
+                        first_name: firstName.trim(),
+                        last_name: lastName.trim(),
+                        address: address.trim(),
+                        contact_number: contactNumber.trim()
+                    },
+                    emailRedirectTo: `${window.location.origin}/iAMUMAta/user-login`
                 }
+            });
+
+            if (authError) {
+                console.error('Auth creation failed:', authError);
+                if (authError.message.includes('already registered')) {
+                    throw new Error("This email is already registered. Please try logging in or use a different email.");
+                }
+                throw new Error("Account creation failed: " + authError.message);
             }
-            throw new Error("Registration failed: Unable to create user profile. Please try again.");
+
+            if (!authData.user) {
+                throw new Error("No user data returned from authentication.");
+            }
+
+            console.log('Auth user created successfully:', authData.user.id);
+
+            // STEP 4: Create user profile in public.users table
+            console.log('Creating user profile...');
+
+            const userData = {
+                // Let the database generate the id automatically
+                username: username.trim(),
+                user_email: email.trim(),
+                user_firstname: firstName.trim(),
+                user_lastname: lastName.trim(),
+                user_address: address.trim(),        // This should now work
+                user_contact_number: contactNumber.trim(),  // This should now work
+                auth_user_id: authData.user.id, // Link to auth user
+                role: 'user',
+                status: 'active',
+                is_authenticated: true
+            };
+
+            console.log('Inserting user with data:', {
+                username: username.trim(),
+                user_email: email.trim(),
+                user_firstname: firstName.trim(),
+                user_lastname: lastName.trim(),
+                user_address: address.trim(),
+                user_contact_number: contactNumber.trim(),
+                auth_user_id: authData.user.id
+            });
+
+
+            console.log('Inserting user profile with data:', userData);
+
+            const { data: profileData, error: profileError } = await supabase
+                .from('users')
+                .insert([userData])
+                .select();
+
+            if (profileError) {
+                console.error('Profile creation failed:', profileError);
+
+                // Handle specific constraint violations
+                if (profileError.code === '23505') {
+                    if (profileError.message.includes('username')) {
+                        throw new Error("Username already exists. Please choose a different username.");
+                    } else if (profileError.message.includes('user_email')) {
+                        throw new Error("Email address is already registered. Please use a different email.");
+                    } else if (profileError.message.includes('user_contact_number')) {
+                        throw new Error("Contact number is already registered. Please use a different number.");
+                    } else if (profileError.message.includes('auth_user_id')) {
+                        // This shouldn't happen, but handle it anyway
+                        throw new Error("Account already exists. Please try logging in.");
+                    }
+                }
+                throw new Error("Registration failed: Unable to create user profile. Please try again.");
+            }
+
+            console.log('User profile created successfully:', profileData);
+
+            // STEP 5: Log registration activity
+            await logUserRegistration(email, firstName, lastName);
+
+            // STEP 6: Show success modal
+            setShowSuccessModal(true);
+
+        } catch (err) {
+            console.error('Registration error:', err);
+
+            if (err instanceof Error) {
+                setAlertMessage(err.message);
+            } else {
+                setAlertMessage("An unexpected error occurred during registration. Please try again.");
+            }
+            setShowAlert(true);
+        } finally {
+            setIsRegistering(false);
         }
+    };
 
-        console.log('User profile created successfully:', profileData);
+    // Add this function to debug registration issues
+    const checkUserStatus = async (userId: string) => {
+        try {
+            // Check auth user
+            const { data: authUser } = await supabase.auth.getUser();
+            console.log('Auth user status:', authUser);
 
-        // STEP 5: Log registration activity
-        await logUserRegistration(email, firstName, lastName);
-        
-        // STEP 6: Show success modal
-        setShowSuccessModal(true);
+            // Check public user
+            const { data: publicUser } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+            console.log('Public user status:', publicUser);
 
-    } catch (err) {
-        console.error('Registration error:', err);
-        
-        if (err instanceof Error) {
-            setAlertMessage(err.message);
-        } else {
-            setAlertMessage("An unexpected error occurred during registration. Please try again.");
+            return { authUser, publicUser };
+        } catch (error) {
+            console.error('Debug check error:', error);
         }
-        setShowAlert(true);
-    } finally {
-        setIsRegistering(false);
-    }
-};
-
-// Add this function to debug registration issues
-const checkUserStatus = async (userId: string) => {
-    try {
-        // Check auth user
-        const { data: authUser } = await supabase.auth.getUser();
-        console.log('Auth user status:', authUser);
-        
-        // Check public user
-        const { data: publicUser } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .single();
-        console.log('Public user status:', publicUser);
-        
-        return { authUser, publicUser };
-    } catch (error) {
-        console.error('Debug check error:', error);
-    }
-};
+    };
 
     // Handler Logic
     const handleShowTerms = () => setShowTermsModal(true);
@@ -1305,13 +1316,13 @@ const checkUserStatus = async (userId: string) => {
                             }}>Check Your Email!</h1>
 
                             <p style={{
-    fontSize: '16px',
-    color: '#047857',
-    lineHeight: '1.6',
-    margin: '0 0 20px 0'
-}}>
-    Your account has been created successfully! <strong>Please check your email to verify your address</strong> and complete the registration process.
-</p>
+                                fontSize: '16px',
+                                color: '#047857',
+                                lineHeight: '1.6',
+                                margin: '0 0 20px 0'
+                            }}>
+                                Your account has been created successfully! <strong>Please check your email to verify your address</strong> and complete the registration process.
+                            </p>
 
                             <div style={{
                                 backgroundColor: '#f0f9ff',
