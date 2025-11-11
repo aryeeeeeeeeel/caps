@@ -634,7 +634,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleDialLDRRMO = () => {
-    const ldrrmoNumber = '09564022605';
+    const ldrrmoNumber = '09518078207';
     window.open(`tel:${ldrrmoNumber}`, '_self');
   };
 
