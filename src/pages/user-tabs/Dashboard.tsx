@@ -179,6 +179,15 @@ const Dashboard: React.FC = () => {
 
         if (!error && profile) {
           setUserProfile(profile);
+
+          // Auto-logout if banned
+          if (profile.status === 'banned') {
+            setToastMessage('Your account was banned. You have been signed out.');
+            setShowToast(true);
+            await supabase.auth.signOut();
+            history.push('/iAMUMAta');
+            return;
+          }
         }
 
         if (user.email) {
@@ -780,6 +789,22 @@ const Dashboard: React.FC = () => {
             overflow: 'hidden'
           }}>
             <IonCardContent style={{ padding: '24px', position: 'relative' }}>
+              {/* Account status indicators */}
+              {userProfile && (
+                <div style={{ marginBottom: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {userProfile.warnings > 0 && (
+                    <span style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.5)', color: 'white', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700 }}>
+                      ⚠️ Account Warned ({userProfile.warnings})
+                    </span>
+                  )}
+                  {userProfile.status === 'suspended' && (
+                    <span style={{ background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.5)', color: 'white', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700 }}>
+                      ⛔ Account Suspended — submitting reports is disabled
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div style={{
                 position: 'absolute',
                 right: '-20px',
