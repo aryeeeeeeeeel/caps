@@ -357,9 +357,10 @@ const AdminUsers: React.FC = () => {
     if (!selectedUser) return;
     try {
       let updates: any = {};
+      const nowIso = new Date().toISOString();
       switch (action) {
         case 'warn':
-          updates = { warnings: (selectedUser.warnings || 0) + 1, last_warning_date: new Date().toISOString() };
+          updates = { warnings: (selectedUser.warnings || 0) + 1, last_warning_date: nowIso };
           if (updates.warnings >= 3) updates.status = 'suspended';
           break;
         case 'suspend':
@@ -383,6 +384,59 @@ const AdminUsers: React.FC = () => {
       // Log the user action
       const { data: { user } } = await supabase.auth.getUser();
       const adminEmail = user?.email;
+
+      // Build common details
+      const targetEmail = selectedUser.user_email;
+      const userFullname = `${selectedUser.user_firstname} ${selectedUser.user_lastname}`;
+
+      // Create a user-facing notification
+      const statusTitleMap: Record<string, string> = {
+        warn: 'Account Warning',
+        suspend: 'Account Suspended',
+        ban: 'Account Banned',
+        activate: 'Account Activated'
+      };
+      const statusMessageMap: Record<string, string> = {
+        warn: `Your account has received a warning on ${new Date(nowIso).toLocaleString()}. Please adhere to community guidelines.`,
+        suspend: `Your account has been suspended on ${new Date(nowIso).toLocaleString()}. You cannot submit reports until reactivated.`,
+        ban: `Your account has been banned on ${new Date(nowIso).toLocaleString()}. You can no longer access the app.`,
+        activate: `Your account has been reactivated on ${new Date(nowIso).toLocaleString()}. You may now resume using the app.`
+      };
+
+      await supabase.from('notifications').insert({
+        user_email: targetEmail,
+        title: statusTitleMap[action],
+        message: statusMessageMap[action],
+        type: action === 'warn' ? 'warning' : action === 'activate' ? 'success' : 'error',
+        is_automated: true
+      });
+
+      // Write activity_logs for the affected user
+      await supabase.from('activity_logs').insert({
+        user_email: targetEmail,
+        activity_type: action === 'warn' ? 'status_warned' : action === 'activate' ? 'status_activated' : action === 'suspend' ? 'status_suspended' : 'status_banned',
+        activity_description: `${statusTitleMap[action]} (${userFullname})`,
+        details: {
+          admin_email: adminEmail,
+          at: nowIso
+        }
+      });
+
+      // Write system_logs for auditing
+      if (adminEmail) {
+        await supabase.from('system_logs').insert({
+          admin_email: adminEmail,
+          activity_type: 'user_action',
+          activity_description: `Admin ${action} action applied to user`,
+          target_user_email: targetEmail,
+          details: {
+            action,
+            user_fullname: userFullname,
+            warnings: updates.warnings ?? selectedUser.warnings,
+            last_warning_date: updates.last_warning_date ?? selectedUser.last_warning_date
+          }
+        });
+      }
 
       switch (action) {
         case 'warn':
