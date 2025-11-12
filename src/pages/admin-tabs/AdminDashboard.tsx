@@ -435,6 +435,18 @@ const AdminDashboard: React.FC = () => {
       // Log the notification
       const { data: { user } } = await supabase.auth.getUser();
       await logUserNotification(userEmail, triggerType, user?.email);
+
+      // Also store in system_logs
+      if (user?.email) {
+        await supabase.from('system_logs').insert({
+          admin_email: user.email,
+          activity_type: 'notify',
+          activity_description: `Automated notification sent (${triggerType})`,
+          target_user_email: userEmail,
+          target_report_id: relatedReportId,
+          details: { title, message, triggerType }
+        });
+      }
     } catch (error) {
       console.error("Error creating automated notification:", error)
     }
@@ -462,6 +474,18 @@ const AdminDashboard: React.FC = () => {
       // Log the status update
       const { data: { user } } = await supabase.auth.getUser();
       await logReportStatusUpdate(reportId, oldStatus, newStatus, user?.email);
+
+       // Also store in system_logs
+       if (user?.email) {
+         await supabase.from('system_logs').insert({
+           admin_email: user.email,
+           activity_type: 'update_report',
+           activity_description: `Report status updated to ${newStatus}`,
+           target_user_email: currentReport?.reporter_email || null,
+           target_report_id: reportId,
+           details: { report_title: currentReport?.title, old_status: oldStatus, new_status: newStatus }
+         });
+       }
 
       // Update local state
       setReports((prev) => prev.map((report) => (report.id === reportId ? { ...report, ...updateData } : report)))
@@ -1270,8 +1294,8 @@ const AdminDashboard: React.FC = () => {
                 </p>
                 <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                   <span style="
-                    background: ${getStatusColor(report.status)}20;
-                    color: ${getStatusColor(report.status)};
+                    background: ${getReportStatusColor(report.status)}20;
+                    color: ${getReportStatusColor(report.status)};
                     padding: 2px 6px;
                     border-radius: 10px;
                     font-size: 9px;
@@ -1640,6 +1664,16 @@ const AdminDashboard: React.FC = () => {
       case 'suspended': return '#f59e0b';
       case 'banned': return '#dc2626';
       default: return '#6b7280';
+    }
+  };
+
+  // Match AdminIncidents.tsx status badge colors for reports
+  const getReportStatusColor = (status: string): string => {
+    switch (status) {
+      case 'pending': return 'var(--warning-color)';
+      case 'active': return 'var(--primary-color)';
+      case 'resolved': return 'var(--success-color)';
+      default: return 'var(--text-secondary)';
     }
   };
 
@@ -2772,7 +2806,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                                   style={
                                     {
                                       fontSize: "10px",
-                                      "--background": getStatusColor(report.status),
+                                      "--background": getReportStatusColor(report.status),
                                       "--color": "white",
                                       cursor: report.status !== 'resolved' ? 'pointer' : 'default',
                                       opacity: report.status !== 'resolved' ? 1 : 0.7
@@ -3295,7 +3329,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                       <IonBadge
                         onClick={(e) => handleStatusBadgeClick(selectedReport, e)}
                         style={{
-                          "--background": getStatusColor(selectedReport.status),
+                          "--background": getReportStatusColor(selectedReport.status),
                           cursor: selectedReport.status !== 'resolved' ? 'pointer' : 'default',
                           opacity: selectedReport.status !== 'resolved' ? 1 : 0.7
                         } as any}
