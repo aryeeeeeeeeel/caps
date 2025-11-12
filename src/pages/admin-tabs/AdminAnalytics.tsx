@@ -1,5 +1,5 @@
 // src/pages/admin-tabs/AdminAnalytics.tsx - Fixed skeleton screen
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   IonContent,
   IonHeader,
@@ -24,7 +24,9 @@ import {
   IonText,
   IonSkeletonText,
   IonToast,
-  useIonViewWillEnter
+  useIonViewWillEnter,
+  IonDatetime,
+  IonPopover
 } from '@ionic/react';
 import {
   arrowBackOutline,
@@ -228,14 +230,130 @@ const AdminAnalytics: React.FC = () => {
     setEndDate(end);
   };
 
+  const [barangayFilter, setBarangayFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'resolved'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [generatedRows, setGeneratedRows] = useState<any[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const barangayChartRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Load distinct filter options (barangay, category)
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('incident_reports')
+          .select('barangay, category')
+          .order('created_at', { ascending: false });
+        if (error) return;
+        const barangays = Array.from(new Set((data || []).map(r => r.barangay).filter(Boolean))).sort();
+        const categories = Array.from(new Set((data || []).map(r => r.category).filter(Boolean))).sort();
+        setBarangayOptions(barangays);
+        setCategoryOptions(categories);
+      } catch {}
+    };
+    loadFilterOptions();
+  }, []);
+
+  // Draw simple bar graph of barangay counts (top-to-bottom sorted)
+  useEffect(() => {
+    if (!reportData || !barangayChartRef.current) return;
+    const canvas = barangayChartRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const entries = Object.entries(reportData.byBarangay)
+      .sort((a, b) => b[1] - a[1]);
+
+    // Canvas sizing
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth * dpr;
+    const height = 320 * dpr; // fixed visual height
+    canvas.width = width;
+    canvas.height = height;
+    ctx.scale(dpr, dpr);
+
+    // Clear
+    ctx.clearRect(0, 0, width, height);
+
+    // Layout
+    const margin = { top: 20, right: 20, bottom: 50, left: 60 };
+    const plotW = canvas.clientWidth - margin.left - margin.right;
+    const plotH = 320 - margin.top - margin.bottom;
+
+    // Data
+    const labels = entries.map(e => e[0]);
+    const values = entries.map(e => e[1]);
+    const maxVal = Math.max(1, ...values);
+
+    // Axis
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, margin.top + plotH);
+    ctx.lineTo(margin.left + plotW, margin.top + plotH);
+    ctx.stroke();
+
+    // Bars
+    const barGap = 8;
+    const barW = plotW / labels.length - barGap;
+    labels.forEach((label, i) => {
+      const x = margin.left + i * (barW + barGap) + barGap / 2;
+      const h = (values[i] / maxVal) * (plotH - 10);
+      const y = margin.top + plotH - h;
+      // color
+      ctx.fillStyle = i === 0 ? '#3b82f6' : '#94a3b8';
+      ctx.fillRect(x, y, Math.max(2, barW), h);
+
+      // value
+      ctx.fillStyle = '#111827';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(values[i]), x + Math.max(2, barW) / 2, y - 4);
+
+      // label (rotated if too many)
+      ctx.save();
+      ctx.translate(x + Math.max(2, barW) / 2, margin.top + plotH + 14);
+      ctx.rotate(-Math.PI / 8);
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    });
+
+    // Title
+    ctx.fillStyle = '#1f2937';
+    ctx.font = '14px sans-serif';
+    const title = 'Barangay Reports (highest on left)';
+    ctx.fillText(title, margin.left, 16);
+  }, [reportData]);
+
   const generateReport = async () => {
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('incident_reports')
         .select('*')
         .gte('created_at', startDate)
         .lte('created_at', endDate + 'T23:59:59');
+
+      if (barangayFilter !== 'all') {
+        query = query.eq('barangay', barangayFilter);
+      }
+      if (priorityFilter !== 'all') {
+        query = query.eq('priority', priorityFilter);
+      }
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+      if (categoryFilter !== 'all') {
+        query = query.eq('category', categoryFilter);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -266,6 +384,7 @@ const AdminAnalytics: React.FC = () => {
         });
 
         setReportData(reportData);
+        setGeneratedRows(data);
       }
     } catch (error) {
       console.error('Error generating report:', error);
@@ -274,54 +393,245 @@ const AdminAnalytics: React.FC = () => {
     }
   };
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     if (!reportData) return;
-
-    const reportText = `
-INCIDENT REPORT - ${reportPeriod.toUpperCase()}
-Period: ${startDate} to ${endDate}
-Generated: ${new Date().toLocaleString()}
-
-==================================================
-
-SUMMARY
-==================================================
-Total Incidents: ${reportData.total}
-Pending: ${reportData.pending}
-Active: ${reportData.active}
-Resolved: ${reportData.resolved}
-
-PRIORITY BREAKDOWN
-==================================================
-Critical: ${reportData.byPriority.critical}
-High: ${reportData.byPriority.high}
-Medium: ${reportData.byPriority.medium}
-Low: ${reportData.byPriority.low}
-
-BY BARANGAY
-==================================================
-${Object.entries(reportData.byBarangay)
-        .sort((a, b) => b[1] - a[1])
-        .map(([barangay, count]) => `${barangay}: ${count}`)
-        .join('\n')}
-
-BY CATEGORY
-==================================================
-${Object.entries(reportData.byCategory)
-        .sort((a, b) => b[1] - a[1])
-        .map(([category, count]) => `${category}: ${count}`)
-        .join('\n')}
-    `;
-
-    const blob = new Blob([reportText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `incident_report_${reportPeriod}_${startDate}_to_${endDate}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  
+    // Load SheetJS (UMD) from CDN if not already loaded
+    const ensureSheetJs = () =>
+      new Promise<void>((resolve, reject) => {
+        if ((window as any).XLSX) {
+          resolve();
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js';
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load SheetJS'));
+        document.body.appendChild(script);
+      });
+  
+    try {
+      await ensureSheetJs();
+    } catch (e) {
+      console.error(e);
+      return;
+    }
+  
+    const XLSX = (window as any).XLSX;
+  
+    const summary = [
+      ['Incident Report', reportPeriod.toUpperCase()],
+      ['Period', `${startDate} to ${endDate}`],
+      ['Generated', new Date().toLocaleString()],
+      [],
+      ['Summary'],
+      ['Total', reportData.total],
+      ['Pending', reportData.pending],
+      ['Active', reportData.active],
+      ['Resolved', reportData.resolved],
+    ];
+  
+    const priorities = [
+      ['Priority', 'Count'],
+      ['Critical', reportData.byPriority.critical],
+      ['High', reportData.byPriority.high],
+      ['Medium', reportData.byPriority.medium],
+      ['Low', reportData.byPriority.low],
+    ];
+  
+    const barangays = [['Barangay', 'Count'], ...Object.entries(reportData.byBarangay).sort((a, b) => b[1] - a[1])];
+    const categories = [['Category', 'Count'], ...Object.entries(reportData.byCategory).sort((a, b) => b[1] - a[1])];
+  
+    const wb = XLSX.utils.book_new();
+    const wsSummary = XLSX.utils.aoa_to_sheet(summary);
+    const wsPriority = XLSX.utils.aoa_to_sheet(priorities);
+    const wsBarangay = XLSX.utils.aoa_to_sheet(barangays);
+    const wsCategory = XLSX.utils.aoa_to_sheet(categories);
+  
+    // Add applied filters section at top of Summary
+    const appliedFilters = [
+      [],
+      ['Applied Filters'],
+      ['Barangay', barangayFilter],
+      ['Priority', priorityFilter],
+      ['Status', statusFilter],
+      ['Category', categoryFilter],
+    ];
+    XLSX.utils.sheet_add_aoa(wsSummary, appliedFilters, { origin: -1 });
+  
+    // Set column widths for readability
+    wsSummary['!cols'] = [{ wch: 22 }, { wch: 36 }];
+    wsPriority['!cols'] = [{ wch: 18 }, { wch: 12 }];
+    wsBarangay['!cols'] = [{ wch: 24 }, { wch: 12 }];
+    wsCategory['!cols'] = [{ wch: 24 }, { wch: 12 }];
+  
+    // Add Data sheet with filtered rows
+    const headers = ['Title', 'Barangay', 'Category', 'Priority', 'Status', 'Created At', 'Resolved At'];
+    const rows = (generatedRows || []).map(r => [
+      r.title || '',
+      r.barangay || '',
+      r.category || '',
+      r.priority || '',
+      r.status || '',
+      r.created_at ? new Date(r.created_at).toLocaleString() : '',
+      r.resolved_at ? new Date(r.resolved_at).toLocaleString() : ''
+    ]);
+    const wsData = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    wsData['!cols'] = [
+      { wch: 40 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 22 },
+      { wch: 22 }
+    ];
+  
+    // Build Barangay x Category pivot (detailed analysis)
+    const categoriesSet = Array.from(new Set((generatedRows || []).map(r => r.category || 'Unknown'))).sort();
+    const barangaySet = Array.from(new Set((generatedRows || []).map(r => r.barangay || 'Unknown'))).sort();
+    const pivotHeader = ['Barangay', ...categoriesSet, 'Total'];
+    const pivotBody = barangaySet.map(b => {
+      const counts = categoriesSet.map(c =>
+        (generatedRows || []).filter(r => (r.barangay || 'Unknown') === b && (r.category || 'Unknown') === c).length
+      );
+      const total = counts.reduce((a, v) => a + v, 0);
+      return [b, ...counts, total];
+    });
+    const wsPivot = XLSX.utils.aoa_to_sheet([pivotHeader, ...pivotBody]);
+    wsPivot['!cols'] = [{ wch: 24 }, ...categoriesSet.map(() => ({ wch: 10 })), { wch: 10 }];
+  
+    // ENHANCED: Build Detailed Per-Barangay Analysis Sheets
+    const detailedBarangaySheets: { [key: string]: any } = {};
+  
+    barangaySet.forEach(barangay => {
+      const barangayReports = (generatedRows || []).filter(r => (r.barangay || 'Unknown') === barangay);
+      
+      // Barangay Summary Sheet
+      const barangaySummary = [
+        [`Detailed Analysis: ${barangay}`],
+        ['Period', `${startDate} to ${endDate}`],
+        ['Total Reports', barangayReports.length],
+        ['Pending', barangayReports.filter(r => r.status === 'pending').length],
+        ['Active', barangayReports.filter(r => r.status === 'active').length],
+        ['Resolved', barangayReports.filter(r => r.status === 'resolved').length],
+        [],
+        ['Priority Breakdown'],
+        ['Critical', barangayReports.filter(r => r.priority === 'critical').length],
+        ['High', barangayReports.filter(r => r.priority === 'high').length],
+        ['Medium', barangayReports.filter(r => r.priority === 'medium').length],
+        ['Low', barangayReports.filter(r => r.priority === 'low').length],
+        [],
+        ['Category Breakdown'],
+      ];
+  
+      // Add category breakdown
+      const categoryBreakdown = categoriesSet.map(category => [
+        category,
+        barangayReports.filter(r => (r.category || 'Unknown') === category).length
+      ]);
+      barangaySummary.push(['Category', 'Count'], ...categoryBreakdown);
+  
+      // Create barangay summary sheet
+      const wsBarangaySummary = XLSX.utils.aoa_to_sheet(barangaySummary);
+      wsBarangaySummary['!cols'] = [{ wch: 25 }, { wch: 15 }];
+  
+      // Barangay Detailed Data Sheet
+      const barangayDataHeaders = ['Title', 'Category', 'Priority', 'Status', 'Description', 'Created At', 'Resolved At', 'Location Details'];
+      const barangayDataRows = barangayReports.map(r => [
+        r.title || '',
+        r.category || '',
+        r.priority || '',
+        r.status || '',
+        r.description || '',
+        r.created_at ? new Date(r.created_at).toLocaleString() : '',
+        r.resolved_at ? new Date(r.resolved_at).toLocaleString() : '',
+        r.location_details || ''
+      ]);
+  
+      const wsBarangayData = XLSX.utils.aoa_to_sheet([barangayDataHeaders, ...barangayDataRows]);
+      wsBarangayData['!cols'] = [
+        { wch: 35 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 50 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 30 }
+      ];
+  
+      // Store sheets for this barangay
+      detailedBarangaySheets[`${barangay}_Summary`] = wsBarangaySummary;
+      detailedBarangaySheets[`${barangay}_Data`] = wsBarangayData;
+    });
+  
+    // Add all sheets to workbook
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+    XLSX.utils.book_append_sheet(wb, wsPriority, 'By Priority');
+    XLSX.utils.book_append_sheet(wb, wsBarangay, 'By Barangay');
+    XLSX.utils.book_append_sheet(wb, wsCategory, 'By Category');
+    XLSX.utils.book_append_sheet(wb, wsData, 'All Data');
+    XLSX.utils.book_append_sheet(wb, wsPivot, 'Barangay x Category');
+  
+    // Add detailed barangay sheets
+    Object.entries(detailedBarangaySheets).forEach(([sheetName, sheet]) => {
+      // Clean sheet name for Excel (max 31 chars, no special chars)
+      const cleanSheetName = sheetName.replace(/[\\/*[\]:?]/g, '').substring(0, 31);
+      XLSX.utils.book_append_sheet(wb, sheet, cleanSheetName);
+    });
+  
+    // Create a comprehensive barangay comparison sheet
+    const comparisonHeader = [
+      'Barangay',
+      'Total Reports',
+      'Pending',
+      'Active',
+      'Resolved',
+      'Critical',
+      'High',
+      'Medium',
+      'Low',
+      ...categoriesSet
+    ];
+  
+    const comparisonRows = barangaySet.map(barangay => {
+      const barangayReports = (generatedRows || []).filter(r => (r.barangay || 'Unknown') === barangay);
+      
+      return [
+        barangay,
+        barangayReports.length,
+        barangayReports.filter(r => r.status === 'pending').length,
+        barangayReports.filter(r => r.status === 'active').length,
+        barangayReports.filter(r => r.status === 'resolved').length,
+        barangayReports.filter(r => r.priority === 'critical').length,
+        barangayReports.filter(r => r.priority === 'high').length,
+        barangayReports.filter(r => r.priority === 'medium').length,
+        barangayReports.filter(r => r.priority === 'low').length,
+        ...categoriesSet.map(category => 
+          barangayReports.filter(r => (r.category || 'Unknown') === category).length
+        )
+      ];
+    });
+  
+    const wsComparison = XLSX.utils.aoa_to_sheet([comparisonHeader, ...comparisonRows]);
+    wsComparison['!cols'] = [
+      { wch: 24 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      ...categoriesSet.map(() => ({ wch: 10 }))
+    ];
+  
+    XLSX.utils.book_append_sheet(wb, wsComparison, 'Barangay Comparison');
+  
+    XLSX.writeFile(wb, `incident_report_${reportPeriod}_${startDate}_to_${endDate}.xlsx`);
   };
 
   // Show skeleton during initial load
@@ -538,38 +848,129 @@ ${Object.entries(reportData.byCategory)
                       </IonSelect>
                     </IonItem>
                   </IonCol>
-                  <IonCol size="12" sizeMd="4">
+                  <IonCol size="12" sizeMd="8">
                     <IonItem>
-                      <IonLabel position="stacked">Start Date</IonLabel>
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={e => setStartDate(e.target.value)}
+                      <IonLabel position="stacked">Date Created</IonLabel>
+                      <div
+                        onClick={() => setShowDatePicker(true)}
                         style={{
+                          display: 'flex',
+                          alignItems: 'center',
                           width: '100%',
-                          padding: '8px',
-                          border: 'none',
-                          background: 'transparent',
+                          padding: '12px',
+                          background: '#f8fafc',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          cursor: 'pointer',
+                          color: '#374151',
                           fontSize: '14px'
                         }}
-                      />
+                      >
+                        <IonIcon icon={calendarOutline} style={{ marginRight: '8px', fontSize: '18px', color: '#6b7280' }} />
+                        <span style={{ flex: 1 }}>
+                          {startDate && endDate
+                            ? `${new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                            : 'Select date range'}
+                        </span>
+                        <IonIcon icon={arrowBackOutline} style={{ fontSize: '16px', color: '#9ca3af', transform: 'rotate(-90deg)' }} />
+                      </div>
+                    </IonItem>
+                    <IonPopover
+                      isOpen={showDatePicker}
+                      onDidDismiss={() => setShowDatePicker(false)}
+                    >
+                      <IonContent>
+                        <div style={{ padding: '16px' }}>
+                          <IonItem>
+                            <IonLabel position="stacked">Start Date</IonLabel>
+                            <IonDatetime
+                              presentation="date"
+                              value={startDate}
+                              onIonChange={(e) => {
+                                const value = e.detail.value as string;
+                                if (value) setStartDate(value.split('T')[0]);
+                              }}
+                            />
+                          </IonItem>
+                          <IonItem>
+                            <IonLabel position="stacked">End Date</IonLabel>
+                            <IonDatetime
+                              presentation="date"
+                              value={endDate}
+                              onIonChange={(e) => {
+                                const value = e.detail.value as string;
+                                if (value) setEndDate(value.split('T')[0]);
+                              }}
+                            />
+                          </IonItem>
+                          <IonButton expand="block" onClick={() => setShowDatePicker(false)} style={{ marginTop: '16px' }}>
+                            Done
+                          </IonButton>
+                        </div>
+                      </IonContent>
+                    </IonPopover>
+                  </IonCol>
+                </IonRow>
+
+                <IonRow>
+                  <IonCol size="12" sizeMd="3">
+                    <IonItem>
+                      <IonLabel position="stacked">Barangay</IonLabel>
+                      <IonSelect
+                        value={barangayFilter}
+                        onIonChange={e => setBarangayFilter(e.detail.value)}
+                      >
+                        <IonSelectOption value="all">All</IonSelectOption>
+                        {barangayOptions.map((b) => (
+                          <IonSelectOption key={b} value={b}>{b}</IonSelectOption>
+                        ))}
+                      </IonSelect>
                     </IonItem>
                   </IonCol>
-                  <IonCol size="12" sizeMd="4">
+
+                  <IonCol size="12" sizeMd="3">
                     <IonItem>
-                      <IonLabel position="stacked">End Date</IonLabel>
-                      <input
-                        type="date"
-                        value={endDate}
-                        onChange={e => setEndDate(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          border: 'none',
-                          background: 'transparent',
-                          fontSize: '14px'
-                        }}
-                      />
+                      <IonLabel position="stacked">Priority</IonLabel>
+                      <IonSelect
+                        value={priorityFilter}
+                        onIonChange={e => setPriorityFilter(e.detail.value)}
+                      >
+                        <IonSelectOption value="all">All</IonSelectOption>
+                        <IonSelectOption value="critical">Critical</IonSelectOption>
+                        <IonSelectOption value="high">High</IonSelectOption>
+                        <IonSelectOption value="medium">Medium</IonSelectOption>
+                        <IonSelectOption value="low">Low</IonSelectOption>
+                      </IonSelect>
+                    </IonItem>
+                  </IonCol>
+
+                  <IonCol size="12" sizeMd="3">
+                    <IonItem>
+                      <IonLabel position="stacked">Status</IonLabel>
+                      <IonSelect
+                        value={statusFilter}
+                        onIonChange={e => setStatusFilter(e.detail.value)}
+                      >
+                        <IonSelectOption value="all">All</IonSelectOption>
+                        <IonSelectOption value="pending">Pending</IonSelectOption>
+                        <IonSelectOption value="active">Active</IonSelectOption>
+                        <IonSelectOption value="resolved">Resolved</IonSelectOption>
+                      </IonSelect>
+                    </IonItem>
+                  </IonCol>
+
+                  <IonCol size="12" sizeMd="3">
+                    <IonItem>
+                      <IonLabel position="stacked">Category</IonLabel>
+                      <IonSelect
+                        value={categoryFilter}
+                        onIonChange={e => setCategoryFilter(e.detail.value)}
+                      >
+                        <IonSelectOption value="all">All</IonSelectOption>
+                        {categoryOptions.map((c) => (
+                          <IonSelectOption key={c} value={c}>{c}</IonSelectOption>
+                        ))}
+                      </IonSelect>
                     </IonItem>
                   </IonCol>
                 </IonRow>
@@ -641,120 +1042,133 @@ ${Object.entries(reportData.byCategory)
           )}
 
           {/* Report Results - Only show when not generating */}
-          {reportData && !isGenerating && (
+          {reportData && !isGenerating && generatedRows.length > 0 && (
             <>
+              {/* Barangay bar graph (shown for any period, primarily helpful for monthly) */}
+              <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
+                <IonCardContent>
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 'bold' }}>
+                    Barangay Reports Bar Graph
+                  </h3>
+                  <div style={{ width: '100%', overflowX: 'auto' }}>
+                    <canvas ref={barangayChartRef} style={{ width: '100%', height: '320px', display: 'block' }} />
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                    Tip: Highest total appears on the left. Use filters above to refine by month and other criteria.
+                  </div>
+                </IonCardContent>
+              </IonCard>
+              {/* Barangay Cards with Detailed Breakdown - 3 per row */}
               <IonGrid>
                 <IonRow>
-                  {[
-                    { label: 'Total Incidents', value: reportData.total, color: '#6b7280' },
-                    { label: 'Pending', value: reportData.pending, color: '#f59e0b' },
-                    { label: 'Active', value: reportData.active, color: '#3b82f6' },
-                    { label: 'Resolved', value: reportData.resolved, color: '#10b981' }
-                  ].map((stat, idx) => (
-                    <IonCol key={idx} size="6" sizeMd="3">
-                      <IonCard style={{ borderRadius: '12px', textAlign: 'center' }}>
-                        <IonCardContent>
-                          <div style={{ fontSize: '32px', fontWeight: 'bold', color: stat.color }}>
-                            {stat.value}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                            {stat.label}
-                          </div>
-                        </IonCardContent>
-                      </IonCard>
-                    </IonCol>
-                  ))}
+                  {Object.keys(reportData.byBarangay)
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((barangay) => {
+                      const barangayReports = generatedRows.filter(r => (r.barangay || 'Unknown') === barangay);
+                      const totalReports = barangayReports.length;
+                      const statusCounts = {
+                        pending: barangayReports.filter(r => r.status === 'pending').length,
+                        active: barangayReports.filter(r => r.status === 'active').length,
+                        resolved: barangayReports.filter(r => r.status === 'resolved').length
+                      };
+                      const priorityCounts = {
+                        critical: barangayReports.filter(r => r.priority === 'critical').length,
+                        high: barangayReports.filter(r => r.priority === 'high').length,
+                        medium: barangayReports.filter(r => r.priority === 'medium').length,
+                        low: barangayReports.filter(r => r.priority === 'low').length
+                      };
+                      const categoryCounts: { [key: string]: number } = {};
+                      barangayReports.forEach(r => {
+                        const cat = r.category || 'Others';
+                        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+                      });
+
+                      // Show all categories, even if 0
+                      const allCategories = categoryOptions.length > 0 ? categoryOptions : ['Road Incidents', 'Utility Issues', 'Natural Disasters', 'Infrastructure Problems', 'Public Safety', 'Environmental Issues', 'Others'];
+
+                      return (
+                        <IonCol key={barangay} size="12" sizeMd="4">
+                          <IonCard style={{ borderRadius: '16px', marginBottom: '20px', height: '100%' }}>
+                            <IonCardContent>
+                              {/* Barangay Header */}
+                              <h2 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
+                                {barangay} ({totalReports})
+                              </h2>
+
+                              {/* Status Section */}
+                              <div style={{ marginBottom: '24px' }}>
+                                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>Status</h3>
+                                <div style={{ display: 'grid', gap: '8px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>pending</span>
+                                    <IonBadge color="warning" style={{ fontSize: '12px' }}>{statusCounts.pending}</IonBadge>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>active</span>
+                                    <IonBadge color="primary" style={{ fontSize: '12px' }}>{statusCounts.active}</IonBadge>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>resolved</span>
+                                    <IonBadge color="success" style={{ fontSize: '12px' }}>{statusCounts.resolved}</IonBadge>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Priority Section */}
+                              <div style={{ marginBottom: '24px' }}>
+                                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>Priority</h3>
+                                <div style={{ display: 'grid', gap: '8px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>critical</span>
+                                    <IonBadge color="danger" style={{ fontSize: '12px' }}>{priorityCounts.critical}</IonBadge>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>high</span>
+                                    <IonBadge color="warning" style={{ fontSize: '12px' }}>{priorityCounts.high}</IonBadge>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>medium</span>
+                                    <IonBadge color="primary" style={{ fontSize: '12px' }}>{priorityCounts.medium}</IonBadge>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>low</span>
+                                    <IonBadge color="success" style={{ fontSize: '12px' }}>{priorityCounts.low}</IonBadge>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Category Section - Show all categories even if 0 */}
+                              <div style={{ marginBottom: '24px' }}>
+                                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>
+                                  Category ({totalReports})
+                                </h3>
+                                <div style={{ display: 'grid', gap: '8px' }}>
+                                  {allCategories
+                                    .sort((a, b) => a.localeCompare(b))
+                                    .map((category) => {
+                                      const count = categoryCounts[category] || 0;
+                                      return (
+                                        <div key={category} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                          <span style={{ fontSize: '14px', color: '#6b7280' }}>{category}</span>
+                                          <IonBadge color="secondary" style={{ fontSize: '12px' }}>{count}</IonBadge>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              </div>
+                            </IonCardContent>
+                          </IonCard>
+                        </IonCol>
+                      );
+                    })}
                 </IonRow>
               </IonGrid>
-
-              <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-                <IonCardContent>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
-                    Priority Breakdown
-                  </h3>
-                  <IonGrid>
-                    <IonRow>
-                      {Object.entries(reportData.byPriority).map(([priority, count]) => (
-                        <IonCol key={priority} size="6" sizeMd="3">
-                          <div style={{
-                            padding: '12px',
-                            background: '#f8fafc',
-                            borderRadius: '8px',
-                            textAlign: 'center'
-                          }}>
-                            <IonBadge
-                              color={priority === 'critical' ? 'danger' : priority === 'high' ? 'warning' : priority === 'medium' ? 'primary' : 'success'}
-                              style={{ marginBottom: '8px' }}
-                            >
-                              {priority.toUpperCase()}
-                            </IonBadge>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{count}</div>
-                          </div>
-                        </IonCol>
-                      ))}
-                    </IonRow>
-                  </IonGrid>
-                </IonCardContent>
-              </IonCard>
-
-              <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-                <IonCardContent>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
-                    Incidents by Barangay
-                  </h3>
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    {Object.entries(reportData.byBarangay)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([barangay, count]) => (
-                        <div
-                          key={barangay}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            padding: '12px',
-                            background: '#f8fafc',
-                            borderRadius: '6px'
-                          }}
-                        >
-                          <span style={{ fontWeight: '500' }}>{barangay}</span>
-                          <IonBadge color="primary">{count}</IonBadge>
-                        </div>
-                      ))}
-                  </div>
-                </IonCardContent>
-              </IonCard>
-
-              <IonCard style={{ borderRadius: '16px', marginBottom: '20px' }}>
-                <IonCardContent>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
-                    Incidents by Category
-                  </h3>
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    {Object.entries(reportData.byCategory)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([category, count]) => (
-                        <div
-                          key={category}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            padding: '12px',
-                            background: '#f8fafc',
-                            borderRadius: '6px'
-                          }}
-                        >
-                          <span style={{ fontWeight: '500' }}>{category}</span>
-                          <IonBadge color="secondary">{count}</IonBadge>
-                        </div>
-                      ))}
-                  </div>
-                </IonCardContent>
-              </IonCard>
 
               <IonButton
                 expand="block"
                 onClick={downloadReport}
                 color="success"
+                style={{ marginTop: '20px' }}
               >
                 <IonIcon icon={downloadOutline} slot="start" />
                 Download Report
