@@ -993,6 +993,7 @@ const IncidentReport: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastColor, setToastColor] = useState<'success' | 'danger' | 'warning'>('success');
+  const [accountStatus, setAccountStatus] = useState<string>('active');
   const [imagePreview, setImagePreview] = useState<string[]>([]);
   const [extractedExifData, setExtractedExifData] = useState<ExifData | null>(null);
   const [extractionLoading, setExtractionLoading] = useState(false);
@@ -1110,7 +1111,7 @@ const IncidentReport: React.FC = () => {
       // Get user profile from users table
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('user_firstname, user_lastname, user_email, user_address, user_contact_number')
+        .select('user_firstname, user_lastname, user_email, user_address, user_contact_number, status, warnings')
         .eq('user_email', user.email)
         .single();
 
@@ -1121,6 +1122,16 @@ const IncidentReport: React.FC = () => {
 
       if (profile) {
         setUserProfile(profile);
+        // Enforce account status rules
+        if ((profile as any).status) {
+          setAccountStatus((profile as any).status);
+          if ((profile as any).status === 'banned') {
+            showToastMessage('Your account is banned. You will be signed out.', 'danger');
+            await supabase.auth.signOut();
+            window.location.href = '/iAMUMAta';
+            return;
+          }
+        }
 
         // Auto-populate form data with user profile
         setFormData(prev => ({
@@ -1630,6 +1641,11 @@ const IncidentReport: React.FC = () => {
   };
 
   const submitReport = async () => {
+    // Block suspended accounts from submitting
+    if (accountStatus === 'suspended') {
+      showToastMessage('Your account is suspended. You cannot submit reports.', 'warning');
+      return;
+    }
     // Unified required validation
     const description = formData.description?.trim() || '';
     const missingRequired =
