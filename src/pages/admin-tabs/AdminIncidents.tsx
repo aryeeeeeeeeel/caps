@@ -338,7 +338,7 @@ const AdminIncidents: React.FC = () => {
   };
 
   const handleStatusChange = async () => {
-    if (!selectedReport || !notificationMessage.trim() || !estimatedTime) {
+    if (!selectedReport || !estimatedTime) {
       setToastMessage('Please fill in all required fields');
       setShowToast(true);
       return;
@@ -364,6 +364,12 @@ const AdminIncidents: React.FC = () => {
         updateData.status = 'active';
         updateData.scheduled_response_time = formattedTime;
         updateData.resolved_at = null;
+
+        // Automated message
+        const autoMsg = `Your ${selectedReport.title} has been verified and will be addressed at ${new Date(estimatedTime).toLocaleString()}. Thank you for your patience!`;
+        notificationMessage || setNotificationMessage(autoMsg);
+        // Store admin_response for history
+        updateData.admin_response = autoMsg;
       } else if (statusChangeType === 'active-to-resolved') {
         newStatus = 'resolved';
         updateData.status = 'resolved';
@@ -374,6 +380,12 @@ const AdminIncidents: React.FC = () => {
           const photoUrl = await uploadResolvedPhoto(resolvedPhoto, selectedReport.id);
           updateData.resolved_photo_url = photoUrl;
         }
+
+        // Automated message
+        const autoMsg = `Your ${selectedReport.title} has been resolved at ${new Date(estimatedTime).toLocaleString()}. Thank you for reporting this incident. Stay Safe and Godbless!`;
+        notificationMessage || setNotificationMessage(autoMsg);
+        // Store admin_response for history
+        updateData.admin_response = autoMsg;
       }
 
       // Update the incident report
@@ -384,18 +396,46 @@ const AdminIncidents: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      // Send notification
+      // Send notification (automated)
+      const finalMessage = statusChangeType === 'pending-to-active'
+        ? `Your report "${selectedReport.title}" has been verified and will be addressed at ${new Date(estimatedTime).toLocaleString()}. Thank you for your patience!`
+        : `Your report "${selectedReport.title}" has been resolved at ${new Date(estimatedTime).toLocaleString()}. Thank you for reporting this incident. Stay Safe and Godbless!`;
+
       const { error: notificationError } = await supabase
         .from('notifications')
         .insert({
           user_email: selectedReport.reporter_email,
           title: `Status Update: ${selectedReport.title}`,
-          message: `${notificationMessage}\n\n${statusChangeType === 'pending-to-active' ? 'Estimated Response Time' : 'Resolved At'}: ${new Date(estimatedTime).toLocaleString()}`,
+          message: finalMessage,
           related_report_id: selectedReport.id,
-          type: 'update'
+          type: 'update',
+          is_automated: true
         });
 
       if (notificationError) throw notificationError;
+
+      // System logs for status update + notification
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        await supabase.from('system_logs').insert([
+          {
+            admin_email: user.email,
+            activity_type: 'update_report',
+            activity_description: `Report status updated to ${newStatus}`,
+            target_user_email: selectedReport.reporter_email,
+            target_report_id: selectedReport.id,
+            details: { report_title: selectedReport.title, new_status: newStatus, at: new Date().toISOString() }
+          },
+          {
+            admin_email: user.email,
+            activity_type: 'notify',
+            activity_description: `Automated notification sent for status change`,
+            target_user_email: selectedReport.reporter_email,
+            target_report_id: selectedReport.id,
+            details: { report_title: selectedReport.title, message: finalMessage }
+          }
+        ]);
+      }
 
       setToastMessage(`Status updated to ${newStatus} successfully`);
       setShowToast(true);
@@ -448,10 +488,24 @@ const AdminIncidents: React.FC = () => {
             ? `${notificationMessage}\n\nEstimated resolution: ${new Date(estimatedTime).toLocaleString()}`
             : notificationMessage,
           related_report_id: selectedReport.id,
-          type: 'update'
+          type: 'update',
+          is_automated: false
         });
 
       if (error) throw error;
+
+      // System logs for manual notification
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        await supabase.from('system_logs').insert({
+          admin_email: user.email,
+          activity_type: 'notify',
+          activity_description: `User notified for report update`,
+          target_user_email: selectedReport.reporter_email,
+          target_report_id: selectedReport.id,
+          details: { report_title: selectedReport.title, message: notificationMessage, estimated_time: estimatedTime || null }
+        });
+      }
 
       setToastMessage('User notified successfully');
       setShowToast(true);
