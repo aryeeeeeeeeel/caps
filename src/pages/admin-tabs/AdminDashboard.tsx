@@ -192,6 +192,8 @@ const AdminDashboard: React.FC = () => {
   user?: User,
   report?: IncidentReport 
 } | null>(null);
+  const [showPrankModal, setShowPrankModal] = useState(false)
+  const [prankMessage, setPrankMessage] = useState("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.")
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -979,6 +981,100 @@ const AdminDashboard: React.FC = () => {
     }
   }
 
+  // NEW: Flag report as prank - updates priority to 'prank' and resolves
+  const flagReportAsPrank = async (report: IncidentReport, message: string) => {
+    try {
+      const updateData: any = {
+        priority: 'prank',
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+        admin_response: message
+      };
+
+      const { error } = await supabase
+        .from('incident_reports')
+        .update(updateData)
+        .eq('id', report.id);
+
+      if (error) throw error;
+
+      // Notify reporter with timestamp
+      const timestamp = new Date().toLocaleString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      await supabase.from('notifications').insert({
+        user_email: report.reporter_email,
+        title: 'Report Flagged as Prank',
+        message: `${message}\n\nFlagged on: ${timestamp}`,
+        related_report_id: report.id,
+        type: 'warning',
+        is_automated: true
+      });
+
+      // System log
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('system_logs').insert({
+        admin_email: user?.email || 'unknown',
+        activity_type: 'update_report',
+        activity_description: 'Report flagged as prank and resolved',
+        target_user_email: report.reporter_email,
+        target_report_id: report.id,
+        details: { report_title: report.title }
+      });
+
+      // Increment user warning count
+      try {
+        const { data: warningData } = await supabase
+          .from('users')
+          .select('warnings')
+          .eq('user_email', report.reporter_email)
+          .maybeSingle();
+
+        const currentWarnings = warningData?.warnings ?? 0;
+        await supabase
+          .from('users')
+          .update({
+            warnings: currentWarnings + 1,
+            last_warning_date: new Date().toISOString()
+          })
+          .eq('user_email', report.reporter_email);
+      } catch (warnErr) {
+        console.warn('Failed to increment warning count:', warnErr);
+      }
+
+      // Activity log entry
+      try {
+        await supabase.from('activity_logs').insert({
+          user_email: report.reporter_email,
+          activity_type: 'system',
+          activity_description: 'Report flagged as prank and resolved',
+          details: {
+            report_id: report.id,
+            report_title: report.title
+          }
+        });
+      } catch (activityErr) {
+        console.warn('Failed to log activity for prank:', activityErr);
+      }
+
+      setToastMessage('Report flagged as prank and resolved.');
+      setShowToast(true);
+      await fetchInitialData();
+    } catch (err) {
+      console.error('Error flagging report as prank:', err);
+      setToastMessage('Error flagging as prank');
+      setShowToast(true);
+    } finally {
+      setShowPrankModal(false);
+      setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+    }
+  }
+
   // NEW: Handle incident updates
   const handleUpdatedIncident = async (updatedReport: IncidentReport) => {
     try {
@@ -1673,6 +1769,7 @@ const AdminDashboard: React.FC = () => {
       case 'pending': return 'var(--warning-color)';
       case 'active': return 'var(--primary-color)';
       case 'resolved': return 'var(--success-color)';
+      case 'prank': return '#6b7280';
       default: return 'var(--text-secondary)';
     }
   };
@@ -1682,6 +1779,7 @@ const AdminDashboard: React.FC = () => {
       pending: reports.filter((r) => r.status === "pending").length,
       active: reports.filter((r) => r.status === "active").length,
       resolved: reports.filter((r) => r.status === "resolved").length,
+      prank: reports.filter((r) => (r as any).priority === 'prank').length,
       total: reports.length,
       // Align with AdminUsers: active = has_reports true, inactive = has_reports false
       activeUsers: users.filter((u) => u.has_reports).length,
@@ -1699,7 +1797,7 @@ const AdminDashboard: React.FC = () => {
   const filteredReports = useMemo(() => {
     const filtered = reports.filter((report) => {
       const matchesStatus = statusFilter === "all" || report.status === statusFilter
-      const matchesPriority = priorityFilter === "all" || report.priority === priorityFilter
+      const matchesPriority = priorityFilter === "all" || (report as any).priority === priorityFilter || report.priority === priorityFilter
       return matchesStatus && matchesPriority
     })
 
@@ -1767,19 +1865,30 @@ const AdminDashboard: React.FC = () => {
 
     try {
       let updates: any = {};
+      let actionTitle = '';
+      let notifyMessage = '';
+      const targetEmail = selectedUserForAction.user_email;
       switch (action) {
         case "warn":
           updates = { warnings: (selectedUserForAction.warnings || 0) + 1, last_warning_date: new Date().toISOString() };
           if (updates.warnings >= 3) updates.status = 'suspended';
+          actionTitle = 'Account Warned';
+          notifyMessage = 'Your account has received a warning from LDRRMO staff. Please adhere to community guidelines to avoid account suspension.';
           break;
         case "suspend":
           updates = { status: 'suspended' };
+          actionTitle = 'Account Suspended';
+          notifyMessage = 'Your account has been suspended due to violations of community guidelines. Contact LDRRMO for assistance.';
           break;
         case "ban":
           updates = { status: 'banned' };
+          actionTitle = 'Account Banned';
+          notifyMessage = 'Your account has been banned due to severe or repeated violations. This action is permanent.';
           break;
         case "activate":
           updates = { status: 'active', warnings: 0, last_warning_date: null };
+          actionTitle = 'Account Activated';
+          notifyMessage = 'Your account has been reactivated. Please follow community guidelines to avoid further actions.';
           break;
       }
 
@@ -1790,14 +1899,54 @@ const AdminDashboard: React.FC = () => {
 
       if (error) throw error
 
-      const actionMessage = action === 'warn' && updates.warnings >= 3 ?
-        'User warned and auto-suspended (3 warnings)' :
-        `User ${action}ed successfully`;
+      const verbMap: Record<"warn" | "suspend" | "ban" | "activate", string> = {
+        warn: 'warned',
+        suspend: 'suspended',
+        ban: 'banned',
+        activate: 'activated'
+      };
+
+      const actionMessage = action === 'warn' && updates.warnings >= 3
+        ? 'User warned and auto-suspended (3 warnings)'
+        : `User ${verbMap[action]} successfully`;
 
       setToastMessage(actionMessage);
       setShowToast(true);
       setShowUserActionModal(false);
       await fetchInitialData();
+
+      // Notify the user about the action
+      try {
+        await supabase.from('notifications').insert({
+          user_email: targetEmail,
+          title: actionTitle,
+          message: notifyMessage,
+          type: 'warning',
+          is_automated: true
+        });
+      } catch {}
+
+      // Log to system_logs
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from('system_logs').insert({
+          admin_email: user?.email || 'unknown',
+          activity_type: 'user_action',
+          activity_description: `${actionTitle} by admin`,
+          target_user_email: targetEmail,
+          details: { action, updates }
+        });
+      } catch {}
+
+      // Log to activity_logs for auditing (ties to user)
+      try {
+        await supabase.from('activity_logs').insert({
+          user_email: targetEmail,
+          activity_type: 'account',
+          activity_description: `${actionTitle}`,
+          details: { action, by: 'admin' }
+        });
+      } catch {}
     } catch (error) {
       console.error("Error updating user:", error)
       setToastMessage("Error updating user")
@@ -1871,10 +2020,12 @@ const AdminDashboard: React.FC = () => {
 
     if (report.status === 'pending') {
       setStatusChangeType('pending-to-active')
+      setNotificationMessage('Your report will be addressed by the responders of LDRRMO. Thank you for being patient and stay safe.')
       setSelectedReport(report)
       setShowStatusChangeModal(true)
     } else if (report.status === 'active') {
       setStatusChangeType('active-to-resolved')
+      setNotificationMessage('Your report has been resolved successfully by the responders of LDRRMO. Thank you for reporting this incident. Your help is much appreciated, GODBLESS!')
       setSelectedReport(report)
       setShowStatusChangeModal(true)
     }
@@ -2732,6 +2883,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                       { value: "high", label: "High", color: "#f97316" },
                       { value: "medium", label: "Medium", color: "#eab308" },
                       { value: "low", label: "Low", color: "#84cc16" },
+                      { value: "prank", label: "Prank", color: "#6b7280" },
                     ].map((filter) => (
                       <IonChip
                         key={filter.value}
@@ -2823,6 +2975,12 @@ const handleDeleteReport = async (report: IncidentReport) => {
                                       "--color": "white",
                                     } as any
                                   }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedReport(report);
+                                  setShowPrankModal(true);
+                                  setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+                                }}
                                 >
                                   {report.priority}
                                 </IonBadge>
@@ -3049,6 +3207,93 @@ const handleDeleteReport = async (report: IncidentReport) => {
                 background: "#f1f5f9",
               }}
             />
+
+            {/* Prank Modal */}
+            <IonModal isOpen={showPrankModal} onDidDismiss={() => setShowPrankModal(false)}>
+              <IonHeader>
+                <IonToolbar>
+                  <IonButtons slot="start">
+                    <IonButton onClick={() => setShowPrankModal(false)}>
+                      <IonIcon icon={closeOutline} />
+                    </IonButton>
+                  </IonButtons>
+                  <IonTitle>Flag as Prank Report</IonTitle>
+                  <IonButtons slot="end">
+                    <IonButton
+                      onClick={() => {
+                        if (selectedReport) {
+                          flagReportAsPrank(selectedReport, prankMessage);
+                        }
+                      }}
+                      strong
+                      color="danger"
+                    >
+                      Flag & Resolve
+                    </IonButton>
+                  </IonButtons>
+                </IonToolbar>
+              </IonHeader>
+              <IonContent>
+                <div style={{ padding: '16px' }}>
+                  {selectedReport && (
+                    <>
+                      <IonCard style={{ marginBottom: '16px' }}>
+                        <IonCardContent>
+                          <h3 style={{ marginTop: 0, marginBottom: '12px', fontSize: '18px', fontWeight: 'bold' }}>
+                            Report Information
+                          </h3>
+                          <div style={{ marginBottom: '8px' }}>
+                            <strong>Title:</strong> {selectedReport.title}
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <strong>Reporter Name:</strong> {selectedReport.reporter_name}
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <strong>Reporter Email:</strong> {selectedReport.reporter_email}
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <strong>Reporter Contact:</strong> {selectedReport.reporter_contact || 'N/A'}
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <strong>Reporter Address:</strong> {selectedReport.reporter_address || 'N/A'}
+                          </div>
+                          <div style={{ 
+                            marginTop: '12px', 
+                            padding: '8px', 
+                            background: '#fef3cd', 
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            color: '#92400e'
+                          }}>
+                            <strong>Flagged on:</strong> {new Date().toLocaleString('en-US', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric', 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: true 
+                            })}
+                          </div>
+                        </IonCardContent>
+                      </IonCard>
+                      <IonCard>
+                        <IonCardContent>
+                          <IonItem>
+                            <IonLabel position="stacked" color="primary">Message to User</IonLabel>
+                            <IonTextarea
+                              value={prankMessage}
+                              onIonInput={(e) => setPrankMessage(e.detail.value!)}
+                              rows={5}
+                              autoGrow
+                            />
+                          </IonItem>
+                        </IonCardContent>
+                      </IonCard>
+                    </>
+                  )}
+                </div>
+              </IonContent>
+            </IonModal>
           </div>
 
           {/* Right Panel - Users */}
@@ -3199,6 +3444,11 @@ const handleDeleteReport = async (report: IncidentReport) => {
                                   {isUserOnline(user) && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", boxShadow: "0 0 0 2px #d1fae5" }} />}
                                 </div>
                                 <div style={{ fontSize: "12px", color: "#6b7280" }}>{user.user_email}</div>
+                                {user.warnings > 0 && (
+                                  <div style={{ fontSize: "11px", color: "#dc2626", marginTop: "2px", fontWeight: 600 }}>
+                                    Account Warned ({user.warnings})
+                                  </div>
+                                )}
                               </div>
                               <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                 <IonBadge
@@ -3336,7 +3586,18 @@ const handleDeleteReport = async (report: IncidentReport) => {
                       >
                         {selectedReport.status}
                       </IonBadge>
-                      <IonBadge style={{ "--background": getPriorityColor(selectedReport.priority) } as any}>
+                      <IonBadge 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedReport(selectedReport);
+                          setShowPrankModal(true);
+                          setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+                        }}
+                        style={{ 
+                          "--background": getPriorityColor(selectedReport.priority),
+                          cursor: 'pointer'
+                        } as any}
+                      >
                         {selectedReport.priority}
                       </IonBadge>
                     </div>
