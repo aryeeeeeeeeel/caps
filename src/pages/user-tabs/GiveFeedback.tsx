@@ -122,7 +122,7 @@ const GiveFeedback: React.FC = () => {
   const [isReportsLoading, setIsReportsLoading] = useState(true);
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
   const [showExistingFeedback, setShowExistingFeedback] = useState(false);
-  const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'feedbacked' | 'not'>('all');
+  const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'feedback' | 'not'>('all');
 
   const feedbackCategories = [
     'Response Speed',
@@ -540,7 +540,7 @@ const GiveFeedback: React.FC = () => {
 
   const displayReports = baseReports.filter(r => {
     if (feedbackFilter === 'all') return true;
-    if (feedbackFilter === 'feedbacked') return !!r.has_feedback;
+    if (feedbackFilter === 'feedback') return !!r.has_feedback;
     if (feedbackFilter === 'not') return !r.has_feedback;
     return true;
   });
@@ -702,7 +702,7 @@ const GiveFeedback: React.FC = () => {
             <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
               {[
                 { key: 'all', label: 'All' },
-                { key: 'feedbacked', label: 'Feedbacked' },
+                { key: 'feedback', label: 'Feedback' },
                 { key: 'not', label: 'Not Yet' }
               ].map((f: any) => (
                 <button
@@ -715,9 +715,13 @@ const GiveFeedback: React.FC = () => {
                     borderRadius: '8px',
                     padding: '6px 10px',
                     fontSize: '12px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}
                 >
+                  {f.key === 'feedback' && <IonIcon icon={checkmarkCircleOutline} />}
                   {f.label}
                 </button>
               ))}
