@@ -790,21 +790,6 @@ const Dashboard: React.FC = () => {
           }}>
             <IonCardContent style={{ padding: '24px', position: 'relative' }}>
               {/* Account status indicators */}
-              {userProfile && (
-                <div style={{ marginBottom: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {userProfile.warnings > 0 && (
-                    <span style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.5)', color: 'white', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700 }}>
-                      ⚠️ Account Warned ({userProfile.warnings})
-                    </span>
-                  )}
-                  {userProfile.status === 'suspended' && (
-                    <span style={{ background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.5)', color: 'white', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700 }}>
-                      ⛔ Account Suspended — submitting reports is disabled
-                    </span>
-                  )}
-                </div>
-              )}
-
               <div style={{
                 position: 'absolute',
                 right: '-20px',
@@ -854,6 +839,18 @@ const Dashboard: React.FC = () => {
                     <p style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
                       {userProfile.username || 'User'}
                     </p>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      {userProfile.warnings > 0 && (
+                        <span style={{ background: 'rgba(245,158,11,0.18)', border: '1px solid rgba(245,158,11,0.45)', color: 'white', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
+                          ⚠️ Account Warned ({userProfile.warnings})
+                        </span>
+                      )}
+                      {userProfile.status === 'suspended' && (
+                        <span style={{ background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.5)', color: 'white', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
+                          ⛔ Account Suspended — submitting reports is disabled
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <IonIcon icon={homeOutline} style={{ fontSize: '24px', opacity: 0.8 }} />
                 </div>
