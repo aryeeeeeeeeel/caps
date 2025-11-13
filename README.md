@@ -2,12 +2,12 @@
 
 A comprehensive incident reporting and management system built with Ionic React and Supabase.
 
-> **Latest Update**: Document analytics and account status enhancements.
+> **Latest Update**: Update with latest features and analytics enhancements.
 
 ## Features
 
 - 🚨 **Incident Reporting**: Report incidents with photos, location, and detailed descriptions
-- 📍 **Interactivgit e Map**: View incidents on an interactive map with real-time updates
+- 📍 **Interactive Map**: View incidents on an interactive map with real-time updates
 - 👥 **User Management**: Separate interfaces for users and administrators
 - 📊 **Analytics Dashboard**: Comprehensive analytics and reporting for administrators
 - 🔔 **Real-time Notifications**: Instant notifications for incident updates
