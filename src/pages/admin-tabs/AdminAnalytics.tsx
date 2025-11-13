@@ -52,6 +52,7 @@ interface ReportData {
     medium: number;
     high: number;
     critical: number;
+    prank: number;
   };
   byBarangay: { [key: string]: number };
   byCategory: { [key: string]: number };
@@ -231,7 +232,7 @@ const AdminAnalytics: React.FC = () => {
   };
 
   const [barangayFilter, setBarangayFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical' | 'prank'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'resolved'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
@@ -244,14 +245,21 @@ const AdminAnalytics: React.FC = () => {
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
+        // All 22 barangays in Manolo Fortich
+        const allBarangays = [
+          'Agusan Canyon', 'Alae', 'Dahilayan', 'Dalirig', 'Damilag', 'Dicklum',
+          'Guilang-guilang', 'Kalugmanan', 'Lindaban', 'Lingion', 'Lunocan', 'Maluko',
+          'Mambatangan', 'Mampayag', 'Mantibugao', 'Minsuro', 'San Miguel', 'Sankanan',
+          'Santiago', 'Santo Niño', 'Tankulan', 'Ticala'
+        ];
+        setBarangayOptions(allBarangays);
+        
         const { data, error } = await supabase
           .from('incident_reports')
-          .select('barangay, category')
+          .select('category')
           .order('created_at', { ascending: false });
         if (error) return;
-        const barangays = Array.from(new Set((data || []).map(r => r.barangay).filter(Boolean))).sort();
         const categories = Array.from(new Set((data || []).map(r => r.category).filter(Boolean))).sort();
-        setBarangayOptions(barangays);
         setCategoryOptions(categories);
       } catch {}
     };
@@ -327,7 +335,7 @@ const AdminAnalytics: React.FC = () => {
     // Title
     ctx.fillStyle = '#1f2937';
     ctx.font = '14px sans-serif';
-    const title = 'Barangay Reports (highest on left)';
+    const title = '                         Barangay Reports (highest on left)';
     ctx.fillText(title, margin.left, 16);
   }, [reportData]);
 
@@ -367,7 +375,8 @@ const AdminAnalytics: React.FC = () => {
             low: data.filter(r => r.priority === 'low').length,
             medium: data.filter(r => r.priority === 'medium').length,
             high: data.filter(r => r.priority === 'high').length,
-            critical: data.filter(r => r.priority === 'critical').length
+            critical: data.filter(r => r.priority === 'critical').length,
+            prank: data.filter(r => r.priority === 'prank').length
           },
           byBarangay: {},
           byCategory: {}
@@ -438,6 +447,7 @@ const AdminAnalytics: React.FC = () => {
       ['High', reportData.byPriority.high],
       ['Medium', reportData.byPriority.medium],
       ['Low', reportData.byPriority.low],
+      ['Prank', reportData.byPriority.prank || 0],
     ];
   
     const barangays = [['Barangay', 'Count'], ...Object.entries(reportData.byBarangay).sort((a, b) => b[1] - a[1])];
@@ -522,6 +532,7 @@ const AdminAnalytics: React.FC = () => {
         ['High', barangayReports.filter(r => r.priority === 'high').length],
         ['Medium', barangayReports.filter(r => r.priority === 'medium').length],
         ['Low', barangayReports.filter(r => r.priority === 'low').length],
+        ['Prank', barangayReports.filter(r => r.priority === 'prank').length],
         [],
         ['Category Breakdown'],
       ];
@@ -593,6 +604,7 @@ const AdminAnalytics: React.FC = () => {
       'High',
       'Medium',
       'Low',
+      'Prank',
       ...categoriesSet
     ];
   
@@ -609,6 +621,7 @@ const AdminAnalytics: React.FC = () => {
         barangayReports.filter(r => r.priority === 'high').length,
         barangayReports.filter(r => r.priority === 'medium').length,
         barangayReports.filter(r => r.priority === 'low').length,
+        barangayReports.filter(r => r.priority === 'prank').length,
         ...categoriesSet.map(category => 
           barangayReports.filter(r => (r.category || 'Unknown') === category).length
         )
@@ -619,6 +632,7 @@ const AdminAnalytics: React.FC = () => {
     wsComparison['!cols'] = [
       { wch: 24 },
       { wch: 12 },
+      { wch: 10 },
       { wch: 10 },
       { wch: 10 },
       { wch: 10 },
@@ -878,31 +892,40 @@ const AdminAnalytics: React.FC = () => {
                     <IonPopover
                       isOpen={showDatePicker}
                       onDidDismiss={() => setShowDatePicker(false)}
+                      style={{ '--width': '600px', '--max-width': '90vw' } as any}
                     >
                       <IonContent>
                         <div style={{ padding: '16px' }}>
-                          <IonItem>
-                            <IonLabel position="stacked">Start Date</IonLabel>
-                            <IonDatetime
-                              presentation="date"
-                              value={startDate}
-                              onIonChange={(e) => {
-                                const value = e.detail.value as string;
-                                if (value) setStartDate(value.split('T')[0]);
-                              }}
-                            />
-                          </IonItem>
-                          <IonItem>
-                            <IonLabel position="stacked">End Date</IonLabel>
-                            <IonDatetime
-                              presentation="date"
-                              value={endDate}
-                              onIonChange={(e) => {
-                                const value = e.detail.value as string;
-                                if (value) setEndDate(value.split('T')[0]);
-                              }}
-                            />
-                          </IonItem>
+                          <IonGrid>
+                            <IonRow>
+                              <IonCol size="6">
+                                <IonItem>
+                                  <IonLabel position="stacked">Start Date</IonLabel>
+                                  <IonDatetime
+                                    presentation="date"
+                                    value={startDate}
+                                    onIonChange={(e) => {
+                                      const value = e.detail.value as string;
+                                      if (value) setStartDate(value.split('T')[0]);
+                                    }}
+                                  />
+                                </IonItem>
+                              </IonCol>
+                              <IonCol size="6">
+                                <IonItem>
+                                  <IonLabel position="stacked">End Date</IonLabel>
+                                  <IonDatetime
+                                    presentation="date"
+                                    value={endDate}
+                                    onIonChange={(e) => {
+                                      const value = e.detail.value as string;
+                                      if (value) setEndDate(value.split('T')[0]);
+                                    }}
+                                  />
+                                </IonItem>
+                              </IonCol>
+                            </IonRow>
+                          </IonGrid>
                           <IonButton expand="block" onClick={() => setShowDatePicker(false)} style={{ marginTop: '16px' }}>
                             Done
                           </IonButton>
@@ -940,6 +963,7 @@ const AdminAnalytics: React.FC = () => {
                         <IonSelectOption value="high">High</IonSelectOption>
                         <IonSelectOption value="medium">Medium</IonSelectOption>
                         <IonSelectOption value="low">Low</IonSelectOption>
+                        <IonSelectOption value="prank">Prank</IonSelectOption>
                       </IonSelect>
                     </IonItem>
                   </IonCol>
@@ -1097,7 +1121,9 @@ const AdminAnalytics: React.FC = () => {
 
                               {/* Status Section */}
                               <div style={{ marginBottom: '24px' }}>
-                                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>Status</h3>
+                                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>
+                                  Status ({totalReports})
+                                </h3>
                                 <div style={{ display: 'grid', gap: '8px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
                                     <span style={{ fontSize: '14px', color: '#6b7280' }}>pending</span>
@@ -1116,7 +1142,9 @@ const AdminAnalytics: React.FC = () => {
 
                               {/* Priority Section */}
                               <div style={{ marginBottom: '24px' }}>
-                                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>Priority</h3>
+                                <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#374151' }}>
+                                  Priority ({totalReports})
+                                </h3>
                                 <div style={{ display: 'grid', gap: '8px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
                                     <span style={{ fontSize: '14px', color: '#6b7280' }}>critical</span>
@@ -1133,6 +1161,10 @@ const AdminAnalytics: React.FC = () => {
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
                                     <span style={{ fontSize: '14px', color: '#6b7280' }}>low</span>
                                     <IonBadge color="success" style={{ fontSize: '12px' }}>{priorityCounts.low}</IonBadge>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '14px', color: '#6b7280' }}>prank</span>
+                                    <IonBadge color="medium" style={{ fontSize: '12px' }}>{barangayReports.filter(r => r.priority === 'prank').length}</IonBadge>
                                   </div>
                                 </div>
                               </div>
