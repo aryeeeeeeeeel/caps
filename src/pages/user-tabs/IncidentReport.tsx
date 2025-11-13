@@ -1646,24 +1646,25 @@ const IncidentReport: React.FC = () => {
       showToastMessage('Your account is suspended. You cannot submit reports.', 'warning');
       return;
     }
-    // Unified required validation
-    const description = formData.description?.trim() || '';
-    const missingRequired =
-      !formData.category ||
-      description.length === 0 || !description.replace(/\s+/g, '').length ||
-      !formData.reporter_address?.trim() ||
-      !formData.reporter_contact?.trim() ||
-      !formData.barangay ||
-      formData.images.length === 0;
-
-    if (missingRequired) {
-      showToastMessage('Please input all required fields', 'warning');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
+      // Unified required validation moved inside try to ensure it only runs on submit attempt
+      const description = formData.description?.trim() || '';
+      const missingRequired =
+        !formData.category ||
+        description.length === 0 || !description.replace(/\s+/g, '').length ||
+        !formData.reporter_address?.trim() ||
+        !formData.reporter_contact?.trim() ||
+        !formData.barangay ||
+        formData.images.length === 0;
+
+      if (missingRequired) {
+        showToastMessage('Please input all required fields', 'warning');
+        setIsSubmitting(false);
+        return;
+      }
+
       const { user, error } = await safeAuthCheck();
       if (error) {
         console.error('Authentication error during submit:', error);
