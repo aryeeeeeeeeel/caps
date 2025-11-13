@@ -4,7 +4,7 @@
 CREATE TABLE public.activity_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_email text,
-  activity_type text NOT NULL CHECK (activity_type = ANY (ARRAY['login'::text, 'logout'::text, 'report'::text, 'feedback'::text, 'profile'::text])),
+  activity_type text NOT NULL CHECK (activity_type = ANY (ARRAY['login'::text, 'logout'::text, 'report'::text, 'feedback'::text, 'profile'::text, 'account'::text, 'system'::text])),
   activity_description text NOT NULL,
   details jsonb DEFAULT '{}'::jsonb,
   ip_address text,
@@ -46,7 +46,7 @@ CREATE TABLE public.incident_reports (
   title text NOT NULL,
   description text NOT NULL,
   category text NOT NULL,
-  priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text])),
+  priority text NOT NULL DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text, 'prank'::text])),
   status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'active'::text, 'resolved'::text])),
   location text,
   barangay text,
@@ -118,8 +118,8 @@ CREATE TABLE public.system_logs (
 );
 CREATE TABLE public.users (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  username text NOT NULL UNIQUE,
-  user_email text NOT NULL UNIQUE,
+  username text NOT NULL,
+  user_email text NOT NULL,
   user_firstname text,
   user_lastname text,
   user_avatar_url text,
