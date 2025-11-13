@@ -636,6 +636,7 @@ useEffect(() => {
   setIsLoggingIn(true);
   
   try {
+    let userProfile: { id: string; status: string; user_email?: string } | null = null;
     let loginEmail = trimmedIdentifier;
     
     // If it's not an email, look up the email from username
@@ -652,12 +653,13 @@ useEffect(() => {
         return;
       }
       
-      if (userData.status !== 'active') {
-        showCustomToast('Your account is not active. Please contact support.', 'warning');
+      if (userData.status === 'banned') {
+        showCustomToast('Your account has been banned. Please contact support for assistance.', 'danger');
         setIsLoggingIn(false);
         return;
       }
       
+      userProfile = userData;
       loginEmail = userData.user_email;
     }
 
@@ -682,15 +684,29 @@ useEffect(() => {
       return;
     }
 
-    // Login successful - update user status
-    await supabase
-      .from('users')
-      .update({ 
-        last_active_at: new Date().toISOString(),
-        is_online: true,
-        status: 'active'
-      })
-      .eq('id', authData.user.id);
+    if (!userProfile) {
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .select('id, status, user_email')
+        .eq('auth_user_id', authData.user.id)
+        .single();
+
+      if (profileError || !profileData) {
+        showCustomToast('Unable to load your profile details. Please contact support.', 'danger');
+        await supabase.auth.signOut();
+        setIsLoggingIn(false);
+        return;
+      }
+
+      if (profileData.status === 'banned') {
+        showCustomToast('Your account has been banned. Please contact support for assistance.', 'danger');
+        await supabase.auth.signOut();
+        setIsLoggingIn(false);
+        return;
+      }
+
+      userProfile = profileData;
+    }
 
     // Generate device fingerprint
     const fingerprint = await generateDeviceFingerprint();
@@ -730,7 +746,10 @@ useEffect(() => {
     // Update last_active_at in users table
     await supabase
       .from('users')
-      .update({ last_active_at: new Date().toISOString() })
+      .update({ 
+        last_active_at: new Date().toISOString(),
+        is_online: true
+      })
       .eq('user_email', userEmail);
 
     // Save to remembered accounts if enabled
