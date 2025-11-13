@@ -87,7 +87,7 @@ const ActivityLogs: React.FC = () => {
   const [userReports, setUserReports] = useState<any[]>([]);
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
-  const [filter, setFilter] = useState<'all' | 'login' | 'logout' | 'report' | 'feedback' | 'profile' | 'account'>('all');
+  const [filter, setFilter] = useState<'all' | 'login' | 'logout' | 'report' | 'feedback' | 'profile' | 'account' | 'system'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState('');
 
@@ -343,7 +343,9 @@ const ActivityLogs: React.FC = () => {
   const filteredLogs = activityLogs.filter(log => {
     if (filter === 'all') return true;
     if (filter === 'account') {
-      return ['status_warned','status_suspended','status_banned','status_activated'].includes(log.activity_type);
+      // Filter for account-related activities
+      return log.activity_type === 'account' || 
+             ['status_warned','status_suspended','status_banned','status_activated'].includes(log.activity_type);
     }
     return log.activity_type === filter;
   });
@@ -355,10 +357,12 @@ const ActivityLogs: React.FC = () => {
       case 'report': return addCircleOutline;
       case 'feedback': return chatbubbleOutline;
       case 'profile': return personOutline;
+      case 'account': return warningOutline;
       case 'status_warned': return warningOutline;
       case 'status_suspended': return warningOutline;
       case 'status_banned': return warningOutline;
       case 'status_activated': return checkmarkCircleOutline;
+      case 'system': return informationCircleOutline;
       default: return informationCircleOutline;
     }
   };
@@ -370,10 +374,12 @@ const ActivityLogs: React.FC = () => {
       case 'report': return '#3b82f6';
       case 'feedback': return '#8b5cf6';
       case 'profile': return '#f59e0b';
+      case 'account': return '#ef4444';
       case 'status_warned': return '#f59e0b';
       case 'status_suspended': return '#f97316';
       case 'status_banned': return '#ef4444';
       case 'status_activated': return '#10b981';
+      case 'system': return '#6b7280';
       default: return '#6b7280';
     }
   };
@@ -845,7 +851,7 @@ const ActivityLogs: React.FC = () => {
                   { label: 'Logins', value: stats.login, color: '#10b981', icon: logInOutline, filter: 'login' },
                   { label: 'Reports', value: stats.report, color: '#3b82f6', icon: addCircleOutline, filter: 'report' },
                   { label: 'Feedback', value: stats.feedback, color: '#8b5cf6', icon: chatbubbleOutline, filter: 'feedback' },
-                  { label: 'Account', value: activityLogs.filter(l => ['status_warned','status_suspended','status_banned','status_activated'].includes(l.activity_type)).length, color: '#ef4444', icon: warningOutline, filter: 'account' }
+                  { label: 'Account', value: activityLogs.filter(l => l.activity_type === 'account' || ['status_warned','status_suspended','status_banned','status_activated'].includes(l.activity_type)).length, color: '#ef4444', icon: warningOutline, filter: 'account' }
                 ].map((stat, idx) => (
                   <div
                     key={idx}
