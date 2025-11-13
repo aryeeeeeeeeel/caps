@@ -414,9 +414,11 @@ const AdminUsers: React.FC = () => {
       // Write activity_logs for the affected user
       await supabase.from('activity_logs').insert({
         user_email: targetEmail,
-        activity_type: action === 'warn' ? 'status_warned' : action === 'activate' ? 'status_activated' : action === 'suspend' ? 'status_suspended' : 'status_banned',
-        activity_description: `${statusTitleMap[action]} (${userFullname})`,
+        activity_type: 'account',
+        activity_description: `${statusTitleMap[action]}`,
         details: {
+          action: action,
+          user_fullname: userFullname,
           admin_email: adminEmail,
           at: nowIso
         }
