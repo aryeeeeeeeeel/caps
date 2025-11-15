@@ -685,13 +685,15 @@ useEffect(() => {
     }
 
     if (!userProfile) {
+      // Use user_email instead of auth_user_id to avoid RLS policy issues
       const { data: profileData, error: profileError } = await supabase
         .from('users')
         .select('id, status, user_email')
-        .eq('auth_user_id', authData.user.id)
+        .eq('user_email', loginEmail)
         .single();
 
       if (profileError || !profileData) {
+        console.error('Error fetching user profile:', profileError);
         showCustomToast('Unable to load your profile details. Please contact support.', 'danger');
         await supabase.auth.signOut();
         setIsLoggingIn(false);
