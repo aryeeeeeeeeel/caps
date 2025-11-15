@@ -653,8 +653,15 @@ useEffect(() => {
         return;
       }
       
+      // Only block banned and suspended users, allow inactive and active users
       if (userData.status === 'banned') {
         showCustomToast('Your account has been banned. Please contact support for assistance.', 'danger');
+        setIsLoggingIn(false);
+        return;
+      }
+      
+      if (userData.status === 'suspended') {
+        showCustomToast('Your account has been suspended. Please contact support for assistance.', 'danger');
         setIsLoggingIn(false);
         return;
       }
@@ -700,8 +707,16 @@ useEffect(() => {
         return;
       }
 
+      // Only block banned and suspended users, allow inactive and active users
       if (profileData.status === 'banned') {
         showCustomToast('Your account has been banned. Please contact support for assistance.', 'danger');
+        await supabase.auth.signOut();
+        setIsLoggingIn(false);
+        return;
+      }
+      
+      if (profileData.status === 'suspended') {
+        showCustomToast('Your account has been suspended. Please contact support for assistance.', 'danger');
         await supabase.auth.signOut();
         setIsLoggingIn(false);
         return;

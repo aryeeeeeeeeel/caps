@@ -107,6 +107,18 @@ export const logSystemActivity = async (
       return;
     }
 
+    // Verify admin role before logging
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('user_email', email)
+      .maybeSingle();
+
+    if (!userData || userData.role !== 'admin') {
+      console.warn(`User ${email} is not an admin, skipping system log`);
+      return;
+    }
+
     const clientInfo = getClientInfo();
 
     const { error } = await supabase
@@ -123,10 +135,19 @@ export const logSystemActivity = async (
       });
 
     if (error) {
+      // Handle RLS policy errors gracefully
+      if (error.code === '42501' || 
+          error.message?.includes('row-level security') || 
+          error.message?.includes('policy') ||
+          error.code === 'PGRST301') {
+        console.debug('System log skipped due to RLS policy - admin role may not be properly set in JWT');
+        return;
+      }
       console.error('Error logging system activity:', error);
     }
   } catch (error) {
-    console.error('Error logging system activity:', error);
+    // Silently fail system logging to not break the main flow
+    console.debug('Error logging system activity (non-critical):', error);
   }
 };
 
@@ -156,6 +177,31 @@ export const updateUserStatus = async (email: string, status: string, isOnline: 
   }
 };
 
+// Update only is_online status without changing user status
+export const updateUserOnlineStatus = async (email: string, isOnline: boolean) => {
+  try {
+    const userExists = await checkUserExists(email);
+    if (!userExists) {
+      console.warn(`User ${email} not found in users table, skipping online status update`);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({ 
+        is_online: isOnline,
+        last_active_at: new Date().toISOString() 
+      })
+      .eq('user_email', email);
+
+    if (error) {
+      console.error('Error updating user online status:', error);
+    }
+  } catch (error) {
+    console.error('Error updating user online status:', error);
+  }
+};
+
 // Specific User Activity Logging Functions
 export const logUserLogin = async (userEmail?: string) => {
   try {
@@ -163,7 +209,8 @@ export const logUserLogin = async (userEmail?: string) => {
     const email = userEmail || user?.email;
     
     if (email) {
-      await updateUserStatus(email, 'active', true);
+      // Only update is_online to true, don't change user status
+      await updateUserOnlineStatus(email, true);
       await logUserActivity(
         'login',
         'User logged in successfully',
@@ -182,7 +229,8 @@ export const logUserLogout = async (userEmail?: string) => {
     const email = userEmail || user?.email;
     
     if (email) {
-      await updateUserStatus(email, 'inactive', false);
+      // Only update is_online to false, don't change user status
+      await updateUserOnlineStatus(email, false);
       await logUserActivity(
         'logout',
         'User logged out',
