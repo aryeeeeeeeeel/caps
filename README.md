@@ -2,7 +2,7 @@
 
 A comprehensive incident reporting and management system built with Ionic React and Supabase.
 
-> **Latest Update**: Update with latest features and analytics enhancements.
+> **Latest Update**: Fixed user login issue and added logout activity tracking to activity logs.
 
 ## Features
 
