@@ -405,6 +405,7 @@ const ActivityLogs: React.FC = () => {
   const stats = {
     total: activityLogs.length,
     login: activityLogs.filter(log => log.activity_type === 'login').length,
+    logout: activityLogs.filter(log => log.activity_type === 'logout').length,
     report: activityLogs.filter(log => log.activity_type === 'report').length,
     feedback: activityLogs.filter(log => log.activity_type === 'feedback').length
   };
@@ -849,6 +850,7 @@ const ActivityLogs: React.FC = () => {
                 {[
                   { label: 'Total', value: stats.total, color: '#6b7280', icon: documentTextOutline, filter: 'all' },
                   { label: 'Logins', value: stats.login, color: '#10b981', icon: logInOutline, filter: 'login' },
+                  { label: 'Logouts', value: stats.logout, color: '#6b7280', icon: logOutOutline, filter: 'logout' },
                   { label: 'Reports', value: stats.report, color: '#3b82f6', icon: addCircleOutline, filter: 'report' },
                   { label: 'Feedback', value: stats.feedback, color: '#8b5cf6', icon: chatbubbleOutline, filter: 'feedback' },
                   { label: 'Account', value: activityLogs.filter(l => l.activity_type === 'account' || ['status_warned','status_suspended','status_banned','status_activated'].includes(l.activity_type)).length, color: '#ef4444', icon: warningOutline, filter: 'account' }
