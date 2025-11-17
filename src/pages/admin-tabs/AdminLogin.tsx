@@ -316,7 +316,12 @@ const AdminLogin: React.FC = () => {
         showCustomToast('Credentials incorrect', 'danger');
         return false;
       }
-      await supabase.auth.signOut(); // Don't persist session
+      // Safely attempt signOut, but don't fail if it errors
+      try {
+        await supabase.auth.signOut(); // Don't persist session
+      } catch (signOutError) {
+        console.warn('SignOut error (non-critical):', signOutError);
+      }
       return true;
     } catch (error: any) {
       showCustomToast('Login failed', 'danger');
@@ -385,14 +390,24 @@ const AdminLogin: React.FC = () => {
     });
 
     if (verifyError) {
-      if (verifyError.message.includes('expired') || verifyError.message.includes('Token has expired')) {
+      // Handle 403 Forbidden errors
+      if (verifyError.status === 403 || verifyError.message?.includes('403') || verifyError.message?.includes('Forbidden')) {
+        showCustomToast('Verification code is invalid or has expired. Please request a new one.', 'warning');
+        setIsVerifying(false);
+        setShowOtpModal(false);
+        setOtp('');
+        return;
+      } else if (verifyError.message.includes('expired') || verifyError.message.includes('Token has expired')) {
         showCustomToast('Verification code expired. Please request a new one.', 'warning');
+        setIsVerifying(false);
         setShowOtpModal(false);
         setOtp('');
         return;
       } else if (verifyError.message.includes('invalid') || verifyError.message.includes('Invalid')) {
         showCustomToast('Invalid verification code. Please try again.', 'danger');
+        setIsVerifying(false);
         setOtp('');
+        // Keep modal open so user can retry
         return;
       } else {
         throw verifyError;
@@ -409,36 +424,49 @@ const AdminLogin: React.FC = () => {
       throw new Error('Authentication failed. Please try again.');
     }
 
-    // FIXED: Use auth_user_id instead of auth_uuid
-   const { data: userData, error: dbError } = await supabase
-  .from('users')
-  .select('id, role, user_email')
-  .eq('auth_user_id', user.id) // ← FIXED: auth_uuid -> auth_user_id
-  .maybeSingle();
+    // Use user_email instead of auth_user_id to avoid RLS policy issues
+    const adminEmail = otpEmail || email;
+    const { data: userData, error: dbError } = await supabase
+      .from('users')
+      .select('id, role, user_email')
+      .eq('user_email', adminEmail)
+      .maybeSingle();
 
     if (dbError) {
       console.error('Database error:', dbError);
-      await supabase.auth.signOut();
+      // Safely attempt signOut, but don't fail if it errors
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.warn('SignOut error (non-critical):', signOutError);
+      }
       throw new Error('Database configuration error. Please contact administrator.');
     }
 
     if (!userData || !userData.role || userData.role !== 'admin') {
-      await supabase.auth.signOut();
+      // Safely attempt signOut, but don't fail if it errors
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.warn('SignOut error (non-critical):', signOutError);
+      }
       showCustomToast('Access denied: Administrative privileges required.', 'danger');
+      setIsVerifying(false);
       setShowOtpModal(false);
+      setOtp('');
       return;
     }
 
-    showCustomToast('Login successful! Redirecting to dashboard...', 'success');
-    
-    // Log admin login activity
-    await logAdminLogin(email);
-    
     // Set success flag BEFORE closing modal to prevent cancelled toast
     setVerificationSuccess(true);
     
+    // Log admin login activity
+    await logAdminLogin(adminEmail);
+    
+    showCustomToast('Login successful! Redirecting to dashboard...', 'success');
+    
     // Small delay to ensure state is set before modal closes
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     setShowOtpModal(false);
 
@@ -451,28 +479,42 @@ const AdminLogin: React.FC = () => {
     
     let errorMessage = 'Verification failed. Please try again.';
     let toastColor: 'danger' | 'warning' = 'danger';
+    let shouldCloseModal = false;
 
     if (error.message?.includes('token has expired') || error.message?.includes('expired')) {
       errorMessage = 'Code expired after 60 seconds. Please request a new one.';
       toastColor = 'warning';
-      setShowOtpModal(false);
-      setOtp('');
+      shouldCloseModal = true;
     } else if (error.message?.includes('invalid') || error.message?.includes('Invalid')) {
       errorMessage = 'Invalid verification code. Please check and try again.';
-      setOtp('');
-    } else if (error.message?.includes('403') || error.message?.includes('Access denied')) {
+      // Don't close modal, let user try again
+    } else if (error.status === 403 || error.message?.includes('403') || error.message?.includes('Forbidden')) {
+      errorMessage = 'Verification failed. The code may be invalid or expired. Please request a new one.';
+      toastColor = 'warning';
+      shouldCloseModal = true;
+    } else if (error.message?.includes('Access denied')) {
       errorMessage = 'Access denied. Please contact administrator.';
-      setShowOtpModal(false);
+      shouldCloseModal = true;
+    } else if (error.message?.includes('Database configuration error')) {
+      errorMessage = 'Database configuration error. Please contact administrator.';
+      shouldCloseModal = true;
     } else if (error.message?.includes('Verify requires either a token or a token hash')) {
       errorMessage = 'Please enter a valid verification code.';
-      setOtp('');
+      // Don't close modal, let user try again
     } else {
       errorMessage = error.message || 'Verification failed. Please try again.';
     }
 
     showCustomToast(errorMessage, toastColor);
-  } finally {
-    setIsVerifying(false);
+    
+    if (shouldCloseModal) {
+      setIsVerifying(false);
+      setShowOtpModal(false);
+      setOtp('');
+    } else {
+      setIsVerifying(false);
+      // Keep modal open so user can retry
+    }
   }
 };
 
@@ -731,12 +773,14 @@ const AdminLogin: React.FC = () => {
         <IonModal
           isOpen={showOtpModal}
           onDidDismiss={() => {
-            // Only show cancelled message if not successful
-            if (!verificationSuccess) {
+            // Only show cancelled message if not successful and not verifying
+            if (!verificationSuccess && !isVerifying) {
               showCustomToast('Verification cancelled', 'warning');
             }
-            // Reset states
-            setOtp('');
+            // Reset states only if not successful
+            if (!verificationSuccess) {
+              setOtp('');
+            }
             setVerificationSuccess(false);
           }}
           backdropDismiss={!isVerifying}
