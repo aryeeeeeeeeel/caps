@@ -654,15 +654,56 @@ const AdminDashboard: React.FC = () => {
         throw new Error("Not authenticated")
       }
 
-      const { data: userData, error: userError } = await supabase
+      // First, try to find user by auth_uuid
+      let { data: userData, error: userError } = await supabase
         .from("users")
-        .select("id, role, user_email")
+        .select("id, role, user_email, auth_uuid")
         .eq("auth_uuid", user.id)
-        .single()
+        .maybeSingle()
 
-      if (userError) throw userError
+      // If not found by auth_uuid, try to find by email (fallback)
+      if (!userData && user.email) {
+        console.log("User not found by auth_uuid, trying email:", user.email)
+        const { data: userByEmail, error: emailError } = await supabase
+          .from("users")
+          .select("id, role, user_email, auth_uuid")
+          .eq("user_email", user.email)
+          .maybeSingle()
 
-      if (!userData?.role || userData.role !== "admin") {
+        if (emailError) {
+          console.error("Error querying by email:", emailError)
+          throw emailError
+        }
+
+        if (userByEmail) {
+          userData = userByEmail
+          
+          // Update auth_uuid if it's missing
+          if (!userByEmail.auth_uuid) {
+            const { error: updateError } = await supabase
+              .from("users")
+              .update({ auth_uuid: user.id })
+              .eq("id", userByEmail.id)
+
+            if (updateError) {
+              console.warn("Could not update auth_uuid:", updateError)
+            } else {
+              console.log("Successfully updated auth_uuid")
+            }
+          }
+        }
+      }
+
+      if (userError && userError.code !== 'PGRST116') {
+        // PGRST116 is "0 rows" which we handle above, other errors are real issues
+        throw userError
+      }
+
+      if (!userData) {
+        throw new Error("User record not found in database")
+      }
+
+      if (!userData.role || userData.role !== "admin") {
         await supabase.auth.signOut()
         navigation.push("/iAMUMAta", "root", "replace")
         return
