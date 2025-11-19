@@ -914,84 +914,77 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
                                 />
                             </div>
 
-                            <IonGrid>
-                                <IonRow>
-                                    <IonCol size="6">
-                                        <div style={{ marginBottom: '20px' }}>
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                marginBottom: '8px'
-                                            }}>
-                                                <IonIcon icon={lockClosedOutline} style={{
-                                                    fontSize: '16px',
-                                                    color: '#4a5568',
-                                                    marginRight: '6px'
-                                                }} />
-                                                <label style={{
-                                                    fontSize: '13px',
-                                                    fontWeight: '600',
-                                                    color: '#2d3748'
-                                                }}>Password *</label>
-                                            </div>
-                                            <IonInput
-                                                fill="outline"
-                                                type="password"
-                                                placeholder="Create a password"
-                                                value={password}
-                                                onIonChange={e => setPassword(e.detail.value!)}
-                                                style={{
-                                                    '--border-radius': '10px',
-                                                    '--border-color': '#e2e8f0',
-                                                    '--padding-start': '12px',
-                                                    '--padding-end': '12px',
-                                                    fontSize: '15px'
-                                                } as any}
-                                                required
-                                            >
-                                                <IonInputPasswordToggle slot="end" />
-                                            </IonInput>
-                                        </div>
-                                    </IonCol>
-                                    <IonCol size="6">
-                                        <div style={{ marginBottom: '20px' }}>
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                marginBottom: '8px'
-                                            }}>
-                                                <IonIcon icon={lockClosedOutline} style={{
-                                                    fontSize: '16px',
-                                                    color: '#4a5568',
-                                                    marginRight: '6px'
-                                                }} />
-                                                <label style={{
-                                                    fontSize: '13px',
-                                                    fontWeight: '600',
-                                                    color: '#2d3748'
-                                                }}>Confirm *</label>
-                                            </div>
-                                            <IonInput
-                                                fill="outline"
-                                                type="password"
-                                                placeholder="Confirm your password"
-                                                value={confirmPassword}
-                                                onIonChange={e => setConfirmPassword(e.detail.value!)}
-                                                style={{
-                                                    '--border-radius': '10px',
-                                                    '--border-color': '#e2e8f0',
-                                                    '--padding-start': '12px',
-                                                    '--padding-end': '12px',
-                                                    fontSize: '15px'
-                                                } as any}
-                                                required
-                                            >
-                                                <IonInputPasswordToggle slot="end" />
-                                            </IonInput>
-                                        </div>
-                                    </IonCol>
-                                </IonRow>
-                            </IonGrid>
+                            <div style={{ marginBottom: '20px' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    marginBottom: '8px'
+                                }}>
+                                    <IonIcon icon={lockClosedOutline} style={{
+                                        fontSize: '16px',
+                                        color: '#4a5568',
+                                        marginRight: '6px'
+                                    }} />
+                                    <label style={{
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        color: '#2d3748'
+                                    }}>Password *</label>
+                                </div>
+                                <IonInput
+                                    fill="outline"
+                                    type="password"
+                                    placeholder="Create a password"
+                                    value={password}
+                                    onIonChange={e => setPassword(e.detail.value!)}
+                                    style={{
+                                        '--border-radius': '10px',
+                                        '--border-color': '#e2e8f0',
+                                        '--padding-start': '12px',
+                                        '--padding-end': '12px',
+                                        fontSize: '15px'
+                                    } as any}
+                                    required
+                                >
+                                    <IonInputPasswordToggle slot="end" />
+                                </IonInput>
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    marginBottom: '8px'
+                                }}>
+                                    <IonIcon icon={lockClosedOutline} style={{
+                                        fontSize: '16px',
+                                        color: '#4a5568',
+                                        marginRight: '6px'
+                                    }} />
+                                    <label style={{
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        color: '#2d3748'
+                                    }}>Confirm Password *</label>
+                                </div>
+                                <IonInput
+                                    fill="outline"
+                                    type="password"
+                                    placeholder="Confirm your password"
+                                    value={confirmPassword}
+                                    onIonChange={e => setConfirmPassword(e.detail.value!)}
+                                    style={{
+                                        '--border-radius': '10px',
+                                        '--border-color': '#e2e8f0',
+                                        '--padding-start': '12px',
+                                        '--padding-end': '12px',
+                                        fontSize: '15px'
+                                    } as any}
+                                    required
+                                >
+                                    <IonInputPasswordToggle slot="end" />
+                                </IonInput>
+                            </div>
 
                             <div style={{
                                 fontSize: '12px',
