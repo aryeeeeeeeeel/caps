@@ -667,12 +667,14 @@ useEffect(() => {
       }
       
       userProfile = userData;
-      loginEmail = userData.user_email;
+      loginEmail = userData.user_email || loginEmail;
     }
+
+    const normalizedLoginEmail = loginEmail.toLowerCase();
 
     // Direct Supabase Auth login
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
+      email: normalizedLoginEmail,
       password: trimmedPassword,
     });
 
@@ -696,7 +698,7 @@ useEffect(() => {
       const { data: profileData, error: profileError } = await supabase
         .from('users')
         .select('id, status, user_email')
-        .eq('user_email', loginEmail)
+        .eq('user_email', normalizedLoginEmail)
         .single();
 
       if (profileError || !profileData) {
@@ -734,15 +736,15 @@ useEffect(() => {
     const isTrusted = await isDeviceTrusted(authData.user.id, fingerprint);
     
     if (!isTrusted) {
-      setOtpEmail(loginEmail);
+      setOtpEmail(normalizedLoginEmail);
       setShowOTPModal(true);
       setIsLoggingIn(false);
-      await sendOTP(loginEmail, fingerprint);
+      await sendOTP(normalizedLoginEmail, fingerprint);
       return;
     }
 
     // Complete the login process
-    await completeLogin(authData.user.id, loginEmail, fingerprint);
+    await completeLogin(authData.user.id, normalizedLoginEmail, fingerprint);
     
   } catch (error: any) {
     console.error('Login error:', error);
