@@ -249,7 +249,7 @@ const Profile: React.FC = () => {
                             const { error: updateError } = await supabase
                                 .from('users')
                                 .update({ auth_uuid: authUser.id })
-                                .eq('user_id', userByEmail.user_id);
+                                .eq('id', userByEmail.id);
 
                             if (updateError) {
                                 console.log('Cannot update auth_uuid, column might not exist:', updateError);
@@ -494,7 +494,7 @@ const Profile: React.FC = () => {
             const { error } = await supabase
                 .from('users')
                 .update(updateData)
-                .eq('user_id', profile.user_id);
+                .eq('id', profile.id);
 
             if (error) {
                 console.error('Update error:', error);
