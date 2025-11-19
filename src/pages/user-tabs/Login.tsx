@@ -152,6 +152,8 @@ const Login: React.FC = () => {
   const [isVerifyingOTP, setIsVerifyingOTP] = useState(false);
   const [isSendingOTP, setIsSendingOTP] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [otpPurpose, setOtpPurpose] = useState<'new_device' | 'forgot_password' | null>(null);
+  const [isPasswordResetMode, setIsPasswordResetMode] = useState(false);
 
   // Helper function for showing toast messages
   const showCustomToast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') => {
@@ -208,10 +210,14 @@ useEffect(() => {
         activeElement?.tagName === 'ION-INPUT' ||
         activeElement?.closest('ion-input');
 
-      // Only trigger login if not focused on any input field
+      // Only trigger action if not focused on any input field
       if (!isFocusedOnInput) {
         e.preventDefault();
-        handleLogin();
+        if (isPasswordResetMode) {
+          handlePasswordUpdate();
+        } else {
+          handleLogin();
+        }
       }
     }
   };
@@ -221,7 +227,7 @@ useEffect(() => {
   return () => {
     window.removeEventListener('keypress', handleGlobalKeyPress);
   };
-}, [loginIdentifier, password, showSavedAccounts, showOTPModal]);
+}, [loginIdentifier, password, showSavedAccounts, showOTPModal, isPasswordResetMode]);
 
   // Focus on login identifier input when component mounts
   useEffect(() => {
@@ -550,7 +556,11 @@ useEffect(() => {
   };
 
   // Send OTP using Supabase's built-in OTP system
-  const sendOTP = async (email: string, fingerprint: string): Promise<boolean> => {
+  const sendOTP = async (
+    email: string,
+    purpose: 'new_device' | 'forgot_password',
+    fingerprint?: string
+  ): Promise<boolean> => {
     setIsSendingOTP(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({
@@ -558,8 +568,8 @@ useEffect(() => {
         options: {
           shouldCreateUser: false,
           data: {
-            device_fingerprint: fingerprint,
-            purpose: 'new_device_auth'
+            purpose,
+            ...(purpose === 'new_device' && fingerprint ? { device_fingerprint: fingerprint } : {})
           }
         }
       });
@@ -582,7 +592,12 @@ useEffect(() => {
     }
   };
 
-  const verifyOTP = async (email: string, code: string, fingerprint: string): Promise<boolean> => {
+  const verifyOTP = async (
+    email: string,
+    code: string,
+    purpose: 'new_device' | 'forgot_password',
+    fingerprint?: string
+  ): Promise<{ userId: string; userEmail: string } | null> => {
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email: email,
@@ -593,26 +608,32 @@ useEffect(() => {
       if (error) {
         console.error('OTP verification error:', error);
         showCustomToast('Invalid or expired verification code. Please try again.', 'danger');
-        return false;
+        return null;
       }
 
       if (!data.user) {
         throw new Error('No user data returned after OTP verification.');
       }
 
-      await saveTrustedDevice(data.user.id, fingerprint);
+      if (purpose === 'new_device' && fingerprint) {
+        await saveTrustedDevice(data.user.id, fingerprint);
+      }
 
-      return true;
+      return { userId: data.user.id, userEmail: data.user.email ?? email };
     } catch (error: any) {
       console.error('OTP verification error:', error);
       showCustomToast(error.message || 'OTP verification failed.', 'danger');
-      return false;
+      return null;
     }
   };
 
   const resendOTP = async () => {
-    if (resendCooldown > 0) return;
-    await sendOTP(otpEmail, deviceFingerprint);
+    if (resendCooldown > 0 || !otpEmail || !otpPurpose) return;
+    await sendOTP(
+      otpEmail,
+      otpPurpose,
+      otpPurpose === 'new_device' ? deviceFingerprint : undefined
+    );
   };
 
   // --- Remove all early validation and toasts except handleLogin ---
@@ -736,10 +757,13 @@ useEffect(() => {
     const isTrusted = await isDeviceTrusted(authData.user.id, fingerprint);
     
     if (!isTrusted) {
+      setOtpPurpose('new_device');
       setOtpEmail(normalizedLoginEmail);
       setShowOTPModal(true);
       setIsLoggingIn(false);
-      await sendOTP(normalizedLoginEmail, fingerprint);
+      setIsPasswordResetMode(false);
+      setOtpCode('');
+      await sendOTP(normalizedLoginEmail, 'new_device', fingerprint);
       return;
     }
 
@@ -753,14 +777,16 @@ useEffect(() => {
   }
 };
 
-  const completeLogin = async (userId: string, userEmail: string, fingerprint: string) => {
+  const completeLogin = async (userId: string, userEmail: string, fingerprint?: string) => {
   try {
     // Update device usage
-    await supabase
-      .from('device_fingerprints')
-      .update({ last_used_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('device_fingerprint', fingerprint);
+    if (fingerprint) {
+      await supabase
+        .from('device_fingerprints')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('device_fingerprint', fingerprint);
+    }
 
     // Update last_active_at in users table
     await supabase
@@ -819,19 +845,40 @@ useEffect(() => {
 };
 
   const handleOTPVerification = async () => {
-    if (!otpCode) {
+    if (!otpCode || !otpPurpose) {
       return;
     }
 
     setIsVerifyingOTP(true);
     try {
-      const isValid = await verifyOTP(otpEmail, otpCode, deviceFingerprint);
+      const verified = await verifyOTP(
+        otpEmail,
+        otpCode,
+        otpPurpose,
+        otpPurpose === 'new_device' ? deviceFingerprint : undefined
+      );
 
-      if (isValid) {
-        setShowOTPModal(false);
-        setIsOtpSent(false);
+      if (verified) {
+        setCurrentUserId(verified.userId);
+        setOtpEmail(verified.userEmail);
 
-        await completeLogin(currentUserId, otpEmail, deviceFingerprint);
+        if (otpPurpose === 'forgot_password') {
+          setShowOTPModal(false);
+          setIsOtpSent(false);
+          setOtpPurpose(null);
+          setIsPasswordResetMode(true);
+          setOtpCode('');
+          setPassword('');
+          showCustomToast('Please type your new password in the password field', 'warning');
+          setTimeout(() => {
+            passwordInputRef.current?.setFocus();
+          }, 300);
+        } else {
+          setShowOTPModal(false);
+          setIsOtpSent(false);
+          setOtpPurpose(null);
+          await completeLogin(verified.userId, verified.userEmail, deviceFingerprint);
+        }
       }
     } catch (error: any) {
       console.error('OTP verification error:', error);
@@ -861,8 +908,11 @@ useEffect(() => {
   const handlePasswordKeyPress = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // Directly trigger login without validation toast
-      handleLogin();
+      if (isPasswordResetMode) {
+        handlePasswordUpdate();
+      } else {
+        handleLogin();
+      }
     }
   };
 
@@ -899,16 +949,52 @@ useEffect(() => {
         targetEmail = data.user_email;
       }
 
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(targetEmail, {
-        redirectTo: `${window.location.origin}/iAMUMAta/user-login`
-      });
-      if (resetError) {
-        showCustomToast(resetError.message || 'Failed to send reset email. Try again.', 'danger');
-        return;
+      setOtpPurpose('forgot_password');
+      setOtpEmail(targetEmail.toLowerCase());
+      setShowOTPModal(true);
+      setIsPasswordResetMode(false);
+      setOtpCode('');
+      setIsOtpSent(false);
+      const sent = await sendOTP(targetEmail.toLowerCase(), 'forgot_password');
+      if (sent) {
+        showCustomToast('Verification code sent. Please check your email.', 'success');
       }
-      showCustomToast('Password reset email sent. Check your inbox or spam folder.', 'success');
     } catch (e: any) {
-      showCustomToast(e.message || 'Failed to send reset email. Try again.', 'danger');
+      showCustomToast(e.message || 'Failed to start password reset. Try again.', 'danger');
+    }
+  };
+
+  const handlePasswordUpdate = async () => {
+    const newPassword = password.trim();
+
+    if (!newPassword) {
+      showCustomToast('Please type your new password.', 'warning');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      showCustomToast('Password must be at least 8 characters long.', 'warning');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      showCustomToast('Password updated successfully.', 'success');
+      setIsPasswordResetMode(false);
+      setOtpPurpose(null);
+      setOtpCode('');
+
+      if (currentUserId && otpEmail) {
+        await completeLogin(currentUserId, otpEmail);
+      }
+    } catch (error: any) {
+      console.error('Password update error:', error);
+      showCustomToast(error.message || 'Failed to update password. Please try again.', 'danger');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -1064,7 +1150,11 @@ useEffect(() => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  handleLogin();
+                  if (isPasswordResetMode) {
+                    handlePasswordUpdate();
+                  } else {
+                    handleLogin();
+                  }
                 }}
               >
                 {/* Login Form */}
@@ -1464,6 +1554,11 @@ useEffect(() => {
                       />
                     </IonButton>
                   </IonInput>
+                {isPasswordResetMode && (
+                  <IonText color="warning" style={{ fontSize: '12px', marginTop: '6px', display: 'block' }}>
+                    Please type your new password, then click Update Password.
+                  </IonText>
+                )}
                 </div>
 
                 {/* Remember Me Section */}
@@ -1517,8 +1612,10 @@ useEffect(() => {
                     marginBottom: '24px'
                   } as any}
                 >
-                  <IonIcon icon={logInOutline} slot="start" />
-                  {isLoggingIn ? 'Signing In...' : 'SIGN IN'}
+                  <IonIcon icon={isPasswordResetMode ? checkmarkCircleOutline : logInOutline} slot="start" />
+                  {isPasswordResetMode
+                    ? (isLoggingIn ? 'Updating...' : 'UPDATE PASSWORD')
+                    : (isLoggingIn ? 'Signing In...' : 'SIGN IN')}
                 </IonButton>
               </form>
 
@@ -1604,6 +1701,11 @@ useEffect(() => {
     if (!isVerifyingOTP) {
       setShowOTPModal(false);
       setOtpCode('');
+      setIsOtpSent(false);
+      setOtpPurpose(null);
+      if (otpPurpose === 'forgot_password') {
+        setIsPasswordResetMode(false);
+      }
     }
   }}
   backdropDismiss={!isVerifyingOTP}
@@ -1653,12 +1755,16 @@ useEffect(() => {
           fontWeight: 'bold',
           color: 'white',
           margin: '0 0 6px 0'
-        }}>Security Verification</h2>
+        }}>{otpPurpose === 'forgot_password' ? 'Password Reset Verification' : 'Security Verification'}</h2>
         <p style={{
           fontSize: '13px',
           color: 'rgba(255,255,255,0.9)',
           margin: 0
-        }}>We've sent a 6-digit code to</p>
+        }}>
+          {otpPurpose === 'forgot_password'
+            ? 'Enter the verification code to reset your password.'
+            : "We've sent a 6-digit code to"}
+        </p>
         <p style={{
           fontSize: '13px',
           color: 'white',
@@ -1759,10 +1865,16 @@ useEffect(() => {
           expand="block"
           fill="clear"
           onClick={() => {
-            setShowOTPModal(false);
-            setIsLoggingIn(false);
-            setOtpCode('');
-            setIsOtpSent(false);
+            if (!isVerifyingOTP) {
+              setShowOTPModal(false);
+              setIsLoggingIn(false);
+              setOtpCode('');
+              setIsOtpSent(false);
+              setOtpPurpose(null);
+              if (otpPurpose === 'forgot_password') {
+                setIsPasswordResetMode(false);
+              }
+            }
           }}
           style={{
             color: '#718096',
