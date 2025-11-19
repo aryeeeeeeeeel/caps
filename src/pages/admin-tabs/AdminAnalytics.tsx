@@ -42,6 +42,78 @@ import {
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 
+const ALL_BARANGAYS = [
+  'Agusan Canyon',
+  'Alae',
+  'Dahilayan',
+  'Dalirig',
+  'Damilag',
+  'Dicklum',
+  'Guilang-guilang',
+  'Kalugmanan',
+  'Lindaban',
+  'Lingion',
+  'Lunocan',
+  'Maluko',
+  'Mambatangan',
+  'Mampayag',
+  'Mantibugao',
+  'Minsuro',
+  'San Miguel',
+  'Sankanan',
+  'Santiago',
+  'Santo Niño',
+  'Tankulan',
+  'Ticala'
+];
+
+const DEFAULT_CATEGORY_HEADERS = [
+  'Environmental Issues',
+  'Infrastructure Problems',
+  'Natural Disasters',
+  'Others',
+  'Public Safety',
+  'Road Incidents',
+  'Utility Issues'
+];
+
+const normalizeCategoryLabel = (category?: string | null) => {
+  const cleaned = (category || '').trim();
+  if (!cleaned) return 'Unknown';
+  const match = DEFAULT_CATEGORY_HEADERS.find(
+    (defaultCategory) => defaultCategory.toLowerCase() === cleaned.toLowerCase()
+  );
+  return match || cleaned;
+};
+
+const getOrderedCategories = (categories: string[]) => {
+  const normalized = categories.map((category) => normalizeCategoryLabel(category));
+  const defaultSet = new Set(DEFAULT_CATEGORY_HEADERS.map((cat) => cat.toLowerCase()));
+  const extras = Array.from(
+    new Set(
+      normalized.filter(
+        (category) => !defaultSet.has(category.toLowerCase()) && category !== 'Unknown'
+      )
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const ordered = [...DEFAULT_CATEGORY_HEADERS, ...extras];
+  if (normalized.some((category) => category.toLowerCase() === 'unknown')) {
+    ordered.push('Unknown');
+  }
+  return ordered;
+};
+
+const getBarangayListForFilter = (filter: string, dataMap: { [key: string]: number }) => {
+  const dataBarangays = Object.keys(dataMap);
+  if (filter !== 'all') {
+    return dataBarangays.sort((a, b) => a.localeCompare(b));
+  }
+
+  const extras = dataBarangays.filter((barangay) => !ALL_BARANGAYS.includes(barangay));
+  return [...ALL_BARANGAYS, ...extras.sort((a, b) => a.localeCompare(b))];
+};
+
 interface ReportData {
   total: number;
   pending: number;
@@ -235,8 +307,8 @@ const AdminAnalytics: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'critical' | 'prank'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'resolved'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [barangayOptions, setBarangayOptions] = useState<string[]>([]);
-  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [barangayOptions, setBarangayOptions] = useState<string[]>(ALL_BARANGAYS);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(DEFAULT_CATEGORY_HEADERS);
   const [generatedRows, setGeneratedRows] = useState<any[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const barangayChartRef = useRef<HTMLCanvasElement | null>(null);
@@ -245,22 +317,21 @@ const AdminAnalytics: React.FC = () => {
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
-        // All 22 barangays in Manolo Fortich
-        const allBarangays = [
-          'Agusan Canyon', 'Alae', 'Dahilayan', 'Dalirig', 'Damilag', 'Dicklum',
-          'Guilang-guilang', 'Kalugmanan', 'Lindaban', 'Lingion', 'Lunocan', 'Maluko',
-          'Mambatangan', 'Mampayag', 'Mantibugao', 'Minsuro', 'San Miguel', 'Sankanan',
-          'Santiago', 'Santo Niño', 'Tankulan', 'Ticala'
-        ];
-        setBarangayOptions(allBarangays);
-        
+        setBarangayOptions(ALL_BARANGAYS);
+
         const { data, error } = await supabase
           .from('incident_reports')
           .select('category')
           .order('created_at', { ascending: false });
         if (error) return;
-        const categories = Array.from(new Set((data || []).map(r => r.category).filter(Boolean))).sort();
-        setCategoryOptions(categories);
+        const normalizedCategories = Array.from(
+          new Set(
+            (data || [])
+              .map((record) => normalizeCategoryLabel(record.category))
+              .filter((category) => category && category !== 'Unknown')
+          )
+        );
+        setCategoryOptions(getOrderedCategories(normalizedCategories));
       } catch {}
     };
     loadFilterOptions();
@@ -385,11 +456,23 @@ const AdminAnalytics: React.FC = () => {
         data.forEach(report => {
           const barangay = report.barangay || 'Unknown';
           reportData.byBarangay[barangay] = (reportData.byBarangay[barangay] || 0) + 1;
+
+          const category = normalizeCategoryLabel(report.category);
+          reportData.byCategory[category] = (reportData.byCategory[category] || 0) + 1;
         });
 
-        data.forEach(report => {
-          const category = report.category || 'Unknown';
-          reportData.byCategory[category] = (reportData.byCategory[category] || 0) + 1;
+        if (barangayFilter === 'all') {
+          ALL_BARANGAYS.forEach(barangay => {
+            if (reportData.byBarangay[barangay] === undefined) {
+              reportData.byBarangay[barangay] = 0;
+            }
+          });
+        }
+
+        getOrderedCategories(Object.keys(reportData.byCategory)).forEach(category => {
+          if (reportData.byCategory[category] === undefined) {
+            reportData.byCategory[category] = 0;
+          }
         });
 
         setReportData(reportData);
@@ -428,7 +511,14 @@ const AdminAnalytics: React.FC = () => {
     }
   
     const XLSX = (window as any).XLSX;
-  
+
+    const orderedCategories = getOrderedCategories(Object.keys(reportData.byCategory));
+    const priorityTotal = Object.values(reportData.byPriority).reduce((sum, value) => sum + (value || 0), 0);
+    const categoryTotal = orderedCategories.reduce(
+      (sum, category) => sum + (reportData.byCategory[category] || 0),
+      0
+    );
+
     const summary = [
       ['Incident Report', reportPeriod.toUpperCase()],
       ['Period', `${startDate} to ${endDate}`],
@@ -440,6 +530,20 @@ const AdminAnalytics: React.FC = () => {
       ['Active', reportData.active],
       ['Resolved', reportData.resolved],
     ];
+    summary.push(
+      [],
+      ['Priority Breakdown'],
+      ['Priority Total', priorityTotal],
+      ['Critical', reportData.byPriority.critical],
+      ['High', reportData.byPriority.high],
+      ['Medium', reportData.byPriority.medium],
+      ['Low', reportData.byPriority.low],
+      ['Prank', reportData.byPriority.prank || 0],
+      [],
+      ['Category Breakdown'],
+      ['Category Total', categoryTotal],
+      ...orderedCategories.map((category) => [category, reportData.byCategory[category] || 0])
+    );
   
     const priorities = [
       ['Priority', 'Count'],
@@ -450,8 +554,109 @@ const AdminAnalytics: React.FC = () => {
       ['Prank', reportData.byPriority.prank || 0],
     ];
   
-    const barangays = [['Barangay', 'Count'], ...Object.entries(reportData.byBarangay).sort((a, b) => b[1] - a[1])];
-    const categories = [['Category', 'Count'], ...Object.entries(reportData.byCategory).sort((a, b) => b[1] - a[1])];
+    const barangayReportsMap = new Map<string, any[]>();
+    (generatedRows || []).forEach((report) => {
+      const key = report.barangay || 'Unknown';
+      if (!barangayReportsMap.has(key)) {
+        barangayReportsMap.set(key, []);
+      }
+      barangayReportsMap.get(key)!.push(report);
+    });
+
+    const barangaysForSheet = getBarangayListForFilter(barangayFilter, reportData.byBarangay);
+    const barangayHeader = [
+      'Barangay',
+      'Count',
+      'Pending',
+      'Active',
+      'Resolved',
+      'Priority Total',
+      'Critical',
+      'High',
+      'Medium',
+      'Low',
+      'Prank',
+      'Category Total',
+      ...orderedCategories
+    ];
+
+    const buildBarangayRow = (barangay: string) => {
+      const barangayReports = barangayReportsMap.get(barangay) || [];
+      const statusCounts = { pending: 0, active: 0, resolved: 0 };
+      const priorityCounts = { critical: 0, high: 0, medium: 0, low: 0, prank: 0 };
+      const categoryCounts = orderedCategories.reduce((acc, category) => {
+        acc[category] = 0;
+        return acc;
+      }, {} as Record<string, number>);
+
+      barangayReports.forEach((report) => {
+        const status = (report.status || '').toLowerCase();
+        switch (status) {
+          case 'pending':
+            statusCounts.pending += 1;
+            break;
+          case 'active':
+            statusCounts.active += 1;
+            break;
+          case 'resolved':
+            statusCounts.resolved += 1;
+            break;
+        }
+
+        const priority = (report.priority || '').toLowerCase();
+        switch (priority) {
+          case 'critical':
+            priorityCounts.critical += 1;
+            break;
+          case 'high':
+            priorityCounts.high += 1;
+            break;
+          case 'medium':
+            priorityCounts.medium += 1;
+            break;
+          case 'low':
+            priorityCounts.low += 1;
+            break;
+          case 'prank':
+            priorityCounts.prank += 1;
+            break;
+        }
+
+        const normalizedCategory = normalizeCategoryLabel(report.category);
+        if (categoryCounts[normalizedCategory] === undefined) {
+          categoryCounts[normalizedCategory] = 0;
+        }
+        categoryCounts[normalizedCategory] += 1;
+      });
+
+      const priorityTotalRow = Object.values(priorityCounts).reduce((sum, value) => sum + value, 0);
+      const categoryTotalRow = orderedCategories.reduce(
+        (sum, category) => sum + (categoryCounts[category] || 0),
+        0
+      );
+
+      return [
+        barangay,
+        reportData.byBarangay[barangay] ?? barangayReports.length,
+        statusCounts.pending,
+        statusCounts.active,
+        statusCounts.resolved,
+        priorityTotalRow,
+        priorityCounts.critical,
+        priorityCounts.high,
+        priorityCounts.medium,
+        priorityCounts.low,
+        priorityCounts.prank,
+        categoryTotalRow,
+        ...orderedCategories.map((category) => categoryCounts[category] || 0)
+      ];
+    };
+
+    const barangays = [barangayHeader, ...barangaysForSheet.map(buildBarangayRow)];
+    const categories = [
+      ['Category', 'Count'],
+      ...orderedCategories.map((category) => [category, reportData.byCategory[category] || 0])
+    ];
   
     const wb = XLSX.utils.book_new();
     const wsSummary = XLSX.utils.aoa_to_sheet(summary);
@@ -473,7 +678,21 @@ const AdminAnalytics: React.FC = () => {
     // Set column widths for readability
     wsSummary['!cols'] = [{ wch: 22 }, { wch: 36 }];
     wsPriority['!cols'] = [{ wch: 18 }, { wch: 12 }];
-    wsBarangay['!cols'] = [{ wch: 24 }, { wch: 12 }];
+    wsBarangay['!cols'] = [
+      { wch: 24 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 14 },
+      ...orderedCategories.map(() => ({ wch: 18 }))
+    ];
     wsCategory['!cols'] = [{ wch: 24 }, { wch: 12 }];
   
     // Add Data sheet with filtered rows
@@ -499,7 +718,9 @@ const AdminAnalytics: React.FC = () => {
     ];
   
     // Build Barangay x Category pivot (detailed analysis)
-    const categoriesSet = Array.from(new Set((generatedRows || []).map(r => r.category || 'Unknown'))).sort();
+    const categoriesSet = getOrderedCategories(
+      Array.from(new Set((generatedRows || []).map(r => normalizeCategoryLabel(r.category))))
+    );
     const barangaySet = Array.from(new Set((generatedRows || []).map(r => r.barangay || 'Unknown'))).sort();
     const pivotHeader = ['Barangay', ...categoriesSet, 'Total'];
     const pivotBody = barangaySet.map(b => {
@@ -1085,8 +1306,7 @@ const AdminAnalytics: React.FC = () => {
               {/* Barangay Cards with Detailed Breakdown - 3 per row */}
               <IonGrid>
                 <IonRow>
-                  {Object.keys(reportData.byBarangay)
-                    .sort((a, b) => a.localeCompare(b))
+                  {getBarangayListForFilter(barangayFilter, reportData.byBarangay)
                     .map((barangay) => {
                       const barangayReports = generatedRows.filter(r => (r.barangay || 'Unknown') === barangay);
                       const totalReports = barangayReports.length;
@@ -1108,7 +1328,7 @@ const AdminAnalytics: React.FC = () => {
                       });
 
                       // Show all categories, even if 0
-                      const allCategories = categoryOptions.length > 0 ? categoryOptions : ['Road Incidents', 'Utility Issues', 'Natural Disasters', 'Infrastructure Problems', 'Public Safety', 'Environmental Issues', 'Others'];
+                      const allCategories = categoryOptions.length > 0 ? categoryOptions : DEFAULT_CATEGORY_HEADERS;
 
                       return (
                         <IonCol key={barangay} size="12" sizeMd="4">
