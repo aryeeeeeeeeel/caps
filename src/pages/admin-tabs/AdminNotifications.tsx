@@ -124,8 +124,8 @@ const AdminNotifications: React.FC = () => {
       // Fetch user feedback
       // Fetch feedback from both feedback table and incident_reports table
       const { data: userFeedback } = await supabase
-      .from('feedback')
-      .select(`
+        .from('feedback')
+        .select(`
           id,
           user_email,
           created_at,
@@ -139,9 +139,8 @@ const AdminNotifications: React.FC = () => {
           comments,
           read
         `)
-      .eq('read', false)
-      .order('created_at', { ascending: false })
-      .limit(50);
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       // Convert to notification format
       const reportNotifications: AdminNotification[] = (recentReports || []).map(report => ({
