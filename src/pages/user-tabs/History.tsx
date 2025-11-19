@@ -589,7 +589,7 @@ const History: React.FC = () => {
                 font-weight: 700;
                 border: 1px solid rgba(16,185,129,0.35);
               ">
-                FEEDBACKED
+                FEEDBACK
               </span>
             ` : `
               <button id="rateResponse-${report.id}" style="
@@ -1212,7 +1212,7 @@ const History: React.FC = () => {
                                     margin: 0
                                   } as any}
                                 >
-                                  FEEDBACKED
+                                  FEEDBACK
                                 </IonChip>
                               ) : (
                                 <IonChip
