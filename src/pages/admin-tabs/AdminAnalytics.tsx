@@ -566,89 +566,14 @@ const AdminAnalytics: React.FC = () => {
     const barangaysForSheet = getBarangayListForFilter(barangayFilter, reportData.byBarangay);
     const barangayHeader = [
       'Barangay',
-      'Count',
-      'Pending',
-      'Active',
-      'Resolved',
-      'Priority Total',
-      'Critical',
-      'High',
-      'Medium',
-      'Low',
-      'Prank',
-      'Category Total',
-      ...orderedCategories
+      'Count'
     ];
 
     const buildBarangayRow = (barangay: string) => {
       const barangayReports = barangayReportsMap.get(barangay) || [];
-      const statusCounts = { pending: 0, active: 0, resolved: 0 };
-      const priorityCounts = { critical: 0, high: 0, medium: 0, low: 0, prank: 0 };
-      const categoryCounts = orderedCategories.reduce((acc, category) => {
-        acc[category] = 0;
-        return acc;
-      }, {} as Record<string, number>);
-
-      barangayReports.forEach((report) => {
-        const status = (report.status || '').toLowerCase();
-        switch (status) {
-          case 'pending':
-            statusCounts.pending += 1;
-            break;
-          case 'active':
-            statusCounts.active += 1;
-            break;
-          case 'resolved':
-            statusCounts.resolved += 1;
-            break;
-        }
-
-        const priority = (report.priority || '').toLowerCase();
-        switch (priority) {
-          case 'critical':
-            priorityCounts.critical += 1;
-            break;
-          case 'high':
-            priorityCounts.high += 1;
-            break;
-          case 'medium':
-            priorityCounts.medium += 1;
-            break;
-          case 'low':
-            priorityCounts.low += 1;
-            break;
-          case 'prank':
-            priorityCounts.prank += 1;
-            break;
-        }
-
-        const normalizedCategory = normalizeCategoryLabel(report.category);
-        if (categoryCounts[normalizedCategory] === undefined) {
-          categoryCounts[normalizedCategory] = 0;
-        }
-        categoryCounts[normalizedCategory] += 1;
-      });
-
-      const priorityTotalRow = Object.values(priorityCounts).reduce((sum, value) => sum + value, 0);
-      const categoryTotalRow = orderedCategories.reduce(
-        (sum, category) => sum + (categoryCounts[category] || 0),
-        0
-      );
-
       return [
         barangay,
-        reportData.byBarangay[barangay] ?? barangayReports.length,
-        statusCounts.pending,
-        statusCounts.active,
-        statusCounts.resolved,
-        priorityTotalRow,
-        priorityCounts.critical,
-        priorityCounts.high,
-        priorityCounts.medium,
-        priorityCounts.low,
-        priorityCounts.prank,
-        categoryTotalRow,
-        ...orderedCategories.map((category) => categoryCounts[category] || 0)
+        reportData.byBarangay[barangay] ?? barangayReports.length
       ];
     };
 
@@ -680,18 +605,7 @@ const AdminAnalytics: React.FC = () => {
     wsPriority['!cols'] = [{ wch: 18 }, { wch: 12 }];
     wsBarangay['!cols'] = [
       { wch: 24 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 14 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 14 },
-      ...orderedCategories.map(() => ({ wch: 18 }))
+      { wch: 10 }
     ];
     wsCategory['!cols'] = [{ wch: 24 }, { wch: 12 }];
   
