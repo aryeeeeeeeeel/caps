@@ -36,8 +36,7 @@ import {
   statsChartOutline,
   alertCircleOutline,
   documentTextOutline,
-  timeOutline,
-  trashOutline
+  timeOutline
 } from 'ionicons/icons';
 import { supabase } from '../../utils/supabaseClient';
 import { logUserWarning, logUserSuspension, logUserBan, logUserActivation } from '../../utils/activityLogger';
@@ -96,7 +95,6 @@ const AdminUsers: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [prevUnreadCount, setPrevUnreadCount] = useState(0);
   const [showNewNotificationToast, setShowNewNotificationToast] = useState(false);
-  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [showActionConfirmAlert, setShowActionConfirmAlert] = useState(false);
   const [pendingAction, setPendingAction] = useState<{type: 'warn' | 'suspend' | 'ban' | 'activate' | 'delete', user: User} | null>(null);
 
@@ -851,15 +849,6 @@ const deleteAuthUser = async (userId: string) => {
                         >
                           <IonIcon icon={banOutline} slot="start" />
                           {user.status === 'banned' ? 'Unban' : 'Ban'}
-                        </IonButton>
-                        <IonButton
-                          size="small"
-                          fill="outline"
-                          color="danger"
-                          onClick={() => showConfirmationDialog(user, 'delete')}
-                        >
-                          <IonIcon icon={trashOutline} slot="start" />
-                          Delete
                         </IonButton>
                       </div>
                     </div>

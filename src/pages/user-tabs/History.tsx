@@ -87,8 +87,42 @@ interface UserReport {
   scheduled_response_time?: string;
   estimated_arrival_time?: string;
   current_eta_minutes?: number;
-  resolved_photo_url?: string;
+  resolved_photo_url?: string | null;
 }
+
+const getResolvedPhotoPublicUrl = (input?: string | null): string | null => {
+  if (!input) return null;
+
+  try {
+    if (input.startsWith('http') && input.includes('/object/public/')) {
+      return input;
+    }
+
+    let filePath = input;
+
+    if (input.startsWith('http')) {
+      const marker = '/resolved-photos/';
+      const markerIndex = input.indexOf(marker);
+      if (markerIndex !== -1) {
+        filePath = input.substring(markerIndex + marker.length);
+        const queryIndex = filePath.indexOf('?');
+        if (queryIndex !== -1) {
+          filePath = filePath.substring(0, queryIndex);
+        }
+      } else {
+        return input;
+      }
+    }
+
+    if (!filePath) return null;
+
+    const { data } = supabase.storage.from('resolved-photos').getPublicUrl(filePath);
+    return data?.publicUrl || input;
+  } catch (error) {
+    console.error('Error normalizing resolved photo url:', error);
+    return input;
+  }
+};
 
 // Skeleton Components
 const SkeletonHistoryMap: React.FC = () => (
@@ -285,7 +319,7 @@ const History: React.FC = () => {
             coordinates,
             feedback_rating: feedbackData?.overall_rating || null,
             feedback_comment: feedbackData?.comments || null,
-            resolved_photo_url: report.resolved_photo_url || null // Ensure this is included
+            resolved_photo_url: getResolvedPhotoPublicUrl(report.resolved_photo_url)
           };
         })
       );
@@ -1471,7 +1505,7 @@ const History: React.FC = () => {
                     margin: 0
                   } as any}
                 >
-                  FEEDBACKED
+                  FEEDBACK
                 </IonChip>
               ) : (
                 <IonChip

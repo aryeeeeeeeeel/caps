@@ -998,6 +998,7 @@ const IncidentReport: React.FC = () => {
   const [extractedExifData, setExtractedExifData] = useState<ExifData | null>(null);
   const [extractionLoading, setExtractionLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submitIntentRef = useRef(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isFormLoading, setIsFormLoading] = useState(true);
   
@@ -1641,9 +1642,15 @@ const IncidentReport: React.FC = () => {
   };
 
   const submitReport = async () => {
+    // Ensure submissions only run after an explicit button click
+    if (!submitIntentRef.current) {
+      return;
+    }
+
     // Block suspended accounts from submitting
     if (accountStatus === 'suspended') {
       showToastMessage('Your account is suspended. You cannot submit reports.', 'warning');
+      submitIntentRef.current = false;
       return;
     }
     setIsSubmitting(true);
@@ -1661,7 +1668,6 @@ const IncidentReport: React.FC = () => {
 
       if (missingRequired) {
         showToastMessage('Please input all required fields', 'warning');
-        setIsSubmitting(false);
         return;
       }
 
@@ -1795,7 +1801,13 @@ const IncidentReport: React.FC = () => {
       showToastMessage(error.message || 'Failed to submit report. Please try again.', 'danger');
     } finally {
       setIsSubmitting(false);
+      submitIntentRef.current = false;
     }
+  };
+
+  const handleSubmitClick = () => {
+    submitIntentRef.current = true;
+    submitReport();
   };
 
   return (
@@ -2256,7 +2268,7 @@ const IncidentReport: React.FC = () => {
             <IonButton
               expand="block"
               size="large"
-              onClick={submitReport}
+              onClick={handleSubmitClick}
               disabled={isSubmitting}
               style={{
                 '--border-radius': '12px',

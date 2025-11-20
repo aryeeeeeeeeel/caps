@@ -56,7 +56,6 @@ import {
   checkmarkCircleOutline as activateOutline,
   filterOutline,
   notifications,
-  trashOutline,
 } from "ionicons/icons"
 import { supabase } from "../../utils/supabaseClient"
 import SystemLogs from "./SystemLogs"
@@ -77,6 +76,40 @@ const COMMAND_CENTER = {
   lat: 8.371646,
   lng: 124.857026,
   name: "MDRRMO",
+}
+
+const getResolvedPhotoPublicUrl = (input?: string | null): string | null => {
+  if (!input) return null
+
+  try {
+    if (input.startsWith("http") && input.includes("/object/public/")) {
+      return input
+    }
+
+    let filePath = input
+
+    if (input.startsWith("http")) {
+      const marker = "/resolved-photos/"
+      const markerIndex = input.indexOf(marker)
+      if (markerIndex !== -1) {
+        filePath = input.substring(markerIndex + marker.length)
+        const queryIndex = filePath.indexOf("?")
+        if (queryIndex !== -1) {
+          filePath = filePath.substring(0, queryIndex)
+        }
+      } else {
+        return input
+      }
+    }
+
+    if (!filePath) return null
+
+    const { data } = supabase.storage.from("resolved-photos").getPublicUrl(filePath)
+    return data?.publicUrl || input
+  } catch (error) {
+    console.error("Error normalizing resolved photo url:", error)
+    return input
+  }
 }
 
 interface IncidentReport {
@@ -107,7 +140,7 @@ interface IncidentReport {
   response_route_data?: any
   // Added fields used elsewhere in the component
   resolved_at?: string
-  resolved_photo_url?: string
+  resolved_photo_url?: string | null
 }
 
 interface User {
@@ -800,16 +833,18 @@ const AdminDashboard: React.FC = () => {
         // FIXED: Use the enhanced coordinate parsing function
         const validatedReports = reportsData.map((report) => {
           const validatedCoords = parseAndValidateCoordinates(report.coordinates)
+          const resolvedPhotoUrl = getResolvedPhotoPublicUrl(report.resolved_photo_url)
 
           if (validatedCoords) {
             console.log(`✅ VALID COORDINATES for report ${report.id}:`, validatedCoords)
             return {
               ...report,
               coordinates: validatedCoords,
+              resolved_photo_url: resolvedPhotoUrl,
             }
           } else {
             console.warn(`❌ INVALID coordinates for report:`, report.id, report.coordinates)
-            return { ...report, coordinates: undefined }
+            return { ...report, coordinates: undefined, resolved_photo_url: resolvedPhotoUrl }
           }
         })
         setReports(validatedReports)
@@ -966,10 +1001,12 @@ const AdminDashboard: React.FC = () => {
 
       // Validate and parse coordinates for the new report
       const validatedCoords = parseAndValidateCoordinates(newReport.coordinates)
+      const resolvedPhotoUrl = getResolvedPhotoPublicUrl(newReport.resolved_photo_url)
 
       const reportWithValidatedCoords = {
         ...newReport,
         coordinates: validatedCoords,
+        resolved_photo_url: resolvedPhotoUrl,
       }
 
       // Add the new report to the state
@@ -1123,10 +1160,12 @@ const AdminDashboard: React.FC = () => {
 
       // Validate and parse coordinates
       const validatedCoords = parseAndValidateCoordinates(updatedReport.coordinates)
+      const resolvedPhotoUrl = getResolvedPhotoPublicUrl(updatedReport.resolved_photo_url)
 
       const reportWithValidatedCoords = {
         ...updatedReport,
         coordinates: validatedCoords,
+        resolved_photo_url: resolvedPhotoUrl,
       }
 
       // Update the report in state
@@ -2028,7 +2067,6 @@ const AdminDashboard: React.FC = () => {
       const fileName = `resolved-proof-${Date.now()}.png`
       const filePath = `${reportId}/${fileName}`
 
-      // Upload the file
       const { data, error } = await supabase.storage
         .from('resolved-photos')
         .upload(filePath, file, {
@@ -2044,12 +2082,11 @@ const AdminDashboard: React.FC = () => {
         throw error
       }
 
-      // Get a signed URL for temporary access (if needed for display)
-      const { data: signedUrlData } = await supabase.storage
+      const { data: publicData } = supabase.storage
         .from('resolved-photos')
-        .createSignedUrl(filePath, 3600) // 1 hour expiry
+        .getPublicUrl(filePath)
 
-      return signedUrlData?.signedUrl || data.path
+      return publicData?.publicUrl || data?.path || filePath
     } catch (error) {
       console.error('Error uploading resolved photo:', error)
       throw new Error('Failed to upload photo')
@@ -2112,6 +2149,10 @@ const AdminDashboard: React.FC = () => {
         }
       }
 
+      const timeLabel = statusChangeType === 'pending-to-active' ? 'Estimated Response Time' : 'Resolved At'
+      const finalMessage = `${notificationMessage.trim()}\n\n${timeLabel}: ${new Date(estimatedTime).toLocaleString()}`
+      updateData.admin_response = finalMessage
+
       // Update the incident report
       const { error: updateError } = await supabase
         .from('incident_reports')
@@ -2126,7 +2167,7 @@ const AdminDashboard: React.FC = () => {
         .insert({
           user_email: selectedReport.reporter_email,
           title: `Status Update: ${selectedReport.title}`,
-          message: `${notificationMessage}\n\n${statusChangeType === 'pending-to-active' ? 'Estimated Response Time' : 'Resolved At'}: ${new Date(estimatedTime).toLocaleString()}`,
+          message: finalMessage,
           related_report_id: selectedReport.id,
           type: 'update'
         })
@@ -3067,25 +3108,6 @@ const handleDeleteReport = async (report: IncidentReport) => {
                                 <IonIcon icon={navigateOutline} slot="start" style={{ fontSize: "10px" }} />
                                 Track
                               </IonButton>
-                              <IonButton
-                                size="small"
-                                fill="solid"
-                                color="danger"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPendingAction({ type: 'delete', report: report });
-                                  setShowActionConfirmAlert(true);
-                                }}
-                                style={{
-                                  height: "24px",
-                                  fontSize: "10px",
-                                  "--background": "#dc2626",
-                                  "--color": "white"
-                                } as any}
-                              >
-                                <IonIcon icon={trashOutline} slot="start" style={{ fontSize: "10px" }} />
-                                Delete
-                              </IonButton>
                             </div>
                             {/* NEW: Show scheduled time if exists */}
                             {report.scheduled_response_time && (
@@ -3556,21 +3578,6 @@ const handleDeleteReport = async (report: IncidentReport) => {
                                 <IonIcon icon={banOutline} slot="start" style={{ fontSize: "10px", color: "white" }} />
                                 {user.status === 'banned' ? 'Unban' : 'Ban'}
                               </IonButton>
-                              <IonButton
-                                size="small"
-                                fill="solid"
-                                color="danger"
-                                onClick={() => showConfirmationDialog(user, 'delete')}
-                                style={{
-                                  height: "24px",
-                                  fontSize: "10px",
-                                  "--background": "#dc2626",
-                                  "--color": "white"
-                                } as any}
-                              >
-                                <IonIcon icon={trashOutline} slot="start" style={{ fontSize: "10px" }} />
-                              DEL
-                              </IonButton>
                             </div>
                           </div>
                         </IonItem>
@@ -3723,43 +3730,73 @@ const handleDeleteReport = async (report: IncidentReport) => {
                         <p style={{ margin: 0, color: '#065f46', fontSize: '14px' }}>
                           {new Date(selectedReport.resolved_at).toLocaleString()}
                         </p>
-                        {/* Proof of Resolution */}
+
                         {selectedReport.resolved_photo_url && (
                           <div style={{ marginTop: '12px' }}>
                             <strong style={{ color: '#065f46' }}>Proof of Resolution:</strong>
-                            <div style={{ marginTop: '8px' }}>
-                              <IonImg
+                            <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              <img
                                 src={selectedReport.resolved_photo_url}
+                                alt="Proof of resolution"
                                 style={{
-                                  maxWidth: '300px',
-                                  maxHeight: '300px',
+                                  width: '80px',
+                                  height: '80px',
                                   borderRadius: '8px',
-                                  border: '2px solid #10b981'
+                                  objectFit: 'cover',
+                                  border: '2px solid #10b981',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => {
+                                  setSelectedImages([selectedReport.resolved_photo_url!])
+                                  setSelectedImageIndex(0)
+                                  setShowImageModal(true)
+                                }}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none'
                                 }}
                               />
                             </div>
                           </div>
                         )}
-                        {/* Latest Feedback */}
-                        {selectedReportFeedback && (
-                          <div style={{
-                            background: '#f5f3ff',
-                            border: '1px solid #ddd6fe',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            marginTop: '12px'
-                          }}>
-                            <strong style={{ color: '#5b21b6' }}>User Feedback</strong>
-                            <div style={{ marginTop: '6px', color: '#5b21b6' }}>
-                              Overall Rating: {selectedReportFeedback.overall_rating}/5
-                            </div>
-                            {selectedReportFeedback.comments && (
-                              <div style={{ marginTop: '4px', color: '#5b21b6' }}>
-                                {selectedReportFeedback.comments}
+
+                        <div style={{
+                          marginTop: '12px',
+                          background: '#eff6ff',
+                          border: '1px solid #bfdbfe',
+                          borderRadius: '8px',
+                          padding: '12px'
+                        }}>
+                          <strong style={{ color: '#1d4ed8' }}>Admin Response</strong>
+                          <p style={{ margin: '6px 0 0 0', color: '#1e3a8a', whiteSpace: 'pre-wrap' }}>
+                            {selectedReport.admin_response?.trim() || 'No admin response recorded yet.'}
+                          </p>
+                        </div>
+
+                        <div style={{
+                          marginTop: '12px',
+                          background: '#f5f3ff',
+                          border: '1px solid #ddd6fe',
+                          borderRadius: '8px',
+                          padding: '12px'
+                        }}>
+                          <strong style={{ color: '#5b21b6' }}>User Feedback</strong>
+                          {selectedReportFeedback ? (
+                            <>
+                              <div style={{ marginTop: '6px', color: '#5b21b6' }}>
+                                Overall Rating: {selectedReportFeedback.overall_rating}/5
                               </div>
-                            )}
-                          </div>
-                        )}
+                              {selectedReportFeedback.comments && (
+                                <div style={{ marginTop: '4px', color: '#5b21b6' }}>
+                                  {selectedReportFeedback.comments}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <p style={{ marginTop: '6px', color: '#6b21b6' }}>
+                              No user feedback submitted yet.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -3843,14 +3880,6 @@ const handleDeleteReport = async (report: IncidentReport) => {
 
 
 
-                    {/* Admin Response */}
-                    {selectedReport.admin_response && (
-                      <div style={{ marginTop: "16px", padding: "12px", background: "#eff6ff", borderRadius: "8px" }}>
-                        <strong>Admin Response:</strong>
-                        <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{selectedReport.admin_response}</p>
-                      </div>
-                    )}
-
                     {/* Reporter Information */}
                     <IonCard style={{ background: "#f8fafc" }}>
                       <IonCardContent>
@@ -3882,19 +3911,6 @@ const handleDeleteReport = async (report: IncidentReport) => {
 
                     {/* NEW: Enhanced Action Buttons */}
                     <div style={{ display: "flex", gap: "8px", marginTop: "24px", flexWrap: "wrap" }}>
-                      {/* Delete Report Button */}
-                      <IonButton
-                        expand="block"
-                        color="danger"
-                        onClick={() => {
-                          setPendingAction({ type: 'delete', report: selectedReport });
-                          setShowActionConfirmAlert(true);
-                        }}
-                      >
-                        <IonIcon icon={trashOutline} slot="start" />
-                        Delete Report
-                      </IonButton>
-
                       <IonButton
                         expand="block"
                         color="secondary"
