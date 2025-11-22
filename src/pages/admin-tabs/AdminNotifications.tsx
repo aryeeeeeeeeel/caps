@@ -175,20 +175,23 @@ const AdminNotifications: React.FC = () => {
       // Convert user appeals from users table to notifications
       const userAppealNotifications: AdminNotification[] = (userAppealsData || [])
         .filter(user => !!user.user_appeal)
-        .map(user => ({
-          id: `user-appeal-${user.user_email}`,
-          type: 'appeal',
-          title: `Account Appeal: ${user.user_appeal.appeal_type || 'Appeal'}`,
-          message: user.user_appeal.message || 'Appeal submitted',
-          priority: 'medium',
-          created_at: user.user_appeal.created_at || new Date().toISOString(),
-          read: !!user.user_appeal.admin_read,
-          related_id: user.user_appeal.report_id,
-          user_email: user.user_email,
-          user_name: user.user_appeal.username || user.username || user.user_email.split('@')[0],
-          appealStatus: user.user_appeal.status,
-          appealData: user.user_appeal
-        }))
+        .map(user => {
+          const appeal = user.user_appeal as any;
+          return {
+            id: `user-appeal-${user.user_email}`,
+            type: 'appeal' as const,
+            title: `Account Appeal: ${appeal.appeal_type || 'Appeal'}`,
+            message: appeal.message || 'Appeal submitted',
+            priority: 'medium' as const,
+            created_at: appeal.created_at || new Date().toISOString(),
+            read: !!appeal.admin_read,
+            related_id: appeal.report_id,
+            user_email: user.user_email,
+            user_name: appeal.username || user.username || user.user_email.split('@')[0],
+            appealStatus: appeal.status,
+            appealData: appeal
+          } as AdminNotification;
+        })
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       // Convert old appeals from incident_reports (for backward compatibility)
