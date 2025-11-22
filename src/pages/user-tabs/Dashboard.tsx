@@ -31,7 +31,12 @@ import {
   IonPopover,
   IonAvatar,
   IonBadge,
-  useIonViewWillEnter
+  useIonViewWillEnter,
+  IonModal,
+  IonTextarea,
+  IonRadioGroup,
+  IonRadio,
+  IonCheckbox,
 } from '@ionic/react';
 import {
   homeOutline,
@@ -59,6 +64,27 @@ interface DashboardStats {
   resolvedReports: number;
   myReports: number;
 }
+
+const WARNING_LOCK_DURATION_MS = 60 * 60 * 1000;
+const SUSPENSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+const formatRemainingTime = (target: Date) => {
+  const diff = target.getTime() - Date.now();
+  if (diff <= 0) return '';
+  const dayMs = 24 * 60 * 60 * 1000;
+  const hourMs = 60 * 60 * 1000;
+  const minuteMs = 60 * 1000;
+  const days = Math.floor(diff / dayMs);
+  const hours = Math.floor((diff % dayMs) / hourMs);
+  const minutes = Math.floor((diff % hourMs) / minuteMs);
+  const seconds = Math.floor((diff % minuteMs) / 1000);
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  parts.push(`${hours.toString().padStart(2, '0')}h`);
+  parts.push(`${minutes.toString().padStart(2, '0')}m`);
+  parts.push(`${seconds.toString().padStart(2, '0')}s`);
+  return parts.join(' ');
+};
 
 // Skeleton Components
 const SkeletonStatsCard: React.FC = () => (
@@ -164,6 +190,16 @@ const Dashboard: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [showProfilePopover, setShowProfilePopover] = useState(false);
   const [popoverEvent, setPopoverEvent] = useState<any>(null);
+  const [showAppealModal, setShowAppealModal] = useState(false);
+  const [prankReports, setPrankReports] = useState<any[]>([]);
+  const [selectedReportId, setSelectedReportId] = useState<string>('');
+  const [appealMessage, setAppealMessage] = useState('');
+  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+  const [suspensionLiftDate, setSuspensionLiftDate] = useState<string | null>(null);
+  const [warningLockEndsAt, setWarningLockEndsAt] = useState<string | null>(null);
+  const [warningCountdown, setWarningCountdown] = useState<string>('');
+  const [suspensionCountdown, setSuspensionCountdown] = useState<string>('');
+  const [appealType, setAppealType] = useState<'banned' | 'suspended' | 'warned'>('suspended');
 
   const fetchUserData = async () => {
     try {
@@ -178,10 +214,30 @@ const Dashboard: React.FC = () => {
           .single();
 
         if (!error && profile) {
-          setUserProfile(profile);
+          const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+          let updatedProfile = { ...profile };
+
+          if (profile.status === 'suspended' && profile.suspension_date) {
+            const suspensionStart = new Date(profile.suspension_date);
+            const liftDate = new Date(suspensionStart.getTime() + oneWeekMs);
+            if (Date.now() >= liftDate.getTime()) {
+              await supabase
+                .from('users')
+                .update({ status: 'active', suspension_date: null })
+                .eq('user_email', profile.user_email);
+              updatedProfile = { ...profile, status: 'active', suspension_date: null };
+              setSuspensionLiftDate(null);
+            } else {
+              setSuspensionLiftDate(liftDate.toISOString());
+            }
+          } else {
+            setSuspensionLiftDate(null);
+          }
+
+          setUserProfile(updatedProfile);
 
           // Auto-logout if banned
-          if (profile.status === 'banned') {
+          if (updatedProfile.status === 'banned') {
             setToastMessage('Your account was banned. You have been signed out.');
             setShowToast(true);
             await supabase.auth.signOut();
@@ -217,6 +273,71 @@ const Dashboard: React.FC = () => {
     setTimeout(() => {
       history.push(route);
     }, 100);
+  };
+
+  const submitAppeal = async () => {
+    if (!selectedReportId || !userProfile) {
+      setToastMessage('Please select a report to appeal');
+      setShowToast(true);
+      return;
+    }
+
+    setIsSubmittingAppeal(true);
+    try {
+      const selectedReport = prankReports.find(r => r.id === selectedReportId);
+      const username = userProfile.username || userProfile.user_email?.split('@')[0] || 'User';
+      const email = userProfile.user_email || user?.email || '';
+      
+      const appealText = appealMessage.trim() || `Good day Admin,
+
+I am writing to formally appeal the suspension of my account (Username: ${username} / Email: ${email} and Report Title: ${selectedReport?.title || 'N/A'} and other information).
+
+I have reviewed the Terms and Conditions and would like to request a review of this decision. Please let me know what steps I need to take or what information you require from me.
+
+Thank you for your consideration.`;
+
+    const appealPayload = {
+        report_id: selectedReportId,
+        user_email: email,
+        username: username,
+        message: appealText,
+        created_at: new Date().toISOString(),
+        status: 'pending',
+      admin_read: false,
+      appeal_type: appealType
+      };
+
+      // Save appeal to users.user_appeal column
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ user_appeal: appealPayload })
+        .eq('user_email', email);
+
+      if (userError) throw userError;
+
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      await supabase.from('system_logs').insert({
+        admin_email: currentUser?.email || email,
+        activity_type: 'user_action',
+        activity_description: 'User submitted appeal',
+        target_user_email: email,
+        target_report_id: selectedReportId,
+        details: { message: appealText }
+      });
+
+      setToastMessage('Appeal submitted successfully. Admin will review your request.');
+      setShowToast(true);
+      setShowAppealModal(false);
+      setSelectedReportId('');
+      setAppealMessage('');
+      setAppealType('suspended');
+    } catch (error: any) {
+      console.error('Error submitting appeal:', error);
+      setToastMessage('Failed to submit appeal. Please try again.');
+      setShowToast(true);
+    } finally {
+      setIsSubmittingAppeal(false);
+    }
   };
 
   const fetchUserReports = async (email: string) => {
@@ -417,6 +538,44 @@ const Dashboard: React.FC = () => {
     };
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (userProfile?.warnings > 0 && userProfile.last_warning_date) {
+      const lastWarn = new Date(userProfile.last_warning_date);
+      const lockEnd = new Date(lastWarn.getTime() + WARNING_LOCK_DURATION_MS);
+      if (lockEnd.getTime() > Date.now()) {
+        setWarningLockEndsAt(lockEnd.toISOString());
+      } else {
+        setWarningLockEndsAt(null);
+      }
+    } else {
+      setWarningLockEndsAt(null);
+    }
+  }, [userProfile?.warnings, userProfile?.last_warning_date]);
+
+  useEffect(() => {
+    const updateTimers = () => {
+      if (warningLockEndsAt) {
+        const remaining = formatRemainingTime(new Date(warningLockEndsAt));
+        setWarningCountdown(remaining);
+        if (!remaining) {
+          setWarningLockEndsAt(null);
+        }
+      } else {
+        setWarningCountdown('');
+      }
+
+      if (userProfile?.status === 'suspended' && suspensionLiftDate) {
+        setSuspensionCountdown(formatRemainingTime(new Date(suspensionLiftDate)));
+      } else {
+        setSuspensionCountdown('');
+      }
+    };
+
+    updateTimers();
+    const interval = setInterval(updateTimers, 1000);
+    return () => clearInterval(interval);
+  }, [warningLockEndsAt, suspensionLiftDate, userProfile?.status]);
 
   const handleStatBoxClick = (type: 'pending' | 'active' | 'resolved') => {
     const count = stats[`${type}Reports`];
@@ -841,14 +1000,46 @@ const Dashboard: React.FC = () => {
                     </p>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
                       {userProfile.warnings > 0 && (
-                        <span style={{ background: 'rgba(245,158,11,0.18)', border: '1px solid rgba(245,158,11,0.45)', color: 'white', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
+                        <div style={{ background: 'rgba(245,158,11,0.18)', border: '1px solid rgba(245,158,11,0.45)', color: 'white', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
                           ⚠️ Account Warned ({userProfile.warnings})
-                        </span>
+                          {warningLockEndsAt && (
+                            <div style={{ fontSize: '10px', color: '#fde68a', marginTop: '2px' }}>
+                              Cannot submit reports for {warningCountdown || 'less than a minute'} (until {new Date(warningLockEndsAt).toLocaleString()})
+                            </div>
+                          )}
+                        </div>
                       )}
                       {userProfile.status === 'suspended' && (
-                        <span style={{ background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.5)', color: 'white', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
-                          ⛔ Account Suspended — submitting reports is disabled
-                        </span>
+                        <div 
+                          onClick={async () => {
+                            // Fetch prank reports for this user
+                            const { data: reports } = await supabase
+                              .from('incident_reports')
+                              .select('id, title, created_at, admin_response, appeal')
+                              .eq('reporter_email', userProfile.user_email)
+                              .eq('priority', 'prank')
+                              .order('created_at', { ascending: false });
+                            setPrankReports(reports || []);
+                            setShowAppealModal(true);
+                          }}
+                          style={{ 
+                            background: 'rgba(249,115,22,0.2)', 
+                            border: '1px solid rgba(249,115,22,0.5)', 
+                            color: 'white', 
+                            padding: '4px 8px', 
+                            borderRadius: '6px', 
+                            fontSize: '11px', 
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ⛔ Account Suspended — submitting reports is disabled (Click to Appeal)
+                          {suspensionLiftDate && (
+                            <div style={{ color: '#fed7aa', fontSize: '10px', marginTop: '2px' }}>
+                              Access returns on {new Date(suspensionLiftDate).toLocaleString()} ({suspensionCountdown || 'less than a minute'} remaining)
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1179,6 +1370,103 @@ const Dashboard: React.FC = () => {
           position="top"
           color="warning"
         />
+
+        {/* Appeal Modal */}
+        <IonModal isOpen={showAppealModal} onDidDismiss={() => {
+          setShowAppealModal(false);
+          setSelectedReportId('');
+          setAppealMessage('');
+          setAppealType('suspended');
+        }}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>Appeal Account Suspension</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => {
+                  setShowAppealModal(false);
+                  setSelectedReportId('');
+                  setAppealMessage('');
+                setAppealType('suspended');
+                }}>
+                  Close
+                </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              <IonCard style={{ marginBottom: '16px' }}>
+                <IonCardContent>
+                  <IonLabel position="stacked" style={{ marginBottom: '12px', display: 'block' }}>Appeal Type</IonLabel>
+                  <IonRadioGroup
+                    value={appealType}
+                    onIonChange={e => setAppealType(e.detail.value as 'banned' | 'suspended' | 'warned')}
+                  >
+                    <IonItem>
+                      <IonRadio slot="start" value="banned" />
+                      <IonLabel>Appeal Account Banned</IonLabel>
+                    </IonItem>
+                    <IonItem>
+                      <IonRadio slot="start" value="suspended" />
+                      <IonLabel>Appeal Account Suspended</IonLabel>
+                    </IonItem>
+                    <IonItem>
+                      <IonRadio slot="start" value="warned" />
+                      <IonLabel>Appeal Account Warned</IonLabel>
+                    </IonItem>
+                  </IonRadioGroup>
+                </IonCardContent>
+              </IonCard>
+              <IonCard>
+                <IonCardContent>
+                  <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Select Report to Appeal</h3>
+                  {prankReports.length === 0 ? (
+                    <p style={{ color: '#6b7280' }}>No prank reports found.</p>
+                  ) : (
+                    <IonList>
+                      <IonRadioGroup value={selectedReportId} onIonChange={e => setSelectedReportId(e.detail.value)}>
+                        {prankReports.map((report) => (
+                          <IonItem key={report.id}>
+                            <IonRadio slot="start" value={report.id} />
+                            <IonLabel>
+                              <h3>{report.title}</h3>
+                              <p>{new Date(report.created_at).toLocaleDateString()}</p>
+                            </IonLabel>
+                          </IonItem>
+                        ))}
+                      </IonRadioGroup>
+                    </IonList>
+                  )}
+                </IonCardContent>
+              </IonCard>
+
+              {(selectedReportId && (appealType === 'banned' || appealType === 'suspended' || appealType === 'warned')) && (
+                <IonCard style={{ marginTop: '16px' }}>
+                  <IonCardContent>
+                    <IonItem>
+                      <IonLabel position="stacked">Message to Admin (Optional - will use default if empty)</IonLabel>
+                      <IonTextarea
+                        value={appealMessage}
+                        onIonInput={e => setAppealMessage(e.detail.value!)}
+                        rows={6}
+                        placeholder="Enter your appeal message..."
+                      />
+                    </IonItem>
+                  </IonCardContent>
+                </IonCard>
+              )}
+
+              <IonButton
+                expand="block"
+                onClick={submitAppeal}
+                disabled={!selectedReportId || isSubmittingAppeal}
+                style={{ marginTop: '16px' }}
+              >
+                {isSubmittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+              </IonButton>
+            </div>
+          </IonContent>
+        </IonModal>
       </IonContent>
       <IonTabBar
         slot="bottom"

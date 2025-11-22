@@ -73,6 +73,23 @@ interface IncidentReport {
   current_eta_minutes?: number;
   resolved_at?: string | null;
   resolved_photo_url?: string | null;
+  appeal?: {
+    report_id: string;
+    user_email: string;
+    username: string;
+    message: string;
+    created_at?: string;
+    status?: string;
+    admin_read?: boolean;
+    reviewed_at?: string;
+    reviewed_by?: string;
+  };
+  admin_appeal?: {
+    status?: string;
+    message?: string;
+    reviewed_by?: string;
+    reviewed_at?: string;
+  };
 }
 
 const getResolvedPhotoPublicUrl = (input?: string | null): string | null => {
@@ -184,7 +201,7 @@ const AdminIncidents: React.FC = () => {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedReportFeedback, setSelectedReportFeedback] = useState<{ overall_rating: number; comments: string | null } | null>(null);
   const [showPrankModal, setShowPrankModal] = useState(false);
-  const [prankMessage, setPrankMessage] = useState("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+  const [prankMessage, setPrankMessage] = useState("Your report has been verified as prank and your account has been suspended. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -693,24 +710,18 @@ const AdminIncidents: React.FC = () => {
         details: { report_title: report.title }
       });
 
-      // Increment user warning count
+      // Suspend user instead of warning
       try {
-        const { data: warningData } = await supabase
-          .from('users')
-          .select('warnings')
-          .eq('user_email', report.reporter_email)
-          .maybeSingle();
-
-        const currentWarnings = warningData?.warnings ?? 0;
+        const suspensionDate = new Date().toISOString();
         await supabase
           .from('users')
           .update({
-            warnings: currentWarnings + 1,
-            last_warning_date: new Date().toISOString()
+            status: 'suspended',
+            suspension_date: suspensionDate
           })
           .eq('user_email', report.reporter_email);
-      } catch (warnErr) {
-        console.warn('Failed to increment warning count:', warnErr);
+      } catch (suspendErr) {
+        console.warn('Failed to suspend user:', suspendErr);
       }
 
       // Activity log entry
@@ -1105,7 +1116,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedReport(report);
-                              setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+                              setPrankMessage("Your report has been verified as prank and your account has been suspended. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
                               setShowPrankModal(true);
                             }}
                           >
@@ -1203,7 +1214,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedReport(selectedReport);
-                          setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+                          setPrankMessage("Your report has been verified as prank and your account has been suspended. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
                           setShowPrankModal(true);
                         }}
                         style={{ 
@@ -1604,29 +1615,36 @@ const handleDeleteReport = async (report: IncidentReport) => {
                           <IonText style={{ fontSize: '14px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
                             Photo Preview:
                           </IonText>
-                          <IonImg
-                            src={photoPreview}
-                            style={{
-                              maxWidth: '200px',
-                              maxHeight: '200px',
-                              borderRadius: '8px',
-                              margin: '0 auto',
-                              border: '2px solid #e5e7eb'
-                            }}
-                          />
-                          <IonButton
-                            size="small"
-                            color="danger"
-                            fill="clear"
-                            onClick={() => {
-                              setResolvedPhoto(null);
-                              setPhotoPreview(null);
-                            }}
-                            style={{ marginTop: '8px' }}
-                          >
-                            <IonIcon icon={closeOutline} slot="start" />
-                            Remove Photo
-                          </IonButton>
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <IonImg
+                              src={photoPreview}
+                              style={{
+                                maxWidth: '200px',
+                                maxHeight: '200px',
+                                borderRadius: '8px',
+                                border: '2px solid #e5e7eb'
+                              }}
+                            />
+                            <IonButton
+                              size="small"
+                              color="danger"
+                              fill="clear"
+                              onClick={() => {
+                                setResolvedPhoto(null);
+                                setPhotoPreview(null);
+                              }}
+                              style={{
+                                position: 'absolute',
+                                top: '8px',
+                                right: '8px',
+                                '--background': 'rgba(0,0,0,0.5)',
+                                '--color': 'white',
+                                borderRadius: '50%'
+                              } as any}
+                            >
+                              <IonIcon icon={closeOutline} slot="icon-only" />
+                            </IonButton>
+                          </div>
                         </div>
                       )}
 
