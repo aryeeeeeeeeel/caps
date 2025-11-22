@@ -1434,6 +1434,7 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
                                     <div style={{ marginBottom: 4, color: '#2d2f37' }}><b style={{ color: '#475569' }}>• Accurate Information:</b> You agree to provide true, accurate, and complete information during registration and when submitting incident reports.</div>
                                     <div style={{ marginBottom: 4, color: '#2d2f37' }}><b style={{ color: '#475569' }}>• Account Security:</b> You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.</div>
                                     <div style={{ marginBottom: 4, color: '#2d2f37' }}><b style={{ color: '#475569' }}>• Appropriate Use:</b> You agree to use the System only for its intended purpose—reporting legitimate public safety concerns within the Municipality of Manolo Fortich.</div>
+                                    <div style={{ marginBottom: 4, color: '#2d2f37' }}><b style={{ color: '#475569' }}>• Device Permissions:</b> The System requires camera and location permissions to capture photos and GPS coordinates. You may grant these permissions for the current session, 24 hours, 1 week, or permanently. You can revoke these permissions at any time through your device settings.</div>
                                 </div>
                             </section>
                             <section style={{ marginBottom: 28 }}>
@@ -1443,8 +1444,10 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
                                 </div>
                                 <div style={{ paddingLeft: 22 }}>
                                     <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Accuracy of Reports:</b> You must exercise best efforts to provide an accurate and truthful description of the incident. Do not knowingly submit false, misleading, or malicious reports.</div>
-                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Location Data (GIS/GPS):</b> By submitting a photograph, you consent to the System extracting and using the embedded GPS coordinates (EXIF data) to pinpoint the incident's location on the map. You acknowledge that the accuracy of this location data depends on your device's capabilities and settings.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Location Data (GIS/GPS):</b> By submitting a photograph, you consent to the System extracting and using the embedded GPS coordinates (EXIF data) to pinpoint the incident's location on the map. The System may also capture your device's current location when taking or selecting photos. You acknowledge that the accuracy of this location data depends on your device's capabilities and settings.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Photo Information Extraction:</b> The System automatically extracts metadata from uploaded photos, including GPS coordinates, date/time stamps, and may detect the barangay location based on GPS data. This information is used to enhance report accuracy and mapping.</div>
                                     <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Media Content:</b> You affirm that any photo you submit is your own, taken at the time and location of the reported incident, and does not violate any third-party rights.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Duplicate Reports:</b> The System detects and prevents duplicate incident reports. Submitting identical reports is not recommended and may result in account restrictions.</div>
                                     <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• No Emergency Service:</b><span style={{ color: '#dc2626', fontWeight: 700 }}> iAMUMA ta IS NOT AN EMERGENCY SERVICE. For immediate, life-threatening emergencies, such as fires, active crimes, or serious medical situations, you must CONTACT THE APPROPRIATE EMERGENCY SERVICES DIRECTLY (e.g., call the local police, fire department, or ambulance).</span></div>
                                 </div>
                             </section>
@@ -1499,12 +1502,36 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
                                 </div>
                                 <div style={{ paddingLeft: 22 }}>
                                     <div style={{ marginBottom: 4 }}>You agree not to use the System to:</div>
-                                    <div style={{ marginBottom: 4, paddingLeft: 32, color: '#6b7280' }}>• Submit false, fraudulent, or harassing reports.<br />• Infringe on the privacy or rights of others.<br />• Upload content that is unlawful, obscene, or harmful.<br />• Attempt to disrupt or compromise the security and functionality of the System.</div>
+                                    <div style={{ marginBottom: 4, paddingLeft: 32, color: '#6b7280' }}>• Submit false, fraudulent, or harassing reports.<br />• Infringe on the privacy or rights of others.<br />• Upload content that is unlawful, obscene, or harmful.<br />• Attempt to disrupt or compromise the security and functionality of the System.<br />• Submit prank or fake incident reports.</div>
                                 </div>
                             </section>
                             <section style={{ marginBottom: 28 }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                                     <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>10</span>
+                                    <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Account Status and Disciplinary Actions</span>
+                                </div>
+                                <div style={{ paddingLeft: 22 }}>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Account Status:</b> Your account may be assigned one of the following statuses: Active, Warned, Suspended, or Banned, based on your compliance with these Terms and Conditions.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Warning System:</b> If you violate these terms, you may receive a warning. After receiving a warning, you will be restricted from submitting new incident reports for 1 hour. This restriction is automatically lifted after the time period expires.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Suspension:</b> For more serious violations, your account may be suspended. During suspension, you cannot submit incident reports. Suspensions typically last for 1 week, after which your account will be automatically reactivated. However, the LDRRMO reserves the right to extend suspension periods for severe violations.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Ban:</b> For severe or repeated violations, your account may be permanently banned. Banned accounts cannot access the System and cannot submit reports. Bans are typically permanent, but you may appeal the decision through the appeal process.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Appeal Process:</b> If your account has been warned, suspended, or banned, you may submit an appeal through the System. Appeals must include the report ID related to the disciplinary action and a message explaining your case. Appeals are reviewed by administrators, and decisions are final. The appeal process does not guarantee account reinstatement.</div>
+                                </div>
+                            </section>
+                            <section style={{ marginBottom: 28 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                                    <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>11</span>
+                                    <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Feedback and Activity Logging</span>
+                                </div>
+                                <div style={{ paddingLeft: 22 }}>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Feedback System:</b> You may provide feedback on the System's response to your incident reports, including ratings for response time, communication, and resolution satisfaction. Feedback helps improve the System and LDRRMO services.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Activity Logs:</b> The System maintains activity logs of your account actions, including logins, report submissions, and other system interactions. These logs are used for security, compliance, and system improvement purposes.</div>
+                                    <div style={{ marginBottom: 4 }}><b style={{ color: '#475569' }}>• Notifications:</b> The System may send you notifications regarding your incident reports, account status, or system updates. You can manage notification preferences through your account settings.</div>
+                                </div>
+                            </section>
+                            <section style={{ marginBottom: 28 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                                    <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>12</span>
                                     <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Modification and Termination</span>
                                 </div>
                                 <div style={{ paddingLeft: 22 }}>
@@ -1513,7 +1540,7 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
                             </section>
                             <section style={{ marginBottom: 28 }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                                    <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>11</span>
+                                    <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>13</span>
                                     <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Governing Law</span>
                                 </div>
                                 <div style={{ paddingLeft: 22 }}>
@@ -1522,7 +1549,7 @@ const checkDuplicates = async (username: string, email: string, contactNumber: s
                             </section>
                             <section style={{ marginBottom: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
-                                    <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>12</span>
+                                    <span style={{ display: 'inline-block', background: '#6366f1', borderRadius: '50%', color: '#fff', fontWeight: 700, fontSize: 16, width: 32, height: 32, lineHeight: '32px', textAlign: 'center' }}>14</span>
                                     <span style={{ fontWeight: 700, fontSize: 19, color: '#374151', marginTop: 2 }}>Contact Information</span>
                                 </div>
                                 <div style={{ paddingLeft: 22, marginBottom: 7 }}>
