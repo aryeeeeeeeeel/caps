@@ -395,7 +395,6 @@ const Profile: React.FC = () => {
             firstName !== profile?.user_firstname ||
             lastName !== profile?.user_lastname ||
             username !== profile?.username ||
-            email !== profile?.user_email ||
             address !== profile?.user_address ||
             contactNumber !== profile?.user_contact_number ||
             isAvatarChanged;
@@ -482,7 +481,7 @@ const Profile: React.FC = () => {
                 user_firstname: firstName,
                 user_lastname: lastName,
                 username: username,
-                user_email: email,
+                // Note: user_email is not updated - email cannot be changed
                 user_address: address,
                 user_contact_number: contactNumber
             };
@@ -511,7 +510,7 @@ const Profile: React.FC = () => {
             if (firstName !== profile?.user_firstname) updatedFields.push('first_name');
             if (lastName !== profile?.user_lastname) updatedFields.push('last_name');
             if (username !== profile?.username) updatedFields.push('username');
-            if (email !== profile?.user_email) updatedFields.push('email');
+            // Note: email changes are not tracked as email cannot be changed
             if (address !== profile?.user_address) updatedFields.push('address');
             if (contactNumber !== profile?.user_contact_number) updatedFields.push('contact_number');
             if (isAvatarChanged) updatedFields.push('avatar');
@@ -1352,13 +1351,15 @@ const Profile: React.FC = () => {
                                     type="email"
                                     placeholder="your.name@example.com"
                                     value={email}
-                                    onIonChange={e => setEmail(e.detail.value!)}
+                                    readonly={true}
                                     style={{
                                         '--border-radius': '10px',
                                         '--border-color': '#e2e8f0',
                                         '--padding-start': '12px',
                                         '--padding-end': '12px',
-                                        fontSize: '15px'
+                                        fontSize: '15px',
+                                        '--background': '#f7fafc',
+                                        opacity: 0.8
                                     } as any}
                                 />
                             </div>
