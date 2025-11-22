@@ -73,6 +73,8 @@ CREATE TABLE public.incident_reports (
   auto_notification_sent boolean DEFAULT false,
   auto_status_notification_sent boolean DEFAULT false,
   resolved_photo_url text,
+  appeal jsonb,
+  admin_appeal jsonb,
   CONSTRAINT incident_reports_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.incident_response_routes (
@@ -136,6 +138,8 @@ CREATE TABLE public.users (
   updated_at timestamp with time zone DEFAULT now(),
   auth_user_id uuid UNIQUE,
   auth_uuid uuid,
+  suspension_date timestamp with time zone,
+  user_appeal jsonb,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_auth_user_id_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id)
 );
