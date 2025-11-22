@@ -37,6 +37,7 @@ const AdminLogin: React.FC = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [toastColor, setToastColor] = useState<'primary' | 'success' | 'warning' | 'danger'>('primary');
   const [verificationSuccess, setVerificationSuccess] = useState(false);
+  const [deviceFingerprint, setDeviceFingerprint] = useState('');
   const passwordInputRef = useRef<HTMLIonInputElement>(null);
   const otpInputRef = useRef<HTMLIonInputElement>(null);
   const emailInputRef = useRef<HTMLIonInputElement>(null);
@@ -283,6 +284,76 @@ const AdminLogin: React.FC = () => {
     setShowToast(true);
   };
 
+  // Generate device fingerprint
+  const generateDeviceFingerprint = async (): Promise<string> => {
+    try {
+      const components = [
+        navigator.userAgent,
+        navigator.language,
+        screen.colorDepth,
+        screen.width + 'x' + screen.height,
+        new Date().getTimezoneOffset(),
+        !!navigator.cookieEnabled,
+        !!navigator.javaEnabled(),
+        typeof navigator.pdfViewerEnabled !== 'undefined' ? navigator.pdfViewerEnabled : false
+      ].join('|');
+
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(components));
+      const hashArray = Array.from(new Uint8Array(hash));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+    } catch (error) {
+      return btoa(navigator.userAgent + screen.width + screen.height).substring(0, 32);
+    }
+  };
+
+  // Check if device is trusted
+  const isDeviceTrusted = async (userId: string, fingerprint: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('device_fingerprints')
+        .select('is_trusted')
+        .eq('user_id', userId)
+        .eq('device_fingerprint', fingerprint)
+        .single();
+
+      if (error) {
+        console.warn('Device trust check error:', error);
+        return false;
+      }
+
+      return data?.is_trusted || false;
+    } catch (error) {
+      console.warn('Error checking device trust:', error);
+      return false;
+    }
+  };
+
+  // Save device as trusted
+  const saveTrustedDevice = async (userId: string, fingerprint: string, deviceName?: string) => {
+    try {
+      const { error } = await supabase
+        .from('device_fingerprints')
+        .upsert({
+          user_id: userId,
+          device_fingerprint: fingerprint,
+          device_name: deviceName || 'Admin Device',
+          user_agent: navigator.userAgent,
+          is_trusted: true,
+          last_used_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,device_fingerprint'
+        });
+
+      if (error) {
+        console.error('Error saving trusted device:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Failed to save trusted device:', error);
+      throw error;
+    }
+  };
+
   const validateCredentials = async (email: string, password: string): Promise<boolean> => {
     setIsVerifying(true);
     
@@ -457,6 +528,26 @@ const AdminLogin: React.FC = () => {
       return;
     }
 
+    // Save device as trusted after successful OTP verification
+    if (user && deviceFingerprint && deviceFingerprint.length > 0) {
+      try {
+        await saveTrustedDevice(user.id, deviceFingerprint, 'Admin Device');
+      } catch (error) {
+        console.warn('Failed to save trusted device (non-critical):', error);
+      }
+    } else if (!deviceFingerprint || deviceFingerprint.length === 0) {
+      // Generate fingerprint if not already set
+      const fingerprint = await generateDeviceFingerprint();
+      setDeviceFingerprint(fingerprint);
+      if (user && fingerprint) {
+        try {
+          await saveTrustedDevice(user.id, fingerprint, 'Admin Device');
+        } catch (error) {
+          console.warn('Failed to save trusted device (non-critical):', error);
+        }
+      }
+    }
+
     // Set success flag BEFORE closing modal to prevent cancelled toast
     setVerificationSuccess(true);
     
@@ -524,11 +615,64 @@ const AdminLogin: React.FC = () => {
     
     try {
       const isValid = await validateCredentials(currentEmail, currentPassword);
-      if (isValid) {
+      if (!isValid) {
+        return;
+      }
+
+      // After credentials are validated, sign in to get user ID
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: currentEmail,
+        password: currentPassword
+      });
+
+      if (signInError || !signInData.user) {
+        // Sign out if sign in failed
+        try {
+          await supabase.auth.signOut();
+        } catch {}
+        return;
+      }
+
+      // Generate device fingerprint
+      const fingerprint = await generateDeviceFingerprint();
+      setDeviceFingerprint(fingerprint);
+      
+      // Check if device is trusted
+      const isTrusted = await isDeviceTrusted(signInData.user.id, fingerprint);
+      
+      if (isTrusted) {
+        // Device is trusted, proceed directly to dashboard without OTP
+        // Update last_used_at for the device
+        try {
+          await supabase
+            .from('device_fingerprints')
+            .update({ last_used_at: new Date().toISOString() })
+            .eq('user_id', signInData.user.id)
+            .eq('device_fingerprint', fingerprint);
+        } catch (error) {
+          console.warn('Failed to update device last_used_at (non-critical):', error);
+        }
+
+        // Log admin login activity
+        await logAdminLogin(currentEmail);
+        
+        showCustomToast('Login successful! Redirecting to dashboard...', 'success');
+        
+        setTimeout(() => {
+          navigation.push('/iAMUMAta/admin-dashboard', 'forward', 'replace');
+        }, 1000);
+      } else {
+        // Device not trusted, sign out and show OTP modal
+        try {
+          await supabase.auth.signOut();
+        } catch {}
+        
+        setOtpEmail(currentEmail);
         await sendOtp();
       }
     } catch (error) {
       console.error('Login error:', error);
+      showCustomToast('Login failed. Please try again.', 'danger');
     }
   };
 
