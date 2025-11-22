@@ -19,7 +19,13 @@ import {
   IonPopover,
   IonBadge,
   IonSpinner,
-  IonSkeletonText
+  IonSkeletonText,
+  IonRadio,
+  IonRadioGroup,
+  IonTextarea,
+  IonButtons,
+  IonList,
+  IonItem,
 } from '@ionic/react';
 import {
   personCircleOutline,
@@ -35,7 +41,8 @@ import {
   addOutline,
   shieldOutline,
   refreshOutline,
-  checkmarkCircleOutline
+  checkmarkCircleOutline,
+  closeOutline
 } from 'ionicons/icons';
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -154,6 +161,16 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [otpPurpose, setOtpPurpose] = useState<'new_device' | 'forgot_password' | null>(null);
   const [isPasswordResetMode, setIsPasswordResetMode] = useState(false);
+  const [showAppealModal, setShowAppealModal] = useState(false);
+  const [prankReports, setPrankReports] = useState<any[]>([]);
+  const [selectedReportId, setSelectedReportId] = useState<string>('');
+  const [appealMessage, setAppealMessage] = useState('');
+  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+  const [bannedUserEmail, setBannedUserEmail] = useState<string>('');
+  const [bannedUsername, setBannedUsername] = useState<string>('');
+  const [isBannedAppealMode, setIsBannedAppealMode] = useState(false);
+  const [detectedBannedIdentifier, setDetectedBannedIdentifier] = useState('');
+  const [appealType, setAppealType] = useState<'banned' | 'suspended' | 'warned'>('banned');
 
   // Helper function for showing toast messages
   const showCustomToast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') => {
@@ -187,6 +204,15 @@ const Login: React.FC = () => {
 
     loadSavedAccounts();
   }, []);
+
+  useEffect(() => {
+    if (!isBannedAppealMode) return;
+    const normalizedDetected = detectedBannedIdentifier.toLowerCase();
+    if (!loginIdentifier.trim() || loginIdentifier.trim().toLowerCase() !== normalizedDetected) {
+      setIsBannedAppealMode(false);
+      setDetectedBannedIdentifier('');
+    }
+  }, [loginIdentifier, isBannedAppealMode, detectedBannedIdentifier]);
 
   // Resend cooldown timer
   useEffect(() => {
@@ -676,7 +702,20 @@ useEffect(() => {
       
       // Only block banned users, allow suspended, inactive and active users
       if (userData.status === 'banned') {
-        showCustomToast('Your account has been banned. Please contact support for assistance.', 'danger');
+        const email = userData.user_email || loginEmail;
+        setBannedUserEmail(email);
+        setBannedUsername(trimmedIdentifier.includes('@') ? trimmedIdentifier.split('@')[0] : trimmedIdentifier);
+        const { data: reports } = await supabase
+          .from('incident_reports')
+          .select('id, title, created_at, admin_response, appeal')
+          .eq('reporter_email', email)
+          .eq('priority', 'prank')
+          .order('created_at', { ascending: false });
+        setPrankReports(reports || []);
+        setIsBannedAppealMode(true);
+        setDetectedBannedIdentifier(trimmedIdentifier.toLowerCase());
+        setAppealType('banned');
+        showCustomToast('Your account is banned. Tap Appeal to request a review.', 'warning');
         setIsLoggingIn(false);
         return;
       }
@@ -726,7 +765,19 @@ useEffect(() => {
 
       // Only block banned users, allow suspended, inactive and active users
       if (profileData.status === 'banned') {
-        showCustomToast('Your account has been banned. Please contact support for assistance.', 'danger');
+        setBannedUserEmail(normalizedLoginEmail);
+        setBannedUsername(normalizedLoginEmail.split('@')[0]);
+        const { data: reports } = await supabase
+          .from('incident_reports')
+          .select('id, title, created_at, admin_response, appeal')
+          .eq('reporter_email', normalizedLoginEmail)
+          .eq('priority', 'prank')
+          .order('created_at', { ascending: false });
+        setPrankReports(reports || []);
+        setIsBannedAppealMode(true);
+        setDetectedBannedIdentifier(normalizedLoginEmail);
+        setAppealType('banned');
+        showCustomToast('Your account is banned. Tap Appeal to request a review.', 'warning');
         await supabase.auth.signOut();
         setIsLoggingIn(false);
         return;
@@ -951,6 +1002,69 @@ useEffect(() => {
     }
   };
 
+  const submitAppeal = async () => {
+    if (!selectedReportId || !bannedUserEmail) {
+      showCustomToast('Please select a report to appeal', 'warning');
+      return;
+    }
+
+    setIsSubmittingAppeal(true);
+    try {
+      const selectedReport = prankReports.find(r => r.id === selectedReportId);
+      const username = bannedUsername || bannedUserEmail.split('@')[0] || 'User';
+      
+      const appealText = appealMessage.trim() || `Good day Admin,
+
+I am writing to formally appeal the suspension of my account (Username: ${username} / Email: ${bannedUserEmail} and Report Title: ${selectedReport?.title || 'N/A'} and other information).
+
+I have reviewed the Terms and Conditions and would like to request a review of this decision. Please let me know what steps I need to take or what information you require from me.
+
+Thank you for your consideration.`;
+
+      const appealPayload = {
+        report_id: selectedReportId,
+        user_email: bannedUserEmail,
+        username: username,
+        message: appealText,
+        created_at: new Date().toISOString(),
+        status: 'pending',
+        admin_read: false,
+        appeal_type: appealType
+      };
+
+      // Save appeal to users.user_appeal column
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ user_appeal: appealPayload })
+        .eq('user_email', bannedUserEmail);
+
+      if (userError) throw userError;
+
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      await supabase.from('system_logs').insert({
+        admin_email: currentUser?.email || bannedUserEmail,
+        activity_type: 'user_action',
+        activity_description: 'User submitted appeal',
+        target_user_email: bannedUserEmail,
+        target_report_id: selectedReportId,
+        details: { message: appealText }
+      });
+
+      showCustomToast('Appeal submitted successfully. Admin will review your request.', 'success');
+      setShowAppealModal(false);
+      setSelectedReportId('');
+      setAppealMessage('');
+      setBannedUserEmail('');
+      setBannedUsername('');
+      setAppealType('banned');
+    } catch (error: any) {
+      console.error('Error submitting appeal:', error);
+      showCustomToast('Failed to submit appeal. Please try again.', 'danger');
+    } finally {
+      setIsSubmittingAppeal(false);
+    }
+  };
+
   const handlePasswordUpdate = async () => {
     const newPassword = password.trim();
 
@@ -997,6 +1111,8 @@ useEffect(() => {
     setLoginIdentifier(account.identifier);
     setPassword(account.password);
     setShowSavedAccounts(false);
+    setIsBannedAppealMode(false);
+    setDetectedBannedIdentifier('');
 
     setTimeout(() => {
       passwordInputRef.current?.setFocus();
@@ -1023,6 +1139,8 @@ useEffect(() => {
     setPassword('');
     setRememberMe(false);
     setShowSavedAccounts(false);
+    setIsBannedAppealMode(false);
+    setDetectedBannedIdentifier('');
     showCustomToast('All saved accounts have been cleared.', 'success');
   };
 
@@ -1030,6 +1148,8 @@ useEffect(() => {
     setLoginIdentifier('');
     setPassword('');
     setShowSavedAccounts(false);
+    setIsBannedAppealMode(false);
+    setDetectedBannedIdentifier('');
 
     setTimeout(() => {
       loginIdentifierInputRef.current?.setFocus();
@@ -1139,6 +1259,8 @@ useEffect(() => {
                   e.preventDefault();
                   if (isPasswordResetMode) {
                     handlePasswordUpdate();
+                } else if (isBannedAppealMode) {
+                  setShowAppealModal(true);
                   } else {
                     handleLogin();
                   }
@@ -1599,10 +1721,21 @@ useEffect(() => {
                     marginBottom: '24px'
                   } as any}
                 >
-                  <IonIcon icon={isPasswordResetMode ? checkmarkCircleOutline : logInOutline} slot="start" />
-                  {isPasswordResetMode
-                    ? (isLoggingIn ? 'Updating...' : 'UPDATE PASSWORD')
-                    : (isLoggingIn ? 'Signing In...' : 'SIGN IN')}
+              <IonIcon
+                icon={
+                  isPasswordResetMode
+                    ? checkmarkCircleOutline
+                    : isBannedAppealMode
+                      ? shieldOutline
+                      : logInOutline
+                }
+                slot="start"
+              />
+              {isPasswordResetMode
+                ? (isLoggingIn ? 'Updating...' : 'UPDATE PASSWORD')
+                : isBannedAppealMode
+                  ? (isLoggingIn ? 'Preparing...' : 'APPEAL BAN')
+                  : (isLoggingIn ? 'Signing In...' : 'SIGN IN')}
                 </IonButton>
               </form>
 
@@ -1875,6 +2008,107 @@ useEffect(() => {
     </IonCard>
   </div>
 </IonModal>
+
+        {/* Appeal Modal for Banned Users */}
+        <IonModal isOpen={showAppealModal} onDidDismiss={() => {
+          setShowAppealModal(false);
+          setSelectedReportId('');
+          setAppealMessage('');
+          setBannedUserEmail('');
+          setBannedUsername('');
+          setAppealType('banned');
+        }}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>Appeal Account Ban</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => {
+                  setShowAppealModal(false);
+                  setSelectedReportId('');
+                  setAppealMessage('');
+                  setBannedUserEmail('');
+                  setBannedUsername('');
+                  setAppealType('banned');
+                }}>
+                  <IonIcon icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: '16px' }}>
+              <IonCard style={{ marginBottom: '16px' }}>
+                <IonCardContent>
+                  <IonLabel position="stacked" style={{ marginBottom: '12px', display: 'block' }}>Appeal Type</IonLabel>
+                  <IonRadioGroup
+                    value={appealType}
+                    onIonChange={e => setAppealType(e.detail.value as 'banned' | 'suspended' | 'warned')}
+                  >
+                    <IonItem>
+                      <IonRadio slot="start" value="banned" />
+                      <IonLabel>Appeal Account Banned</IonLabel>
+                    </IonItem>
+                    <IonItem>
+                      <IonRadio slot="start" value="suspended" />
+                      <IonLabel>Appeal Account Suspended</IonLabel>
+                    </IonItem>
+                    <IonItem>
+                      <IonRadio slot="start" value="warned" />
+                      <IonLabel>Appeal Account Warned</IonLabel>
+                    </IonItem>
+                  </IonRadioGroup>
+                </IonCardContent>
+              </IonCard>
+              <IonCard>
+                <IonCardContent>
+                  <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Select Report to Appeal</h3>
+                  {prankReports.length === 0 ? (
+                    <p style={{ color: '#6b7280' }}>No prank reports found.</p>
+                  ) : (
+                    <IonList>
+                      <IonRadioGroup value={selectedReportId} onIonChange={e => setSelectedReportId(e.detail.value)}>
+                        {prankReports.map((report) => (
+                          <IonItem key={report.id}>
+                            <IonRadio slot="start" value={report.id} />
+                            <IonLabel>
+                              <h3>{report.title}</h3>
+                              <p>{new Date(report.created_at).toLocaleDateString()}</p>
+                            </IonLabel>
+                          </IonItem>
+                        ))}
+                      </IonRadioGroup>
+                    </IonList>
+                  )}
+                </IonCardContent>
+              </IonCard>
+
+              {(selectedReportId && (appealType === 'banned' || appealType === 'suspended' || appealType === 'warned')) && (
+                <IonCard style={{ marginTop: '16px' }}>
+                  <IonCardContent>
+                    <IonItem>
+                      <IonLabel position="stacked">Message to Admin (Optional - will use default if empty)</IonLabel>
+                      <IonTextarea
+                        value={appealMessage}
+                        onIonInput={e => setAppealMessage(e.detail.value!)}
+                        rows={6}
+                        placeholder="Enter your appeal message..."
+                      />
+                    </IonItem>
+                  </IonCardContent>
+                </IonCard>
+              )}
+
+              <IonButton
+                expand="block"
+                onClick={submitAppeal}
+                disabled={!selectedReportId || isSubmittingAppeal}
+                style={{ marginTop: '16px' }}
+              >
+                {isSubmittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+              </IonButton>
+            </div>
+          </IonContent>
+        </IonModal>
       </IonContent>
     </IonPage>
   );

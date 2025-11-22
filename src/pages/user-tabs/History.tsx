@@ -25,8 +25,6 @@ import {
   IonCheckbox,
   IonRadioGroup,
   IonRadio,
-  IonSelect,
-  IonSelectOption,
   IonSkeletonText,
   IonPage,
   IonHeader,
@@ -70,7 +68,7 @@ interface UserReport {
   title: string;
   description: string;
   category: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
+  priority: 'low' | 'medium' | 'high' | 'critical' | 'prank';
   status: 'pending' | 'investigating' | 'resolved';
   location: string;
   barangay: string;
@@ -248,6 +246,10 @@ const History: React.FC = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [showAppealModal, setShowAppealModal] = useState(false);
+  const [appealMessage, setAppealMessage] = useState('');
+  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+  const [appealType, setAppealType] = useState<'banned' | 'suspended' | 'warned'>('warned');
 
   const categoryOptions = [
     'Response Speed',
@@ -739,6 +741,69 @@ const History: React.FC = () => {
     setWouldRecommend(null);
     setContactMethod('');
     setShowFeedbackModal(true);
+  };
+
+  const submitAppeal = async () => {
+    if (!selectedReport || !headerUserProfile) {
+      setToastMessage('Unable to submit appeal. Please try again.');
+      setShowToast(true);
+      return;
+    }
+
+    setIsSubmittingAppeal(true);
+    try {
+      const username = headerUserProfile.username || headerUserProfile.user_email?.split('@')[0] || 'User';
+      const email = headerUserProfile.user_email || authUser?.email || '';
+      
+      const appealText = appealMessage.trim() || `Good day Admin,
+
+I am writing to formally appeal the suspension of my account (Username: ${username} / Email: ${email} and Report Title: ${selectedReport.title || 'N/A'} and other information).
+
+I have reviewed the Terms and Conditions and would like to request a review of this decision. Please let me know what steps I need to take or what information you require from me.
+
+Thank you for your consideration.`;
+
+      const appealPayload = {
+        report_id: selectedReport.id,
+        user_email: email,
+        username: username,
+        message: appealText,
+        created_at: new Date().toISOString(),
+        status: 'pending',
+        admin_read: false,
+        appeal_type: appealType
+      };
+
+      // Save appeal to users.user_appeal column
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ user_appeal: appealPayload })
+        .eq('user_email', email);
+
+      if (userError) throw userError;
+
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      await supabase.from('system_logs').insert({
+        admin_email: currentUser?.email || email,
+        activity_type: 'user_action',
+        activity_description: 'User submitted appeal',
+        target_user_email: email,
+        target_report_id: selectedReport.id,
+        details: { message: appealText }
+      });
+
+      setToastMessage('Appeal submitted successfully. Admin will review your request.');
+      setShowToast(true);
+      setShowAppealModal(false);
+      setAppealMessage('');
+      setAppealType('warned');
+    } catch (error: any) {
+      console.error('Error submitting appeal:', error);
+      setToastMessage('Failed to submit appeal. Please try again.');
+      setShowToast(true);
+    } finally {
+      setIsSubmittingAppeal(false);
+    }
   };
 
   const submitFeedback = async () => {
@@ -1482,13 +1547,19 @@ const History: React.FC = () => {
             </IonChip>
             {selectedReport.priority && (
               <IonChip
+                onClick={() => {
+                  if ((selectedReport.priority as string) === 'prank') {
+                    setShowAppealModal(true);
+                  }
+                }}
                 style={{
                   '--background': getPriorityColor(selectedReport.priority) + '20',
                 '--color': getPriorityColor(selectedReport.priority),
                   height: '28px',
                   fontSize: '12px',
                   fontWeight: '600',
-                  margin: 0
+                  margin: 0,
+                  cursor: (selectedReport.priority as string) === 'prank' ? 'pointer' : 'default'
                 } as any}
               >
                 {selectedReport.priority.toUpperCase()}
@@ -2056,8 +2127,92 @@ const History: React.FC = () => {
         </div>
       </IonModal>
 
+      {/* Appeal Modal for Prank Reports */}
+      <IonModal isOpen={showAppealModal} onDidDismiss={() => {
+        setShowAppealModal(false);
+        setAppealMessage('');
+        setAppealType('warned');
+      }}>
+        <IonHeader>
+          <IonToolbar>
+            <IonTitle>Appeal Report Decision</IonTitle>
+            <IonButtons slot="end">
+              <IonButton onClick={() => {
+                setShowAppealModal(false);
+                setAppealMessage('');
+                setAppealType('warned');
+              }}>
+                <IonIcon icon={closeCircleOutline} />
+              </IonButton>
+            </IonButtons>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent>
+          <div style={{ padding: '16px' }}>
+            {selectedReport && (
+              <>
+                <IonCard style={{ marginBottom: '16px' }}>
+                  <IonCardContent>
+                    <IonLabel position="stacked" style={{ marginBottom: '12px', display: 'block' }}>Appeal Type</IonLabel>
+                    <IonRadioGroup
+                      value={appealType}
+                      onIonChange={e => setAppealType(e.detail.value as 'banned' | 'suspended' | 'warned')}
+                    >
+                      <IonItem>
+                        <IonRadio slot="start" value="banned" />
+                        <IonLabel>Appeal Account Banned</IonLabel>
+                      </IonItem>
+                      <IonItem>
+                        <IonRadio slot="start" value="suspended" />
+                        <IonLabel>Appeal Account Suspended</IonLabel>
+                      </IonItem>
+                      <IonItem>
+                        <IonRadio slot="start" value="warned" />
+                        <IonLabel>Appeal Account Warned</IonLabel>
+                      </IonItem>
+                    </IonRadioGroup>
+                  </IonCardContent>
+                </IonCard>
+                <IonCard>
+                  <IonCardContent>
+                    <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Appealing Report</h3>
+                    <p><strong>Title:</strong> {selectedReport.title}</p>
+                    <p><strong>Date:</strong> {new Date(selectedReport.created_at).toLocaleDateString()}</p>
+                  </IonCardContent>
+                </IonCard>
+
+                {(appealType === 'banned' || appealType === 'suspended' || appealType === 'warned') && (
+                  <IonCard style={{ marginTop: '16px' }}>
+                    <IonCardContent>
+                      <IonItem>
+                        <IonLabel position="stacked">Message to Admin (Optional - will use default if empty)</IonLabel>
+                        <IonTextarea
+                          value={appealMessage}
+                          onIonInput={e => setAppealMessage(e.detail.value!)}
+                          rows={6}
+                          placeholder="Enter your appeal message..."
+                        />
+                      </IonItem>
+                    </IonCardContent>
+                  </IonCard>
+                )}
+
+                <IonButton
+                  expand="block"
+                  onClick={submitAppeal}
+                  disabled={isSubmittingAppeal}
+                  style={{ marginTop: '16px' }}
+                >
+                  {isSubmittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+                </IonButton>
+              </>
+            )}
+          </div>
+        </IonContent>
+      </IonModal>
+
       <IonToast
-        isOpen={false}
+        isOpen={showToast}
         onDidDismiss={() => setShowToast(false)}
         message={toastMessage}
         duration={3000}

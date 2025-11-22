@@ -78,6 +78,18 @@ const COMMAND_CENTER = {
   name: "MDRRMO",
 }
 
+const WARNING_LOCK_DURATION_MS = 60 * 60 * 1000
+const SUSPENSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000
+
+const formatSanctionDateTime = (date: Date) =>
+  date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+
 const getResolvedPhotoPublicUrl = (input?: string | null): string | null => {
   if (!input) return null
 
@@ -118,7 +130,7 @@ interface IncidentReport {
   description: string
   location: string
   status: "pending" | "active" | "resolved"
-  priority: "low" | "medium" | "high" | "critical"
+  priority: "low" | "medium" | "high" | "critical" | "prank"
   reporter_name: string
   reporter_email: string
   reporter_address: string
@@ -141,6 +153,24 @@ interface IncidentReport {
   // Added fields used elsewhere in the component
   resolved_at?: string
   resolved_photo_url?: string | null
+  appeal?: {
+    report_id: string
+    user_email: string
+    username: string
+    message: string
+    created_at?: string
+    status?: string
+    admin_read?: boolean
+    reviewed_at?: string
+    reviewed_by?: string
+    appeal_type?: string
+  }
+  admin_appeal?: {
+    status?: string
+    message?: string
+    reviewed_by?: string
+    reviewed_at?: string
+  }
 }
 
 interface User {
@@ -175,6 +205,7 @@ const AdminDashboard: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
   const markersRef = useRef<L.Marker[]>([])
+  const markerMapRef = useRef<Record<string, L.Marker | undefined>>({})
   const commandCenterMarkerRef = useRef<L.Marker | null>(null)
   const routeLayerRef = useRef<L.Polyline | null>(null)
   const [isIncidentsCollapsed, setIsIncidentsCollapsed] = useState(false)
@@ -183,7 +214,7 @@ const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<User[]>([])
   const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null)
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "active" | "resolved">("all")
-  const [priorityFilter, setPriorityFilter] = useState<"all" | "low" | "medium" | "high" | "critical">("all")
+const [priorityFilter, setPriorityFilter] = useState<"all" | "low" | "medium" | "high" | "critical" | "prank">("all")
   const [userFilter, setUserFilter] = useState<"all" | "active" | "inactive" | "suspended" | "banned" | "online" | "offline">("all")
   const [userSort, setUserSort] = useState<"alphabetical">("alphabetical")
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -226,7 +257,9 @@ const AdminDashboard: React.FC = () => {
   report?: IncidentReport 
 } | null>(null);
   const [showPrankModal, setShowPrankModal] = useState(false)
-  const [prankMessage, setPrankMessage] = useState("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.")
+  const [prankMessage, setPrankMessage] = useState("Your report has been verified as prank and your account has been suspended. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.")
+  const [showAppealReviewModal, setShowAppealReviewModal] = useState(false)
+  const [isProcessingAppeal, setIsProcessingAppeal] = useState(false)
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -1105,24 +1138,18 @@ const AdminDashboard: React.FC = () => {
         details: { report_title: report.title }
       });
 
-      // Increment user warning count
+      // Suspend user instead of warning
       try {
-        const { data: warningData } = await supabase
-          .from('users')
-          .select('warnings')
-          .eq('user_email', report.reporter_email)
-          .maybeSingle();
-
-        const currentWarnings = warningData?.warnings ?? 0;
+        const suspensionDate = new Date().toISOString();
         await supabase
           .from('users')
           .update({
-            warnings: currentWarnings + 1,
-            last_warning_date: new Date().toISOString()
+            status: 'suspended',
+            suspension_date: suspensionDate
           })
           .eq('user_email', report.reporter_email);
-      } catch (warnErr) {
-        console.warn('Failed to increment warning count:', warnErr);
+      } catch (suspendErr) {
+        console.warn('Failed to suspend user:', suspendErr);
       }
 
       // Activity log entry
@@ -1149,7 +1176,102 @@ const AdminDashboard: React.FC = () => {
       setShowToast(true);
     } finally {
       setShowPrankModal(false);
-      setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+      setPrankMessage("Your report has been verified as prank and your account has been suspended. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+    }
+  }
+
+  const getSuspensionLiftDate = async (reporterEmail: string): Promise<string | null> => {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('suspension_date')
+        .eq('user_email', reporterEmail)
+        .maybeSingle()
+      if (data?.suspension_date) {
+        const start = new Date(data.suspension_date)
+        const lift = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)
+        return lift.toISOString()
+      }
+    } catch (error) {
+      console.warn('Failed to compute suspension lift date:', error)
+    }
+    return null
+  }
+
+  const handleAppealDecision = async (action: 'activate' | 'remain') => {
+    if (!selectedReport || !selectedReport.appeal) return
+    setIsProcessingAppeal(true)
+    try {
+      const now = new Date().toISOString()
+      const { data: { user } } = await supabase.auth.getUser()
+      const adminEmail = user?.email || 'unknown'
+      let finalMessage = ''
+
+      if (action === 'activate') {
+        finalMessage = 'Your report has been reviewed by the admin and found out that the report has been reviewed as valid report. Sorry for the inconvenience.'
+        await supabase
+          .from('users')
+          .update({ status: 'active', suspension_date: null })
+          .eq('user_email', selectedReport.reporter_email)
+      } else {
+        const suspensionLift = await getSuspensionLiftDate(selectedReport.reporter_email)
+        const readableDate = suspensionLift ? new Date(suspensionLift).toLocaleString() : 'the end of your suspension period'
+        finalMessage = `Your report has been reviewed by the admin and found out that the report is still deemed as prank. Your account is still suspended until ${readableDate}. Please refrain doing prank incident reports for the safety of everyone.`
+        await supabase
+          .from('users')
+          .update({ status: 'suspended' })
+          .eq('user_email', selectedReport.reporter_email)
+      }
+
+      const updatedAppeal = {
+        ...selectedReport.appeal,
+        status: action === 'activate' ? 'approved' : 'denied',
+        admin_read: true,
+        reviewed_at: now,
+        reviewed_by: adminEmail
+      }
+
+      const adminAppealRecord = {
+        status: updatedAppeal.status,
+        message: finalMessage,
+        reviewed_by: adminEmail,
+        reviewed_at: now
+      }
+
+      await supabase
+        .from('incident_reports')
+        .update({ appeal: updatedAppeal, admin_appeal: adminAppealRecord })
+        .eq('id', selectedReport.id)
+
+      await supabase.from('notifications').insert({
+        user_email: selectedReport.reporter_email,
+        title: 'Appeal Review Result',
+        message: finalMessage,
+        type: 'appeal',
+        related_report_id: selectedReport.id,
+        is_automated: true
+      })
+
+      await supabase.from('system_logs').insert({
+        admin_email: adminEmail,
+        activity_type: 'user_action',
+        activity_description: action === 'activate' ? 'Appeal approved' : 'Appeal denied',
+        target_user_email: selectedReport.reporter_email,
+        target_report_id: selectedReport.id,
+        details: { message: finalMessage }
+      })
+
+      setToastMessage('Appeal review recorded')
+      setShowToast(true)
+      setShowAppealReviewModal(false)
+      setSelectedReport(prev => prev ? { ...prev, appeal: updatedAppeal, admin_appeal: adminAppealRecord } : prev)
+      await fetchInitialData()
+    } catch (error) {
+      console.error('Error processing appeal:', error)
+      setToastMessage('Error processing appeal. Please try again.')
+      setShowToast(true)
+    } finally {
+      setIsProcessingAppeal(false)
     }
   }
 
@@ -1344,6 +1466,7 @@ const AdminDashboard: React.FC = () => {
         }
       })
       markersRef.current = []
+      markerMapRef.current = {}
 
       const filteredReports = reports.filter((report) => {
         const matchesStatus = statusFilter === "all" || report.status === statusFilter
@@ -1529,6 +1652,7 @@ const AdminDashboard: React.FC = () => {
           })
 
           markersRef.current.push(marker)
+          markerMapRef.current[report.id] = marker
         } catch (markerError) {
           console.error("Error creating marker for report:", report.id, markerError)
         }
@@ -1889,7 +2013,13 @@ const AdminDashboard: React.FC = () => {
       if (statusDiff !== 0) return statusDiff
 
       // Then sort by priority
-      const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+      const priorityOrder: Record<IncidentReport['priority'], number> = {
+        critical: 0,
+        high: 1,
+        medium: 2,
+        low: 3,
+        prank: 4
+      }
       return priorityOrder[a.priority] - priorityOrder[b.priority]
     })
   }, [reports, statusFilter, priorityFilter])
@@ -1944,88 +2074,113 @@ const AdminDashboard: React.FC = () => {
     if (!selectedUserForAction) return
 
     try {
-      let updates: any = {};
-      let actionTitle = '';
-      let notifyMessage = '';
-      const targetEmail = selectedUserForAction.user_email;
+      const targetEmail = selectedUserForAction.user_email
+      const now = new Date()
+      const nowIso = now.toISOString()
+      const warningEndsAt = new Date(now.getTime() + WARNING_LOCK_DURATION_MS)
+      const suspensionEndsAt = new Date(now.getTime() + SUSPENSION_DURATION_MS)
+
+      let updates: any = {}
+      let actionTitle = ""
+      let notifyMessage = ""
+      let effectiveAction: "warn" | "suspend" | "ban" | "activate" = action
+
       switch (action) {
-        case "warn":
-          updates = { warnings: (selectedUserForAction.warnings || 0) + 1, last_warning_date: new Date().toISOString() };
-          if (updates.warnings >= 3) updates.status = 'suspended';
-          actionTitle = 'Account Warned';
-          notifyMessage = 'Your account has received a warning from LDRRMO staff. Please adhere to community guidelines to avoid account suspension.';
-          break;
+        case "warn": {
+          updates = {
+            warnings: (selectedUserForAction.warnings || 0) + 1,
+            last_warning_date: nowIso,
+          }
+          actionTitle = "Account Warned"
+          notifyMessage = `Your account has received a warning from LDRRMO staff. You can't submit a report for 1 hour (until ${formatSanctionDateTime(
+            warningEndsAt,
+          )}). Please adhere to community guidelines to avoid account suspension.`
+
+          if (updates.warnings >= 3) {
+            updates.status = "suspended"
+            updates.suspension_date = nowIso
+            actionTitle = "Account Suspended"
+            notifyMessage = `Your account has been suspended due to violations of community guidelines. You can't submit a report for 1 week (until ${formatSanctionDateTime(
+              suspensionEndsAt,
+            )}). Contact LDRRMO for assistance.`
+            effectiveAction = "suspend"
+          }
+          break
+        }
         case "suspend":
-          updates = { status: 'suspended' };
-          actionTitle = 'Account Suspended';
-          notifyMessage = 'Your account has been suspended due to violations of community guidelines. Contact LDRRMO for assistance.';
-          break;
+          updates = { status: "suspended", suspension_date: nowIso }
+          actionTitle = "Account Suspended"
+          notifyMessage = `Your account has been suspended due to violations of community guidelines. You can't submit a report for 1 week (until ${formatSanctionDateTime(
+            suspensionEndsAt,
+          )}). Contact LDRRMO for assistance.`
+          break
         case "ban":
-          updates = { status: 'banned' };
-          actionTitle = 'Account Banned';
-          notifyMessage = 'Your account has been banned due to severe or repeated violations. This action is permanent.';
-          break;
+          updates = { status: "banned" }
+          actionTitle = "Account Banned"
+          notifyMessage =
+            "Your account has been banned due to severe or repeated violations. This action is permanent if not successfully appealed."
+          break
         case "activate":
-          updates = { status: 'active', warnings: 0, last_warning_date: null };
-          actionTitle = 'Account Activated';
-          notifyMessage = 'Your account has been reactivated. Please follow community guidelines to avoid further actions.';
-          break;
+          updates = { status: "active", warnings: 0, last_warning_date: null, suspension_date: null }
+          actionTitle = "Account Activated"
+          notifyMessage = "Your account has been reactivated. Please follow community guidelines to avoid further actions."
+          break
       }
 
-      const { error } = await supabase
-        .from("users")
-        .update(updates)
-        .eq("id", selectedUserForAction.id)
+      const { error } = await supabase.from("users").update(updates).eq("id", selectedUserForAction.id)
 
       if (error) throw error
 
       const verbMap: Record<"warn" | "suspend" | "ban" | "activate", string> = {
-        warn: 'warned',
-        suspend: 'suspended',
-        ban: 'banned',
-        activate: 'activated'
-      };
+        warn: "warned",
+        suspend: "suspended",
+        ban: "banned",
+        activate: "activated",
+      }
 
-      const actionMessage = action === 'warn' && updates.warnings >= 3
-        ? 'User warned and auto-suspended (3 warnings)'
-        : `User ${verbMap[action]} successfully`;
+      const actionMessage =
+        action === "warn" && effectiveAction === "suspend"
+          ? "User warned and auto-suspended (3 warnings)"
+          : `User ${verbMap[effectiveAction]} successfully`
 
-      setToastMessage(actionMessage);
-      setShowToast(true);
-      setShowUserActionModal(false);
-      await fetchInitialData();
+      setToastMessage(actionMessage)
+      setShowToast(true)
+      setShowUserActionModal(false)
+      await fetchInitialData()
 
       // Notify the user about the action
       try {
-        await supabase.from('notifications').insert({
+        await supabase.from("notifications").insert({
           user_email: targetEmail,
           title: actionTitle,
           message: notifyMessage,
-          type: 'warning',
-          is_automated: true
-        });
+          type: "warning",
+          is_automated: true,
+        })
       } catch {}
 
       // Log to system_logs
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from('system_logs').insert({
-          admin_email: user?.email || 'unknown',
-          activity_type: 'user_action',
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        await supabase.from("system_logs").insert({
+          admin_email: user?.email || "unknown",
+          activity_type: "user_action",
           activity_description: `${actionTitle} by admin`,
           target_user_email: targetEmail,
-          details: { action, updates }
-        });
+          details: { action: effectiveAction, updates },
+        })
       } catch {}
 
       // Log to activity_logs for auditing (ties to user)
       try {
-        await supabase.from('activity_logs').insert({
+        await supabase.from("activity_logs").insert({
           user_email: targetEmail,
-          activity_type: 'account',
+          activity_type: "account",
           activity_description: `${actionTitle}`,
-          details: { action, by: 'admin' }
-        });
+          details: { action: effectiveAction, by: "admin" },
+        })
       } catch {}
     } catch (error) {
       console.error("Error updating user:", error)
@@ -2290,38 +2445,62 @@ const AdminDashboard: React.FC = () => {
     setShowActionConfirmAlert(true);
   };
 
-  // Update getConfirmationMessage function
-const getConfirmationMessage = () => {
-  if (!pendingAction) return '';
-
-  // Handle report deletion
-  if (pendingAction.type === 'delete' && pendingAction.report) {
-    return `Are you sure you want to delete the report "${pendingAction.report.title}"? This action is permanent and cannot be undone.`;
-  }
-
-  // Handle user actions
-  if (pendingAction.user) {
-    const userName = `${pendingAction.user.user_firstname} ${pendingAction.user.user_lastname}`;
-    const userEmail = pendingAction.user.user_email;
-
-    switch (pendingAction.type) {
-      case 'warn':
-        return `Are you sure you want to issue a warning to ${userName} (${userEmail})? This will increment their warning count.`;
-      case 'suspend':
-        return `Are you sure you want to suspend ${userName} (${userEmail})? They will not be able to access the system.`;
-      case 'ban':
-        return `Are you sure you want to ban ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
-      case 'activate':
-        return `Are you sure you want to activate ${userName} (${userEmail})? This will reset their warnings and restore access.`;
-      case 'delete':
-        return `Are you sure you want to delete ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
-      default:
-        return 'Are you sure you want to perform this action?';
+  const getSanctionImpactMessage = (type: "warn" | "suspend" | "ban") => {
+    if (type === "warn") {
+      const warnEnd = new Date(Date.now() + WARNING_LOCK_DURATION_MS)
+      return `This warning will block the user's ability to submit reports for 1 hour (until ${formatSanctionDateTime(
+        warnEnd,
+      )}).`
     }
+    if (type === "suspend") {
+      const suspendEnd = new Date(Date.now() + SUSPENSION_DURATION_MS)
+      return `Suspension prevents the user from submitting reports for 1 week (until ${formatSanctionDateTime(
+        suspendEnd,
+      )}).`
+    }
+    return "Banning will prevent the user from logging in. This action is permanent unless an appeal is approved."
   }
-  
-  return 'Are you sure you want to perform this action?';
-};
+
+  // Update getConfirmationMessage function
+  const getConfirmationMessage = () => {
+    if (!pendingAction) return ''
+
+    // Handle report deletion
+    if (pendingAction.type === 'delete' && pendingAction.report) {
+      return `Are you sure you want to delete the report "${pendingAction.report.title}"? This action is permanent and cannot be undone.`
+    }
+
+    // Handle user actions
+    if (pendingAction.user) {
+      const userName = `${pendingAction.user.user_firstname} ${pendingAction.user.user_lastname}`
+      const userEmail = pendingAction.user.user_email
+
+      const baseMessage = (() => {
+        switch (pendingAction.type) {
+          case 'warn':
+            return `Are you sure you want to issue a warning to ${userName} (${userEmail})? This will increment their warning count.`
+          case 'suspend':
+            return `Are you sure you want to suspend ${userName} (${userEmail})? They will not be able to access the system.`
+          case 'ban':
+            return `Are you sure you want to ban ${userName} (${userEmail})? This action is permanent and cannot be undone.`
+          case 'activate':
+            return `Are you sure you want to activate ${userName} (${userEmail})? This will reset their warnings and restore access.`
+          case 'delete':
+            return `Are you sure you want to delete ${userName} (${userEmail})? This action is permanent and cannot be undone.`
+          default:
+            return 'Are you sure you want to perform this action?'
+        }
+      })()
+
+      if (['warn', 'suspend', 'ban'].includes(pendingAction.type)) {
+        return `${baseMessage}\n\n${getSanctionImpactMessage(pendingAction.type as "warn" | "suspend" | "ban")}`
+      }
+
+      return baseMessage
+    }
+
+    return 'Are you sure you want to perform this action?'
+  };
 
 // Update getConfirmationHeader function
 const getConfirmationHeader = () => {
@@ -2712,29 +2891,36 @@ const handleDeleteReport = async (report: IncidentReport) => {
                         <IonText style={{ fontSize: '14px', color: '#6b7280', display: 'block', marginBottom: '8px' }}>
                           Photo Preview:
                         </IonText>
-                        <IonImg
-                          src={photoPreview}
-                          style={{
-                            maxWidth: '200px',
-                            maxHeight: '200px',
-                            borderRadius: '8px',
-                            margin: '0 auto',
-                            border: '2px solid #e5e7eb'
-                          }}
-                        />
-                        <IonButton
-                          size="small"
-                          color="danger"
-                          fill="clear"
-                          onClick={() => {
-                            setResolvedPhoto(null);
-                            setPhotoPreview(null);
-                          }}
-                          style={{ marginTop: '8px' }}
-                        >
-                          <IonIcon icon={closeOutline} slot="start" />
-                          Remove Photo
-                        </IonButton>
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <IonImg
+                            src={photoPreview}
+                            style={{
+                              maxWidth: '200px',
+                              maxHeight: '200px',
+                              borderRadius: '8px',
+                              border: '2px solid #e5e7eb'
+                            }}
+                          />
+                          <IonButton
+                            size="small"
+                            color="danger"
+                            fill="clear"
+                            onClick={() => {
+                              setResolvedPhoto(null);
+                              setPhotoPreview(null);
+                            }}
+                            style={{
+                              position: 'absolute',
+                              top: '8px',
+                              right: '8px',
+                              '--background': 'rgba(0,0,0,0.5)',
+                              '--color': 'white',
+                              borderRadius: '50%'
+                            } as any}
+                          >
+                            <IonIcon icon={closeOutline} slot="icon-only" />
+                          </IonButton>
+                        </div>
                       </div>
                     )}
 
@@ -3013,6 +3199,10 @@ const handleDeleteReport = async (report: IncidentReport) => {
                             if (report.coordinates) {
                               mapInstanceRef.current?.setView([report.coordinates.lat, report.coordinates.lng], 15)
                             }
+                            const marker = markerMapRef.current[report.id]
+                            if (marker) {
+                              marker.openPopup()
+                            }
                           }}
                           style={
                             {
@@ -3061,11 +3251,25 @@ const handleDeleteReport = async (report: IncidentReport) => {
                                   e.stopPropagation();
                                   setSelectedReport(report);
                                   setShowPrankModal(true);
-                                  setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+                                  setPrankMessage("Your report has been verified as prank and your account has been suspended. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
                                 }}
                                 >
                                   {report.priority}
                                 </IonBadge>
+                                {report.priority === 'prank' && report.appeal?.status === 'pending' && (
+                                  <IonBadge
+                                    style={{ fontSize: '10px', '--background': '#f59e0b', '--color': 'white' } as any}
+                                  >
+                                    Appeal Pending
+                                  </IonBadge>
+                                )}
+                                {report.priority === 'prank' && report.appeal?.status && report.appeal.status !== 'pending' && (
+                                  <IonBadge
+                                    style={{ fontSize: '10px', '--background': '#10b981', '--color': 'white' } as any}
+                                  >
+                                    Appeal Reviewed
+                                  </IonBadge>
+                                )}
                               </div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
@@ -3623,7 +3827,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                   <IonCardContent>
                     <h2 style={{ marginTop: 0, marginBottom: "16px" }}>{selectedReport.title}</h2>
 
-                    <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: 'wrap' }}>
                       <IonBadge
                         onClick={(e) => handleStatusBadgeClick(selectedReport, e)}
                         style={{
@@ -3639,7 +3843,7 @@ const handleDeleteReport = async (report: IncidentReport) => {
                           e.stopPropagation();
                           setSelectedReport(selectedReport);
                           setShowPrankModal(true);
-                          setPrankMessage("Your report has been verified as prank and your account will be warned. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
+                          setPrankMessage("Your report has been verified as prank and your account has been suspended. Please refrain doing this kind of pranks for the safety of the responders and the community of Manolo Fortich.");
                         }}
                         style={{ 
                           "--background": getPriorityColor(selectedReport.priority),
@@ -3648,6 +3852,26 @@ const handleDeleteReport = async (report: IncidentReport) => {
                       >
                         {selectedReport.priority}
                       </IonBadge>
+                      {selectedReport.priority === 'prank' && selectedReport.appeal?.status === 'pending' && (
+                        <IonBadge
+                          style={{
+                            "--background": '#f59e0b',
+                            "--color": 'white'
+                          } as any}
+                        >
+                          APPEAL PENDING
+                        </IonBadge>
+                      )}
+                      {selectedReport.priority === 'prank' && selectedReport.appeal?.status && selectedReport.appeal.status !== 'pending' && (
+                        <IonBadge
+                          style={{
+                            "--background": '#10b981',
+                            "--color": 'white'
+                          } as any}
+                        >
+                          APPEAL REVIEWED
+                        </IonBadge>
+                      )}
                     </div>
 
                     {/* Conditional scheduling/ETA/resolution summary by status */}
@@ -3799,6 +4023,45 @@ const handleDeleteReport = async (report: IncidentReport) => {
                         </div>
                       </div>
                     )}
+
+                  {selectedReport.priority === 'prank' && selectedReport.appeal && (
+                    <IonCard style={{ marginTop: '16px', background: '#fdf4ff', border: '1px solid #d8b4fe' }}>
+                      <IonCardContent>
+                        <strong style={{ color: '#6b21a8' }}>User Appeal</strong>
+                        <p style={{ margin: '6px 0', fontSize: '13px', color: '#6b7280' }}>
+                          Submitted: {selectedReport.appeal.created_at ? new Date(selectedReport.appeal.created_at).toLocaleString() : 'N/A'}
+                        </p>
+                        <IonBadge
+                          style={{
+                            '--background': selectedReport.appeal.status === 'pending' ? '#f59e0b' : '#10b981',
+                            '--color': 'white',
+                            marginBottom: '8px'
+                          } as any}
+                        >
+                          {selectedReport.appeal.status?.toUpperCase() || 'PENDING'}
+                        </IonBadge>
+                        <p style={{ whiteSpace: 'pre-wrap', fontSize: '14px', color: '#4c1d95', marginTop: '8px' }}>
+                          {selectedReport.appeal.message}
+                        </p>
+                        {selectedReport.admin_appeal && (
+                          <div style={{ marginTop: '12px', padding: '12px', background: '#ede9fe', borderRadius: '8px', color: '#4c1d95' }}>
+                            <strong>Admin Response:</strong>
+                            <p style={{ margin: '6px 0 0 0', whiteSpace: 'pre-wrap' }}>{selectedReport.admin_appeal.message}</p>
+                          </div>
+                        )}
+                        {selectedReport.appeal.status === 'pending' && (
+                          <IonButton
+                            expand="block"
+                            color="primary"
+                            style={{ marginTop: '12px' }}
+                            onClick={() => setShowAppealReviewModal(true)}
+                          >
+                            Review Appeal
+                          </IonButton>
+                        )}
+                      </IonCardContent>
+                    </IonCard>
+                  )}
 
                     <IonGrid>
                       <IonRow>
@@ -4360,6 +4623,7 @@ function getPriorityColor(priority: string): string {
     high: "#f97316",
     medium: "#eab308",
     low: "#84cc16",
+    prank: "#6b7280",
   }
   return colors[priority] || "#6b7280"
 }

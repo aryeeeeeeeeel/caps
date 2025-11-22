@@ -83,6 +83,7 @@ interface IncidentReport {
     admin_read?: boolean;
     reviewed_at?: string;
     reviewed_by?: string;
+    appeal_type?: string;
   };
   admin_appeal?: {
     status?: string;

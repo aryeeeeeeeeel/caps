@@ -1112,7 +1112,7 @@ const IncidentReport: React.FC = () => {
       // Get user profile from users table
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('user_firstname, user_lastname, user_email, user_address, user_contact_number, status, warnings')
+        .select('user_firstname, user_lastname, user_email, user_address, user_contact_number, status, warnings, last_warning_date, suspension_date')
         .eq('user_email', user.email)
         .single();
 
@@ -1123,10 +1123,28 @@ const IncidentReport: React.FC = () => {
 
       if (profile) {
         setUserProfile(profile);
-        // Enforce account status rules
-        if ((profile as any).status) {
-          setAccountStatus((profile as any).status);
-          if ((profile as any).status === 'banned') {
+        const profileStatus = (profile as any).status;
+        const lastWarningDate = (profile as any).last_warning_date;
+        const suspensionDate = (profile as any).suspension_date;
+        const now = new Date();
+
+        // Auto-activate suspended users after 1 week
+        if (profileStatus === 'suspended' && suspensionDate) {
+          const suspensionTime = new Date(suspensionDate);
+          const weekInMs = 7 * 24 * 60 * 60 * 1000;
+          if (now.getTime() - suspensionTime.getTime() >= weekInMs) {
+            // Auto-activate after 1 week
+            await supabase
+              .from('users')
+              .update({ status: 'active', suspension_date: null })
+              .eq('user_email', user.email);
+            setAccountStatus('active');
+          } else {
+            setAccountStatus('suspended');
+          }
+        } else if (profileStatus) {
+          setAccountStatus(profileStatus);
+          if (profileStatus === 'banned') {
             showToastMessage('Your account is banned. You will be signed out.', 'danger');
             await supabase.auth.signOut();
             window.location.href = '/iAMUMAta';
@@ -1471,7 +1489,18 @@ const IncidentReport: React.FC = () => {
   // Select from gallery function
   const selectFromGallery = async () => {
     try {
+      // Check camera permission for gallery access
+      const hasCameraPermission = await checkPermissions('camera');
+      if (!hasCameraPermission) {
+        showToastMessage('Camera permission is required to select images. Please enable it in permissions.', 'warning');
+        return;
+      }
+
       setPhotoProcessing(true);
+
+      // Get location in parallel (non-blocking)
+      let currentLocationPromise: Promise<{ lat: number; lng: number } | null> = getCurrentLocation().catch(() => null);
+
       const image = await Camera.getPhoto({
         quality: 90,
         allowEditing: false,
@@ -1488,6 +1517,34 @@ const IncidentReport: React.FC = () => {
           const { file, exif } = await processImage(blob);
           const currentDateTime = getCurrentDateTime();
 
+          // Get location now (non-blocking, use if available)
+          let currentLocation = null;
+          try {
+            currentLocation = await currentLocationPromise;
+            if (currentLocation) {
+              console.log('Current location captured:', currentLocation);
+            }
+          } catch (locationError) {
+            console.warn('Could not get current location:', locationError);
+          }
+
+          // If EXIF doesn't contain GPS but we have current location, use it
+          let enhancedExif = exif;
+          if (!exif?.gpsLatitude && currentLocation) {
+            enhancedExif = {
+              ...exif,
+              gpsLatitude: currentLocation.lat,
+              gpsLongitude: currentLocation.lng,
+              locationSource: 'device_gps'
+            };
+
+            // Detect barangay from device GPS
+            const detectedBarangay = detectBarangayFromCoordinates(currentLocation.lat, currentLocation.lng);
+            if (detectedBarangay) {
+              enhancedExif.detectedBarangay = detectedBarangay;
+            }
+          }
+
           setFormData(prev => ({
             ...prev,
             images: [...prev.images, file],
@@ -1496,11 +1553,11 @@ const IncidentReport: React.FC = () => {
 
           setImagePreview(prev => [...prev, image.webPath!]);
 
-          if (exif && formData.images.length === 0) {
-            setExtractedExifData(exif);
+          if (enhancedExif && formData.images.length === 0) {
+            setExtractedExifData(enhancedExif);
           }
 
-          showToastMessage('Photo added successfully!');
+          showToastMessage('Photo added successfully!' + (currentLocation ? ' Location captured.' : ''));
         } finally {
           setPhotoProcessing(false);
         }
@@ -1509,13 +1566,31 @@ const IncidentReport: React.FC = () => {
       }
     } catch (error: any) {
       setPhotoProcessing(false);
-      if (!error.message?.includes('User cancelled')) {
+      
+      // Handle user cancellation gracefully - don't show as error
+      const errorMessage = error?.message || error?.toString() || '';
+      if (errorMessage.includes('User cancelled') || 
+          errorMessage.includes('cancelled') ||
+          errorMessage.includes('cancel')) {
+        // User intentionally cancelled - don't show error
+        console.log('User cancelled image selection');
+        return;
+      }
+      
+      if (!errorMessage.includes('cancelled')) {
         showToastMessage('Failed to select image. Please try again.', 'danger');
       }
     }
   };
 
-  const selectFromFileInput = () => {
+  const selectFromFileInput = async () => {
+    // Check camera permission for file selection
+    const hasCameraPermission = await checkPermissions('camera');
+    if (!hasCameraPermission) {
+      showToastMessage('Camera permission is required to select images. Please enable it in permissions.', 'warning');
+      return;
+    }
+
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
@@ -1537,10 +1612,42 @@ const IncidentReport: React.FC = () => {
       }
 
       setPhotoProcessing(true);
+      
+      // Get location in parallel (non-blocking)
+      let currentLocationPromise: Promise<{ lat: number; lng: number } | null> = getCurrentLocation().catch(() => null);
+
       try {
         const previewUrl = URL.createObjectURL(file);
         const { file: optimizedFile, exif } = await processImage(file);
         const currentDateTime = getCurrentDateTime();
+
+        // Get location now (non-blocking, use if available)
+        let currentLocation = null;
+        try {
+          currentLocation = await currentLocationPromise;
+          if (currentLocation) {
+            console.log('Current location captured:', currentLocation);
+          }
+        } catch (locationError) {
+          console.warn('Could not get current location:', locationError);
+        }
+
+        // If EXIF doesn't contain GPS but we have current location, use it
+        let enhancedExif = exif;
+        if (!exif?.gpsLatitude && currentLocation) {
+          enhancedExif = {
+            ...exif,
+            gpsLatitude: currentLocation.lat,
+            gpsLongitude: currentLocation.lng,
+            locationSource: 'device_gps'
+          };
+
+          // Detect barangay from device GPS
+          const detectedBarangay = detectBarangayFromCoordinates(currentLocation.lat, currentLocation.lng);
+          if (detectedBarangay) {
+            enhancedExif.detectedBarangay = detectedBarangay;
+          }
+        }
 
         setFormData(prev => ({
           ...prev,
@@ -1550,11 +1657,11 @@ const IncidentReport: React.FC = () => {
 
         setImagePreview(prev => [...prev, previewUrl]);
 
-        if (exif && formData.images.length === 0) {
-          setExtractedExifData(exif);
+        if (enhancedExif && formData.images.length === 0) {
+          setExtractedExifData(enhancedExif);
         }
 
-        showToastMessage('Photo added successfully!');
+        showToastMessage('Photo added successfully!' + (currentLocation ? ' Location captured.' : ''));
       } catch (error) {
         showToastMessage('Failed to process image. Please try another file.', 'danger');
       } finally {
@@ -1647,11 +1754,64 @@ const IncidentReport: React.FC = () => {
       return;
     }
 
-    // Block suspended accounts from submitting
-    if (accountStatus === 'suspended') {
-      showToastMessage('Your account is suspended. You cannot submit reports.', 'warning');
+    // Check if user can submit reports based on status and dates
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      showToastMessage('Please log in to submit reports.', 'warning');
       submitIntentRef.current = false;
       return;
+    }
+
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('status, warnings, last_warning_date, suspension_date, user_email')
+      .eq('user_email', authUser.email)
+      .single();
+
+    if (userProfile) {
+      const status = userProfile.status;
+      const lastWarningDate = userProfile.last_warning_date;
+      const suspensionDate = userProfile.suspension_date;
+      const now = new Date();
+
+      // Check if warned - block for 1 hour
+      if (userProfile.warnings > 0 && lastWarningDate) {
+        const warningTime = new Date(lastWarningDate);
+        const hourInMs = 60 * 60 * 1000;
+        if (now.getTime() - warningTime.getTime() < hourInMs) {
+          const remainingMs = hourInMs - (now.getTime() - warningTime.getTime());
+          const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+          showToastMessage(`You cannot submit reports for ${remainingMinutes} more minute(s) due to a warning.`, 'warning');
+          submitIntentRef.current = false;
+          return;
+        }
+      }
+
+      // Check if suspended - block for 1 week
+      if (status === 'suspended' && suspensionDate) {
+        const suspensionTime = new Date(suspensionDate);
+        const weekInMs = 7 * 24 * 60 * 60 * 1000;
+        if (now.getTime() - suspensionTime.getTime() < weekInMs) {
+          const remainingMs = weekInMs - (now.getTime() - suspensionTime.getTime());
+          const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+          showToastMessage(`Your account is suspended. You cannot submit reports for ${remainingDays} more day(s).`, 'warning');
+          submitIntentRef.current = false;
+          return;
+        } else {
+          // Auto-activate after 1 week
+          await supabase
+            .from('users')
+            .update({ status: 'active', suspension_date: null })
+            .eq('user_email', authUser.email);
+        }
+      }
+
+      // Block banned accounts
+      if (status === 'banned') {
+        showToastMessage('Your account is banned. You cannot submit reports.', 'danger');
+        submitIntentRef.current = false;
+        return;
+      }
     }
     setIsSubmitting(true);
 
@@ -1727,10 +1887,13 @@ const IncidentReport: React.FC = () => {
         console.warn('Could not fetch user profile:', profileError);
       }
 
+      const normalizedTitle = (formData.title?.toString() || '').trim();
+      const normalizedDescription = formData.description.trim();
+
       // Prepare report data with metadata
       const reportData = {
-        title: (formData.title?.toString() || '').trim() || formData.category,
-        description: formData.description.trim(),
+        title: normalizedTitle || formData.category,
+        description: normalizedDescription,
         category: formData.category,
         priority: formData.priority,
         location: formData.location.trim(),
@@ -1747,6 +1910,23 @@ const IncidentReport: React.FC = () => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+
+      // Duplicate detection
+      const { data: duplicateReport } = await supabase
+        .from('incident_reports')
+        .select('id')
+        .eq('reporter_email', user.email)
+        .eq('title', reportData.title)
+        .eq('description', reportData.description)
+        .limit(1)
+        .maybeSingle();
+
+      if (duplicateReport) {
+        showToastMessage("Your Incident Details must be a duplicate report. Duplicate report isn't recommended. Submit new incident report.", 'warning');
+        setIsSubmitting(false);
+        submitIntentRef.current = false;
+        return;
+      }
 
       const { data: insertData, error: insertError } = await supabase
         .from('incident_reports')
@@ -1786,7 +1966,7 @@ const IncidentReport: React.FC = () => {
       setExtractionLoading(false);
 
       // Log user report submission activity
-      await logUserReportSubmission(insertData.id, String(formData.title || 'Incident Report'), userProfile?.user_email);
+      await logUserReportSubmission(insertData.id, String(formData.title || 'Incident Report'), user?.email || userProfile?.user_email);
 
       // Show success toast
       showToastMessage('Report submitted successfully! Redirecting to map...');

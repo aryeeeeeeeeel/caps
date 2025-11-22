@@ -58,6 +58,18 @@ interface User {
   is_online: boolean;
 }
 
+const WARNING_LOCK_DURATION_MS = 60 * 60 * 1000;
+const SUSPENSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+const formatSanctionDateTime = (date: Date) =>
+  date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
 const SkeletonStatsCard: React.FC = () => (
   <div style={{ background: 'white', padding: '16px', borderRadius: '12px' }}>
     <IonSkeletonText animated style={{ width: '80%', height: '28px', marginBottom: '8px' }} />
@@ -354,21 +366,50 @@ const AdminUsers: React.FC = () => {
   const handleUserAction = async (action: 'warn' | 'suspend' | 'ban' | 'activate') => {
     if (!selectedUser) return;
     try {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const warningEndsAt = new Date(now.getTime() + WARNING_LOCK_DURATION_MS);
+      const suspensionEndsAt = new Date(now.getTime() + SUSPENSION_DURATION_MS);
+
       let updates: any = {};
-      const nowIso = new Date().toISOString();
+      let notificationTitle = '';
+      let notificationMessage = '';
+      let effectiveAction: 'warn' | 'suspend' | 'ban' | 'activate' = action;
+
       switch (action) {
         case 'warn':
           updates = { warnings: (selectedUser.warnings || 0) + 1, last_warning_date: nowIso };
-          if (updates.warnings >= 3) updates.status = 'suspended';
+          notificationTitle = 'Account Warning';
+          notificationMessage = `Your account has received a warning from LDRRMO staff. You can't submit a report for 1 hour (until ${formatSanctionDateTime(
+            warningEndsAt
+          )}). Please adhere to community guidelines to avoid account suspension.`;
+          if (updates.warnings >= 3) {
+            updates.status = 'suspended';
+            updates.suspension_date = nowIso;
+            notificationTitle = 'Account Suspended';
+            notificationMessage = `Your account has been suspended due to violations of community guidelines. You can't submit a report for 1 week (until ${formatSanctionDateTime(
+              suspensionEndsAt
+            )}). Contact LDRRMO for assistance.`;
+            effectiveAction = 'suspend';
+          }
           break;
         case 'suspend':
-          updates = { status: 'suspended' };
+          updates = { status: 'suspended', suspension_date: nowIso };
+          notificationTitle = 'Account Suspended';
+          notificationMessage = `Your account has been suspended due to violations of community guidelines. You can't submit a report for 1 week (until ${formatSanctionDateTime(
+            suspensionEndsAt
+          )}). Contact LDRRMO for assistance.`;
           break;
         case 'ban':
           updates = { status: 'banned' };
+          notificationTitle = 'Account Banned';
+          notificationMessage =
+            'Your account has been banned due to severe or repeated violations. This action is permanent if not successfully appealed.';
           break;
         case 'activate':
-          updates = { status: 'active', warnings: 0, last_warning_date: null };
+          updates = { status: 'active', warnings: 0, last_warning_date: null, suspension_date: null };
+          notificationTitle = 'Account Activated';
+          notificationMessage = 'Your account has been reactivated. Please follow community guidelines to avoid further actions.';
           break;
       }
 
@@ -387,25 +428,11 @@ const AdminUsers: React.FC = () => {
       const targetEmail = selectedUser.user_email;
       const userFullname = `${selectedUser.user_firstname} ${selectedUser.user_lastname}`;
 
-      // Create a user-facing notification
-      const statusTitleMap: Record<string, string> = {
-        warn: 'Account Warning',
-        suspend: 'Account Suspended',
-        ban: 'Account Banned',
-        activate: 'Account Activated'
-      };
-      const statusMessageMap: Record<string, string> = {
-        warn: `Your account has received a warning on ${new Date(nowIso).toLocaleString()}. Please adhere to community guidelines.`,
-        suspend: `Your account has been suspended on ${new Date(nowIso).toLocaleString()}. You cannot submit reports until reactivated.`,
-        ban: `Your account has been banned on ${new Date(nowIso).toLocaleString()}. You can no longer access the app.`,
-        activate: `Your account has been reactivated on ${new Date(nowIso).toLocaleString()}. You may now resume using the app.`
-      };
-
       await supabase.from('notifications').insert({
         user_email: targetEmail,
-        title: statusTitleMap[action],
-        message: statusMessageMap[action],
-        type: action === 'warn' ? 'warning' : action === 'activate' ? 'success' : 'error',
+        title: notificationTitle,
+        message: notificationMessage,
+        type: effectiveAction === 'warn' ? 'warning' : effectiveAction === 'activate' ? 'success' : 'error',
         is_automated: true
       });
 
@@ -413,9 +440,9 @@ const AdminUsers: React.FC = () => {
       await supabase.from('activity_logs').insert({
         user_email: targetEmail,
         activity_type: 'account',
-        activity_description: `${statusTitleMap[action]}`,
+        activity_description: notificationTitle,
         details: {
-          action: action,
+          action: effectiveAction,
           user_fullname: userFullname,
           admin_email: adminEmail,
           at: nowIso
@@ -427,10 +454,10 @@ const AdminUsers: React.FC = () => {
         await supabase.from('system_logs').insert({
           admin_email: adminEmail,
           activity_type: 'user_action',
-          activity_description: `Admin ${action} action applied to user`,
+          activity_description: `Admin ${effectiveAction} action applied to user`,
           target_user_email: targetEmail,
           details: {
-            action,
+            action: effectiveAction,
             user_fullname: userFullname,
             warnings: updates.warnings ?? selectedUser.warnings,
             last_warning_date: updates.last_warning_date ?? selectedUser.last_warning_date
@@ -438,7 +465,7 @@ const AdminUsers: React.FC = () => {
         });
       }
 
-      switch (action) {
+      switch (effectiveAction) {
         case 'warn':
           await logUserWarning(selectedUser.user_email, 'Admin warning', adminEmail);
           break;
@@ -453,7 +480,10 @@ const AdminUsers: React.FC = () => {
           break;
       }
 
-      const actionMessage = action === 'warn' && updates.warnings >= 3 ? 'User warned and auto-suspended (3 warnings)' : `User ${action}ed successfully`;
+      const actionMessage =
+        action === 'warn' && effectiveAction === 'suspend'
+          ? 'User warned and auto-suspended (3 warnings)'
+          : `User ${effectiveAction}ed successfully`;
       setToastMessage(actionMessage);
       setShowToast(true);
       setShowActionAlert(false);
@@ -587,6 +617,18 @@ const deleteAuthUser = async (userId: string) => {
     }
   };
 
+  const getSanctionImpactMessage = (type: 'warn' | 'suspend' | 'ban') => {
+    if (type === 'warn') {
+      const warnEnd = new Date(Date.now() + WARNING_LOCK_DURATION_MS);
+      return `This warning will prevent report submissions for 1 hour (until ${formatSanctionDateTime(warnEnd)}).`;
+    }
+    if (type === 'suspend') {
+      const suspendEnd = new Date(Date.now() + SUSPENSION_DURATION_MS);
+      return `Suspension will block report submissions for 1 week (until ${formatSanctionDateTime(suspendEnd)}).`;
+    }
+    return 'Banning will prevent the user from logging in. This action is permanent unless an appeal is approved.';
+  };
+
   // Get confirmation message based on action type
   const getConfirmationMessage = () => {
     if (!pendingAction || !pendingAction.user) return '';
@@ -594,20 +636,28 @@ const deleteAuthUser = async (userId: string) => {
     const userName = `${pendingAction.user.user_firstname} ${pendingAction.user.user_lastname}`;
     const userEmail = pendingAction.user.user_email;
     
-    switch (pendingAction.type) {
-      case 'warn':
-        return `Are you sure you want to issue a warning to ${userName} (${userEmail})? This will increment their warning count.`;
-      case 'suspend':
-        return `Are you sure you want to suspend ${userName} (${userEmail})? They will not be able to access the system.`;
-      case 'ban':
-        return `Are you sure you want to ban ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
-      case 'activate':
-        return `Are you sure you want to activate ${userName} (${userEmail})? This will reset their warnings and restore access.`;
-      case 'delete':
-        return `Are you sure you want to delete ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
-      default:
-        return 'Are you sure you want to perform this action?';
+    const baseMessage = (() => {
+      switch (pendingAction.type) {
+        case 'warn':
+          return `Are you sure you want to issue a warning to ${userName} (${userEmail})? This will increment their warning count.`;
+        case 'suspend':
+          return `Are you sure you want to suspend ${userName} (${userEmail})? They will not be able to access the system.`;
+        case 'ban':
+          return `Are you sure you want to ban ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
+        case 'activate':
+          return `Are you sure you want to activate ${userName} (${userEmail})? This will reset their warnings and restore access.`;
+        case 'delete':
+          return `Are you sure you want to delete ${userName} (${userEmail})? This action is permanent and cannot be undone.`;
+        default:
+          return 'Are you sure you want to perform this action?';
+      }
+    })();
+
+    if (['warn', 'suspend', 'ban'].includes(pendingAction.type)) {
+      return `${baseMessage}\n\n${getSanctionImpactMessage(pendingAction.type as 'warn' | 'suspend' | 'ban')}`;
     }
+
+    return baseMessage;
   };
 
   // Get confirmation header based on action type

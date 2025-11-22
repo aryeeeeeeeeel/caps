@@ -45,7 +45,7 @@ import { supabase } from '../../utils/supabaseClient';
 
 interface AdminNotification {
   id: string;
-  type: 'incident_report' | 'feedback' | 'system';
+  type: 'incident_report' | 'feedback' | 'system' | 'appeal';
   title: string;
   message: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
@@ -54,12 +54,14 @@ interface AdminNotification {
   related_id?: string;
   user_email?: string;
   user_name?: string;
+  appealStatus?: string;
+  appealData?: any;
 }
 
 const AdminNotifications: React.FC = () => {
   const navigation = useIonRouter();
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
-  const [filter, setFilter] = useState<'all' | 'unread' | 'read' | 'reports' | 'feedback'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'read' | 'reports' | 'feedback' | 'appeals'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [showToast, setShowToast] = useState(false);
@@ -71,12 +73,10 @@ const AdminNotifications: React.FC = () => {
 
   // Refresh data when page becomes active
   useIonViewWillEnter(() => {
-    fetchUnreadCount();
     fetchAdminNotifications();
   });
 
   useEffect(() => {
-    fetchUnreadCount();
     fetchAdminNotifications();
     setupRealtimeSubscription();
   }, []);
@@ -96,19 +96,6 @@ const AdminNotifications: React.FC = () => {
   }
   setPrevUnreadCount(unreadCount);
 }, [unreadCount, notifications]);
-
-  // Fetch unread count for badge from incident_reports + feedback tables
-  const fetchUnreadCount = async () => {
-    const { data: unreadReports } = await supabase
-      .from('incident_reports')
-      .select('id')
-      .eq('read', false);
-    const { data: unreadFeedback } = await supabase
-      .from('feedback')
-      .select('id')
-      .eq('read', false);
-    setUnreadCount((unreadReports?.length || 0) + (unreadFeedback?.length || 0));
-  };
 
   const fetchAdminNotifications = async () => {
     try {
@@ -142,6 +129,21 @@ const AdminNotifications: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(50);
 
+      // Fetch user appeals from users table
+      const { data: userAppealsData } = await supabase
+        .from('users')
+        .select('user_email, username, user_appeal')
+        .not('user_appeal', 'is', null)
+        .limit(50);
+
+      // Also fetch old appeals from incident_reports (for backward compatibility)
+      const { data: appealData } = await supabase
+        .from('incident_reports')
+        .select('id, title, reporter_email, reporter_name, created_at, appeal')
+        .not('appeal', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
       // Convert to notification format
       const reportNotifications: AdminNotification[] = (recentReports || []).map(report => ({
         id: `report-${report.id}`,
@@ -170,10 +172,49 @@ const AdminNotifications: React.FC = () => {
         user_name: feedback.user_email.split('@')[0] // Add username derived from email
       }));
 
+      // Convert user appeals from users table to notifications
+      const userAppealNotifications: AdminNotification[] = (userAppealsData || [])
+        .filter(user => !!user.user_appeal)
+        .map(user => ({
+          id: `user-appeal-${user.user_email}`,
+          type: 'appeal',
+          title: `Account Appeal: ${user.user_appeal.appeal_type || 'Appeal'}`,
+          message: user.user_appeal.message || 'Appeal submitted',
+          priority: 'medium',
+          created_at: user.user_appeal.created_at || new Date().toISOString(),
+          read: !!user.user_appeal.admin_read,
+          related_id: user.user_appeal.report_id,
+          user_email: user.user_email,
+          user_name: user.user_appeal.username || user.username || user.user_email.split('@')[0],
+          appealStatus: user.user_appeal.status,
+          appealData: user.user_appeal
+        }))
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // Convert old appeals from incident_reports (for backward compatibility)
+      const appealNotifications: AdminNotification[] = (appealData || [])
+        .filter(report => !!report.appeal)
+        .map(report => ({
+          id: `appeal-${report.id}`,
+          type: 'appeal',
+          title: `Appeal: ${report.title}`,
+          message: report.appeal.message || 'Appeal submitted',
+          priority: 'medium',
+          created_at: report.appeal.created_at || report.created_at,
+          read: !!report.appeal.admin_read,
+          related_id: report.id,
+          user_email: report.reporter_email,
+          user_name: report.reporter_name,
+          appealStatus: report.appeal.status,
+          appealData: report.appeal
+        }));
+
       // Combine all notifications
       const allNotifications = [
         ...reportNotifications,
         ...feedbackNotifications,
+        ...userAppealNotifications,
+        ...appealNotifications,
       ].sort((a, b) => {
         // Sort feedback notifications by their timestamp (newest first)
         if (a.type === 'feedback' && b.type === 'feedback') {
@@ -184,6 +225,8 @@ const AdminNotifications: React.FC = () => {
       });
 
       setNotifications(allNotifications);
+      const unreadTotal = allNotifications.filter(n => !n.read).length;
+      setUnreadCount(unreadTotal);
     } catch (error) {
       console.error('Error fetching admin notifications:', error);
       setToastMessage('Error loading notifications');
@@ -221,7 +264,6 @@ const AdminNotifications: React.FC = () => {
           }
           
           await fetchAdminNotifications();
-          await fetchUnreadCount();
         }
       )
       .subscribe();
@@ -244,7 +286,6 @@ const AdminNotifications: React.FC = () => {
           }
           
           await fetchAdminNotifications();
-          await fetchUnreadCount();
         }
       )
       .subscribe();
@@ -265,7 +306,8 @@ const AdminNotifications: React.FC = () => {
         filter === 'unread' ? !notification.read :
           filter === 'read' ? notification.read :
             filter === 'reports' ? notification.type === 'incident_report' :
-              filter === 'feedback' ? notification.type === 'feedback' : true;
+              filter === 'feedback' ? notification.type === 'feedback' :
+                filter === 'appeals' ? notification.type === 'appeal' : true;
 
     return matchesSearch && matchesFilter;
   });
@@ -283,10 +325,30 @@ const AdminNotifications: React.FC = () => {
         .from('feedback')
         .update({ read: true })
         .eq('id', notification.related_id);
+    } else if (notification.type === 'appeal' && notification.appealData) {
+      // Check if it's a user appeal (from users table) or old appeal (from incident_reports)
+      if (notification.id.startsWith('user-appeal-')) {
+        // Update user_appeal in users table
+        const updatedAppeal = {
+          ...notification.appealData,
+          admin_read: true
+        };
+        await supabase
+          .from('users')
+          .update({ user_appeal: updatedAppeal })
+          .eq('user_email', notification.user_email);
+      } else {
+        // Old appeal from incident_reports
+        const updatedAppeal = {
+          ...notification.appealData,
+          admin_read: true
+        };
+        await supabase
+          .from('incident_reports')
+          .update({ appeal: updatedAppeal })
+          .eq('id', notification.related_id);
+      }
     }
-
-    // Update unread count
-    fetchUnreadCount();
 
     // Mark as read and show modal
     setNotifications(prev =>
@@ -301,6 +363,7 @@ const AdminNotifications: React.FC = () => {
       case 'incident_report': return alertCircleOutline;
       case 'feedback': return chatbubbleOutline; // Changed to chatbubble icon
       case 'system': return notificationsOutline;
+      case 'appeal': return mailOutline;
       default: return alertCircleOutline;
     }
   };
@@ -310,6 +373,7 @@ const AdminNotifications: React.FC = () => {
       case 'incident_report': return 'var(--danger-color)';
       case 'feedback': return 'var(--secondary-color)'; // Purple color for feedback
       case 'system': return 'var(--success-color)';
+      case 'appeal': return '#8b5cf6';
       default: return 'var(--text-secondary)';
     }
   };
@@ -319,7 +383,8 @@ const AdminNotifications: React.FC = () => {
     unread: notifications.filter(n => !n.read).length,
     read: notifications.filter(n => n.read).length,
     reports: notifications.filter(n => n.type === 'incident_report').length,
-    feedback: notifications.filter(n => n.type === 'feedback').length
+    feedback: notifications.filter(n => n.type === 'feedback').length,
+    appeals: notifications.filter(n => n.type === 'appeal').length
   };
 
   // Check if all notifications are read
@@ -355,9 +420,37 @@ const AdminNotifications: React.FC = () => {
           .in('id', unreadFeedback);
       }
 
-      // Update local state
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
-      setUnreadCount(0);
+      // Handle user appeals from users table
+      const unreadUserAppeals = notifications
+        .filter(n => n.type === 'appeal' && !n.read && n.id.startsWith('user-appeal-') && n.user_email && n.appealData)
+        .map(n => ({ email: n.user_email as string, appeal: n.appealData }));
+      if (unreadUserAppeals.length > 0) {
+        await Promise.all(
+          unreadUserAppeals.map(item =>
+            supabase
+              .from('users')
+              .update({ user_appeal: { ...item.appeal, admin_read: true } })
+              .eq('user_email', item.email)
+          )
+        );
+      }
+
+      // Handle old appeals from incident_reports
+      const unreadAppeals = notifications
+        .filter(n => n.type === 'appeal' && !n.read && !n.id.startsWith('user-appeal-') && n.related_id && n.appealData)
+        .map(n => ({ id: n.related_id as string, appeal: n.appealData }));
+      if (unreadAppeals.length > 0) {
+        await Promise.all(
+          unreadAppeals.map(item =>
+            supabase
+              .from('incident_reports')
+              .update({ appeal: { ...item.appeal, admin_read: true } })
+              .eq('id', item.id)
+          )
+        );
+      }
+
+      await fetchAdminNotifications();
 
       setToastMessage('All notifications marked as read');
       setShowToast(true);
@@ -398,9 +491,37 @@ const AdminNotifications: React.FC = () => {
         .in('id', readFeedback);
     }
 
-    // Update local state
-    setNotifications(notifications.map(n => ({ ...n, read: false })));
-    setUnreadCount(stats.total);
+    // Handle user appeals from users table
+    const readUserAppeals = notifications
+      .filter(n => n.type === 'appeal' && n.read && n.id.startsWith('user-appeal-') && n.user_email && n.appealData)
+      .map(n => ({ email: n.user_email as string, appeal: n.appealData }));
+    if (readUserAppeals.length > 0) {
+      await Promise.all(
+        readUserAppeals.map(item =>
+          supabase
+            .from('users')
+            .update({ user_appeal: { ...item.appeal, admin_read: false } })
+            .eq('user_email', item.email)
+        )
+      );
+    }
+
+    // Handle old appeals from incident_reports
+    const readAppeals = notifications
+      .filter(n => n.type === 'appeal' && n.read && !n.id.startsWith('user-appeal-') && n.related_id && n.appealData)
+      .map(n => ({ id: n.related_id as string, appeal: n.appealData }));
+    if (readAppeals.length > 0) {
+      await Promise.all(
+        readAppeals.map(item =>
+          supabase
+            .from('incident_reports')
+            .update({ appeal: { ...item.appeal, admin_read: false } })
+            .eq('id', item.id)
+        )
+      );
+    }
+
+    await fetchAdminNotifications();
 
     setToastMessage('All notifications marked as unread');
     setShowToast(true);
@@ -425,10 +546,32 @@ const AdminNotifications: React.FC = () => {
         .from('feedback')
         .update({ read: false })
         .eq('id', notification.related_id);
+    } else if (notification.type === 'appeal' && notification.appealData) {
+      // Check if it's a user appeal (from users table) or old appeal (from incident_reports)
+      if (notification.id.startsWith('user-appeal-')) {
+        // Update user_appeal in users table
+        const updatedAppeal = {
+          ...notification.appealData,
+          admin_read: false
+        };
+        await supabase
+          .from('users')
+          .update({ user_appeal: updatedAppeal })
+          .eq('user_email', notification.user_email);
+      } else {
+        // Old appeal from incident_reports
+        const updatedAppeal = {
+          ...notification.appealData,
+          admin_read: false
+        };
+        await supabase
+          .from('incident_reports')
+          .update({ appeal: updatedAppeal })
+          .eq('id', notification.related_id);
+      }
     }
 
     // Update unread count
-    fetchUnreadCount();
 
     // Update local state
     setNotifications(prev =>
@@ -447,6 +590,11 @@ const AdminNotifications: React.FC = () => {
   // Delete notification function
   const deleteNotification = async (notificationId: string) => {
     try {
+      if (notificationId.startsWith('appeal-')) {
+        setToastMessage('Appeal notifications cannot be deleted');
+        setShowToast(true);
+        return;
+      }
       // Remove from local state only (since these are virtual notifications)
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
 
@@ -723,7 +871,7 @@ if (isLoading) {
           {/* Stats Overview - UPDATED arrangement: Unread, Read, Reports, Feedback */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridTemplateColumns: 'repeat(5, 1fr)',
             gap: '12px',
             marginBottom: '20px',
             position: 'sticky',
@@ -736,7 +884,8 @@ if (isLoading) {
               { label: 'Unread', value: stats.unread, color: 'var(--primary-color)', icon: alertCircleOutline, filter: 'unread' },
               { label: 'Read', value: stats.read, color: 'var(--success-color)', icon: checkmarkDoneOutline, filter: 'read' },
               { label: 'Reports', value: stats.reports, color: 'var(--danger-color)', icon: documentTextOutline, filter: 'reports' },
-              { label: 'Feedback', value: stats.feedback, color: 'var(--secondary-color)', icon: chatbubbleOutline, filter: 'feedback' }
+              { label: 'Feedback', value: stats.feedback, color: 'var(--secondary-color)', icon: chatbubbleOutline, filter: 'feedback' },
+              { label: 'Appeals', value: stats.appeals, color: '#8b5cf6', icon: mailOutline, filter: 'appeals' }
             ].map((stat, idx) => (
               <div
                 key={idx}
@@ -784,7 +933,8 @@ if (isLoading) {
                     filter === 'unread' ? 'Unread Notifications' :
                       filter === 'read' ? 'Read Notifications' :
                         filter === 'reports' ? 'Incident Reports' :
-                          'Feedback'} ({filteredNotifications.length})
+                          filter === 'feedback' ? 'Feedback' :
+                            'Appeals'} ({filteredNotifications.length})
                   {stats.total > 0 && (
                     allRead ? (
                       <IonButton
@@ -922,7 +1072,7 @@ if (isLoading) {
                                 </span>
                               </div>
 
-                              {!notification.id.startsWith('report-') && (
+                              {!notification.id.startsWith('report-') && !notification.id.startsWith('appeal-') && !notification.id.startsWith('user-appeal-') && (
                                 <IonButton
                                   size="small"
                                   fill="clear"
@@ -982,12 +1132,33 @@ if (isLoading) {
           {selectedNotification && (
             <>
               <h2>{selectedNotification.title}</h2>
-              <p>{selectedNotification.message}</p>
-              <p>Type: {selectedNotification.type.replace('_', ' ')}</p>
-              <p>Priority: {selectedNotification.priority}</p>
-              <p>Date: {new Date(selectedNotification.created_at).toLocaleString()}</p>
-              {selectedNotification.user_name && <p>From: {selectedNotification.user_name}</p>}
-              {selectedNotification.user_email && <p>Email: {selectedNotification.user_email}</p>}
+              <div style={{ marginBottom: '16px' }}>
+                <strong>User Information:</strong>
+                <p style={{ margin: '4px 0' }}>
+                  <strong>Name:</strong> {selectedNotification.user_name || 'N/A'}
+                </p>
+                <p style={{ margin: '4px 0' }}>
+                  <strong>Email:</strong> {selectedNotification.user_email || 'N/A'}
+                </p>
+              </div>
+              {selectedNotification.type === 'appeal' && selectedNotification.appealData && (
+                <div style={{ marginBottom: '16px', padding: '12px', background: '#f3f4f6', borderRadius: '8px' }}>
+                  <strong>Appeal Type:</strong> {selectedNotification.appealData.appeal_type || 'N/A'}
+                  <br />
+                  <strong>Status:</strong> {selectedNotification.appealStatus || 'pending'}
+                  <br />
+                  <strong>Report ID:</strong> {selectedNotification.appealData.report_id || 'N/A'}
+                </div>
+              )}
+              <div style={{ marginBottom: '16px' }}>
+                <strong>Message:</strong>
+                <p style={{ whiteSpace: 'pre-wrap', marginTop: '8px', padding: '12px', background: '#f9fafb', borderRadius: '8px' }}>
+                  {selectedNotification.message}
+                </p>
+              </div>
+              <p><strong>Type:</strong> {selectedNotification.type.replace('_', ' ')}</p>
+              <p><strong>Priority:</strong> {selectedNotification.priority}</p>
+              <p><strong>Date:</strong> {new Date(selectedNotification.created_at).toLocaleString()}</p>
             </>
           )}
         </IonContent>
