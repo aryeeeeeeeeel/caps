@@ -59,7 +59,7 @@ import {
 } from "ionicons/icons"
 import { supabase } from "../../utils/supabaseClient"
 import SystemLogs from "./SystemLogs"
-import { logAdminLogout, logReportStatusUpdate, logUserAction, logUserNotification } from "../../utils/activityLogger"
+import { logAdminLogout, logReportStatusUpdate, logUserAction, logUserNotification, logUserWarning, logUserSuspension, logUserBan, logUserActivation } from "../../utils/activityLogger"
 // Type definitions moved inline since types.ts doesn't exist
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
@@ -2148,40 +2148,86 @@ const [priorityFilter, setPriorityFilter] = useState<"all" | "low" | "medium" | 
       setShowUserActionModal(false)
       await fetchInitialData()
 
+      // Get admin user for logging
+      const {
+        data: { user: adminUser },
+      } = await supabase.auth.getUser()
+      const adminEmail = adminUser?.email
+
+      // Build common details
+      const userFullname = `${selectedUserForAction.user_firstname} ${selectedUserForAction.user_lastname}`
+
       // Notify the user about the action
       try {
         await supabase.from("notifications").insert({
           user_email: targetEmail,
           title: actionTitle,
           message: notifyMessage,
-          type: "warning",
+          type: effectiveAction === "warn" ? "warning" : effectiveAction === "activate" ? "success" : "error",
           is_automated: true,
         })
-      } catch {}
+      } catch (error) {
+        console.error("Error sending notification:", error)
+      }
 
-      // Log to system_logs
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        await supabase.from("system_logs").insert({
-          admin_email: user?.email || "unknown",
-          activity_type: "user_action",
-          activity_description: `${actionTitle} by admin`,
-          target_user_email: targetEmail,
-          details: { action: effectiveAction, updates },
-        })
-      } catch {}
-
-      // Log to activity_logs for auditing (ties to user)
+      // Log to activity_logs for the affected user
       try {
         await supabase.from("activity_logs").insert({
           user_email: targetEmail,
           activity_type: "account",
-          activity_description: `${actionTitle}`,
-          details: { action: effectiveAction, by: "admin" },
+          activity_description: actionTitle,
+          details: {
+            action: effectiveAction,
+            user_fullname: userFullname,
+            admin_email: adminEmail,
+            at: nowIso,
+            warnings: updates.warnings ?? selectedUserForAction.warnings,
+            last_warning_date: updates.last_warning_date ?? selectedUserForAction.last_warning_date,
+          },
         })
-      } catch {}
+      } catch (error) {
+        console.error("Error logging to activity_logs:", error)
+      }
+
+      // Log to system_logs for admin auditing
+      try {
+        if (adminEmail) {
+          await supabase.from("system_logs").insert({
+            admin_email: adminEmail,
+            activity_type: "user_action",
+            activity_description: `Admin ${effectiveAction} action applied to user`,
+            target_user_email: targetEmail,
+            details: {
+              action: effectiveAction,
+              user_fullname: userFullname,
+              warnings: updates.warnings ?? selectedUserForAction.warnings,
+              last_warning_date: updates.last_warning_date ?? selectedUserForAction.last_warning_date,
+            },
+          })
+        }
+      } catch (error) {
+        console.error("Error logging to system_logs:", error)
+      }
+
+      // Call specific logging functions for additional tracking
+      try {
+        switch (effectiveAction) {
+          case "warn":
+            await logUserWarning(targetEmail, "Admin warning", adminEmail)
+            break
+          case "suspend":
+            await logUserSuspension(targetEmail, "Admin suspension", adminEmail)
+            break
+          case "ban":
+            await logUserBan(targetEmail, "Admin ban", adminEmail)
+            break
+          case "activate":
+            await logUserActivation(targetEmail, adminEmail)
+            break
+        }
+      } catch (error) {
+        console.error("Error calling specific logging function:", error)
+      }
     } catch (error) {
       console.error("Error updating user:", error)
       setToastMessage("Error updating user")
