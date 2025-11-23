@@ -1,0 +1,120 @@
+================================================================================
+                    iAMUMA ta Database ERD (Simplified)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              auth.users (Supabase Auth)                      │
+│  ────────────────────────────────────────────────────────────────────────  │
+│  PK: id (uuid)                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ 1:1
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                  users                                      │
+│  ────────────────────────────────────────────────────────────────────────  │
+│  PK: id (uuid)                                                              │
+│  UK: user_email (text)                                                      │
+│  FK: auth_user_id → auth.users(id)                                          │
+│  ────────────────────────────────────────────────────────────────────────  │
+│  Important Columns:                                                          │
+│    • username, role, status                                                  │
+│    • warnings, suspension_date                                              │
+│    • user_appeal (jsonb)                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+      │                    │                    │                    │
+      │ 1:N                │ 1:N                │ 1:N                │ 1:N
+      │                    │                    │                    │
+      ▼                    ▼                    ▼                    ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐
+│activity_logs │  │notifications │  │device_      │  │  incident_reports    │
+│              │  │              │  │fingerprints  │  │                      │
+│ PK: id       │  │ PK: id       │  │ PK: id       │  │ PK: id               │
+│              │  │              │  │ FK: user_id  │  │                      │
+│ • user_email │  │ • user_email │  │              │  │ • title, description │
+│ • activity_  │  │ • related_   │  │ • device_    │  │ • category, priority │
+│   type       │  │   report_id │  │   fingerprint│  │ • status, barangay   │
+│              │  │ • type, read │  │ • is_trusted │  │ • coordinates (jsonb)│
+└──────────────┘  └──────────────┘  └──────────────┘  │ • reporter_email     │
+                                                       │ • appeal (jsonb)      │
+                                                       │ • admin_appeal       │
+                                                       └──────────────────────┘
+                                                              │
+                                                              │ 1:N
+                                                              │
+                    ┌─────────────────────────────────────────┴──────────────┐
+                    │                                                    │
+                    ▼                                                    ▼
+        ┌──────────────────────────┐              ┌──────────────────────────┐
+        │      feedback            │              │incident_response_routes   │
+        │                          │              │                          │
+        │ PK: id                   │              │ PK: id                   │
+        │ FK: report_id →          │              │ FK: incident_report_id → │
+        │     incident_reports(id)  │              │     incident_reports(id) │
+        │                          │              │                          │
+        │ • user_email             │              │ • route_coordinates      │
+        │ • overall_rating         │              │ • calculated_distance_km │
+        │ • read                   │              │ • calculated_eta_minutes │
+        └──────────────────────────┘              └──────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            system_logs                                      │
+│  ────────────────────────────────────────────────────────────────────────  │
+│  PK: id (uuid)                                                              │
+│  ────────────────────────────────────────────────────────────────────────  │
+│  Important Columns:                                                          │
+│    • admin_email                                                            │
+│    • activity_type, activity_description                                    │
+│    • target_user_email, target_report_id                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                            RELATIONSHIPS SUMMARY
+================================================================================
+
+1. auth.users (1) ──→ (1) users
+   - Each authenticated user has one profile record
+   - FK: users.auth_user_id → auth.users.id
+
+2. users (1) ──→ (N) incident_reports
+   - Users can create multiple reports
+   - Link: users.user_email = incident_reports.reporter_email
+
+3. users (1) ──→ (N) feedback
+   - Users can provide multiple feedback entries
+   - Link: users.user_email = feedback.user_email
+
+4. users (1) ──→ (N) notifications
+   - Users receive multiple notifications
+   - Link: users.user_email = notifications.user_email
+
+5. users (1) ──→ (N) activity_logs
+   - Users have multiple activity log entries
+   - Link: users.user_email = activity_logs.user_email
+
+6. users (1) ──→ (N) device_fingerprints
+   - Users can have multiple device fingerprints
+   - FK: device_fingerprints.user_id → auth.users.id
+
+7. incident_reports (1) ──→ (N) feedback
+   - Reports can receive multiple feedback entries
+   - FK: feedback.report_id → incident_reports.id
+
+8. incident_reports (1) ──→ (N) incident_response_routes
+   - Reports can have multiple route calculations
+   - FK: incident_response_routes.incident_report_id → incident_reports.id
+
+9. incident_reports (1) ──→ (N) notifications
+   - Reports can trigger multiple notifications
+   - Link: notifications.related_report_id = incident_reports.id
+
+================================================================================
+                            KEY ABBREVIATIONS
+================================================================================
+PK = Primary Key
+FK = Foreign Key
+UK = Unique Key
+N  = Many (One-to-Many relationship)
+1  = One (One-to-One relationship)
+

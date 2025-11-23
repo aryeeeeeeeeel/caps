@@ -144,6 +144,14 @@ const AdminNotifications: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(50);
 
+      // Fetch new appeals from incident_reports.admin_appeal (prank report appeals)
+      const { data: adminAppealData } = await supabase
+        .from('incident_reports')
+        .select('id, title, reporter_email, reporter_name, created_at, admin_appeal')
+        .not('admin_appeal', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
       // Convert to notification format
       const reportNotifications: AdminNotification[] = (recentReports || []).map(report => ({
         id: `report-${report.id}`,
@@ -212,12 +220,35 @@ const AdminNotifications: React.FC = () => {
           appealData: report.appeal
         }));
 
+      // Convert new appeals from incident_reports.admin_appeal (prank report appeals)
+      const adminAppealNotifications: AdminNotification[] = (adminAppealData || [])
+        .filter(report => !!report.admin_appeal)
+        .map(report => {
+          const appeal = report.admin_appeal as any;
+          return {
+            id: `admin-appeal-${report.id}`,
+            type: 'appeal' as const,
+            title: `Report Appeal: ${report.title}`,
+            message: appeal.message || 'Appeal submitted',
+            priority: 'medium' as const,
+            created_at: appeal.created_at || report.created_at,
+            read: !!appeal.admin_read,
+            related_id: report.id,
+            user_email: appeal.user_email || report.reporter_email,
+            user_name: appeal.username || report.reporter_name || (appeal.user_email ? appeal.user_email.split('@')[0] : 'User'),
+            appealStatus: appeal.status,
+            appealData: appeal
+          } as AdminNotification;
+        })
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
       // Combine all notifications
       const allNotifications = [
         ...reportNotifications,
         ...feedbackNotifications,
         ...userAppealNotifications,
         ...appealNotifications,
+        ...adminAppealNotifications,
       ].sort((a, b) => {
         // Sort feedback notifications by their timestamp (newest first)
         if (a.type === 'feedback' && b.type === 'feedback') {
@@ -329,7 +360,7 @@ const AdminNotifications: React.FC = () => {
         .update({ read: true })
         .eq('id', notification.related_id);
     } else if (notification.type === 'appeal' && notification.appealData) {
-      // Check if it's a user appeal (from users table) or old appeal (from incident_reports)
+      // Check if it's a user appeal (from users table), admin appeal (from incident_reports.admin_appeal), or old appeal (from incident_reports.appeal)
       if (notification.id.startsWith('user-appeal-')) {
         // Update user_appeal in users table
         const updatedAppeal = {
@@ -340,6 +371,16 @@ const AdminNotifications: React.FC = () => {
           .from('users')
           .update({ user_appeal: updatedAppeal })
           .eq('user_email', notification.user_email);
+      } else if (notification.id.startsWith('admin-appeal-')) {
+        // New admin_appeal from incident_reports
+        const updatedAppeal = {
+          ...notification.appealData,
+          admin_read: true
+        };
+        await supabase
+          .from('incident_reports')
+          .update({ admin_appeal: updatedAppeal })
+          .eq('id', notification.related_id);
       } else {
         // Old appeal from incident_reports
         const updatedAppeal = {
@@ -438,9 +479,24 @@ const AdminNotifications: React.FC = () => {
         );
       }
 
+      // Handle admin appeals from incident_reports.admin_appeal
+      const unreadAdminAppeals = notifications
+        .filter(n => n.type === 'appeal' && !n.read && n.id.startsWith('admin-appeal-') && n.related_id && n.appealData)
+        .map(n => ({ id: n.related_id as string, appeal: n.appealData }));
+      if (unreadAdminAppeals.length > 0) {
+        await Promise.all(
+          unreadAdminAppeals.map(item =>
+            supabase
+              .from('incident_reports')
+              .update({ admin_appeal: { ...item.appeal, admin_read: true } })
+              .eq('id', item.id)
+          )
+        );
+      }
+
       // Handle old appeals from incident_reports
       const unreadAppeals = notifications
-        .filter(n => n.type === 'appeal' && !n.read && !n.id.startsWith('user-appeal-') && n.related_id && n.appealData)
+        .filter(n => n.type === 'appeal' && !n.read && !n.id.startsWith('user-appeal-') && !n.id.startsWith('admin-appeal-') && n.related_id && n.appealData)
         .map(n => ({ id: n.related_id as string, appeal: n.appealData }));
       if (unreadAppeals.length > 0) {
         await Promise.all(
@@ -509,9 +565,24 @@ const AdminNotifications: React.FC = () => {
       );
     }
 
+    // Handle admin appeals from incident_reports.admin_appeal
+    const readAdminAppeals = notifications
+      .filter(n => n.type === 'appeal' && n.read && n.id.startsWith('admin-appeal-') && n.related_id && n.appealData)
+      .map(n => ({ id: n.related_id as string, appeal: n.appealData }));
+    if (readAdminAppeals.length > 0) {
+      await Promise.all(
+        readAdminAppeals.map(item =>
+          supabase
+            .from('incident_reports')
+            .update({ admin_appeal: { ...item.appeal, admin_read: false } })
+            .eq('id', item.id)
+        )
+      );
+    }
+
     // Handle old appeals from incident_reports
     const readAppeals = notifications
-      .filter(n => n.type === 'appeal' && n.read && !n.id.startsWith('user-appeal-') && n.related_id && n.appealData)
+      .filter(n => n.type === 'appeal' && n.read && !n.id.startsWith('user-appeal-') && !n.id.startsWith('admin-appeal-') && n.related_id && n.appealData)
       .map(n => ({ id: n.related_id as string, appeal: n.appealData }));
     if (readAppeals.length > 0) {
       await Promise.all(
@@ -550,7 +621,7 @@ const AdminNotifications: React.FC = () => {
         .update({ read: false })
         .eq('id', notification.related_id);
     } else if (notification.type === 'appeal' && notification.appealData) {
-      // Check if it's a user appeal (from users table) or old appeal (from incident_reports)
+      // Check if it's a user appeal (from users table), admin appeal (from incident_reports.admin_appeal), or old appeal (from incident_reports.appeal)
       if (notification.id.startsWith('user-appeal-')) {
         // Update user_appeal in users table
         const updatedAppeal = {
@@ -561,6 +632,16 @@ const AdminNotifications: React.FC = () => {
           .from('users')
           .update({ user_appeal: updatedAppeal })
           .eq('user_email', notification.user_email);
+      } else if (notification.id.startsWith('admin-appeal-')) {
+        // New admin_appeal from incident_reports
+        const updatedAppeal = {
+          ...notification.appealData,
+          admin_read: false
+        };
+        await supabase
+          .from('incident_reports')
+          .update({ admin_appeal: updatedAppeal })
+          .eq('id', notification.related_id);
       } else {
         // Old appeal from incident_reports
         const updatedAppeal = {
@@ -593,7 +674,7 @@ const AdminNotifications: React.FC = () => {
   // Delete notification function
   const deleteNotification = async (notificationId: string) => {
     try {
-      if (notificationId.startsWith('appeal-')) {
+      if (notificationId.startsWith('appeal-') || notificationId.startsWith('user-appeal-') || notificationId.startsWith('admin-appeal-')) {
         setToastMessage('Appeal notifications cannot be deleted');
         setShowToast(true);
         return;
@@ -1075,7 +1156,7 @@ if (isLoading) {
                                 </span>
                               </div>
 
-                              {!notification.id.startsWith('report-') && !notification.id.startsWith('appeal-') && !notification.id.startsWith('user-appeal-') && (
+                              {!notification.id.startsWith('report-') && !notification.id.startsWith('appeal-') && !notification.id.startsWith('user-appeal-') && !notification.id.startsWith('admin-appeal-') && (
                                 <IonButton
                                   size="small"
                                   fill="clear"

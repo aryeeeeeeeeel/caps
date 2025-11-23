@@ -170,7 +170,7 @@ const Login: React.FC = () => {
   const [bannedUsername, setBannedUsername] = useState<string>('');
   const [isBannedAppealMode, setIsBannedAppealMode] = useState(false);
   const [detectedBannedIdentifier, setDetectedBannedIdentifier] = useState('');
-  const [appealType, setAppealType] = useState<'banned' | 'suspended' | 'warned'>('banned');
+  const [appealType, setAppealType] = useState<'banned' | 'suspended' | 'warned' | null>(null);
 
   // Helper function for showing toast messages
   const showCustomToast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') => {
@@ -213,6 +213,32 @@ const Login: React.FC = () => {
       setDetectedBannedIdentifier('');
     }
   }, [loginIdentifier, isBannedAppealMode, detectedBannedIdentifier]);
+
+  // Auto-populate message when appeal type is selected (and no report is selected)
+  useEffect(() => {
+    if (appealType && bannedUserEmail && !selectedReportId && showAppealModal) {
+      const username = bannedUsername || bannedUserEmail.split('@')[0] || 'User';
+      const sanctionType = appealType === 'banned' ? 'banning' : appealType === 'suspended' ? 'suspension' : 'warning';
+      const autoMessage = `I am writing to formally appeal the sanction(${sanctionType}) of my account (Username: ${username} / Email: ${bannedUserEmail}). I have reviewed the Terms and Conditions and would like to request a review of this decision. Please let me know what steps I need to take or what information you require from me. Thank you for your consideration.`;
+      setAppealMessage(autoMessage);
+    } else if (selectedReportId && !appealType) {
+      // Clear message if report is selected but appeal type is not
+      setAppealMessage('');
+    }
+  }, [appealType, bannedUserEmail, bannedUsername, selectedReportId, showAppealModal]);
+
+  // Auto-populate message when prank report is selected (and no appeal type is selected)
+  useEffect(() => {
+    if (selectedReportId && bannedUserEmail && !appealType && showAppealModal) {
+      const selectedReport = prankReports.find(r => r.id === selectedReportId);
+      const username = bannedUsername || bannedUserEmail.split('@')[0] || 'User';
+      const autoMessage = `I am writing to formally appeal the suspension of my account (Username: ${username} / Email: ${bannedUserEmail} and Report Title: ${selectedReport?.title || 'N/A'} and other information). I have reviewed the Terms and Conditions and would like to request a review of this decision. Please let me know what steps I need to take or what information you require from me. Thank you for your consideration.`;
+      setAppealMessage(autoMessage);
+    } else if (appealType && !selectedReportId) {
+      // Clear message if appeal type is selected but report is not
+      setAppealMessage('');
+    }
+  }, [selectedReportId, bannedUserEmail, bannedUsername, prankReports, appealType, showAppealModal]);
 
   // Resend cooldown timer
   useEffect(() => {
@@ -714,7 +740,7 @@ useEffect(() => {
         setPrankReports(reports || []);
         setIsBannedAppealMode(true);
         setDetectedBannedIdentifier(trimmedIdentifier.toLowerCase());
-        setAppealType('banned');
+        setAppealType(null);
         showCustomToast('Your account is banned. Tap Appeal to request a review.', 'warning');
         setIsLoggingIn(false);
         return;
@@ -776,7 +802,7 @@ useEffect(() => {
         setPrankReports(reports || []);
         setIsBannedAppealMode(true);
         setDetectedBannedIdentifier(normalizedLoginEmail);
-        setAppealType('banned');
+        setAppealType(null);
         showCustomToast('Your account is banned. Tap Appeal to request a review.', 'warning');
         await supabase.auth.signOut();
         setIsLoggingIn(false);
@@ -1003,65 +1029,278 @@ useEffect(() => {
   };
 
   const submitAppeal = async () => {
-    if (!selectedReportId || !bannedUserEmail) {
-      showCustomToast('Please select a report to appeal', 'warning');
+    console.log('=== SUBMIT APPEAL START ===');
+    console.log('Appeal Type:', appealType);
+    console.log('Selected Report ID:', selectedReportId);
+    console.log('Banned User Email:', bannedUserEmail);
+    console.log('Banned Username:', bannedUsername);
+    console.log('Appeal Message Length:', appealMessage.trim().length);
+
+    const trimmedMessage = appealMessage.trim();
+    if (!trimmedMessage) {
+      console.log('ERROR: No appeal message');
+      showCustomToast('Please enter your appeal message to admin', 'warning');
+      return;
+    }
+
+    if (!appealType && !selectedReportId) {
+      console.log('ERROR: No appeal type or report selected');
+      showCustomToast('Please select an appeal type or a report to appeal', 'warning');
+      return;
+    }
+
+    if (!bannedUserEmail) {
+      console.log('ERROR: No banned user email');
+      showCustomToast('User email is required', 'warning');
       return;
     }
 
     setIsSubmittingAppeal(true);
     try {
-      const selectedReport = prankReports.find(r => r.id === selectedReportId);
       const username = bannedUsername || bannedUserEmail.split('@')[0] || 'User';
-      
-      const appealText = appealMessage.trim() || `Good day Admin,
+      console.log('Username:', username);
 
-I am writing to formally appeal the suspension of my account (Username: ${username} / Email: ${bannedUserEmail} and Report Title: ${selectedReport?.title || 'N/A'} and other information).
+      // Case 1: Appeal Type selected (banned/suspended/warned) - store in users.user_appeal
+      if (appealType && !selectedReportId) {
+        console.log('=== CASE 1: Appeal Type Selected ===');
+        
+        // First, fetch the user to get their ID and verify they exist
+        console.log('Fetching user with email:', bannedUserEmail);
+        const { data: userData, error: fetchError } = await supabase
+          .from('users')
+          .select('id, user_email, username')
+          .eq('user_email', bannedUserEmail.toLowerCase())
+          .single();
 
-I have reviewed the Terms and Conditions and would like to request a review of this decision. Please let me know what steps I need to take or what information you require from me.
+        console.log('User fetch result:', userData);
+        console.log('User fetch error:', fetchError);
 
-Thank you for your consideration.`;
+        if (fetchError || !userData) {
+          console.error('ERROR: User not found with email:', bannedUserEmail);
+          throw new Error(`User not found. Please contact support.`);
+        }
 
-      const appealPayload = {
-        report_id: selectedReportId,
-        user_email: bannedUserEmail,
-        username: username,
-        message: appealText,
-        created_at: new Date().toISOString(),
-        status: 'pending',
-        admin_read: false,
-        appeal_type: appealType
-      };
+        const appealPayload = {
+          user_email: bannedUserEmail,
+          username: username,
+          message: trimmedMessage,
+          created_at: new Date().toISOString(),
+          status: 'pending',
+          admin_read: false,
+          appeal_type: appealType
+        };
+        console.log('Appeal Payload:', JSON.stringify(appealPayload, null, 2));
+        console.log('Updating users table with id:', userData.id);
 
-      // Save appeal to users.user_appeal column
-      const { error: userError } = await supabase
-        .from('users')
-        .update({ user_appeal: appealPayload })
-        .eq('user_email', bannedUserEmail);
+        // Try updating by ID first (more reliable)
+        const { data: updateData, error: userError } = await supabase
+          .from('users')
+          .update({ user_appeal: appealPayload })
+          .eq('id', userData.id)
+          .select();
 
-      if (userError) throw userError;
+        console.log('Update Response Data:', updateData);
+        console.log('Update Response Error:', userError);
 
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      await supabase.from('system_logs').insert({
-        admin_email: currentUser?.email || bannedUserEmail,
-        activity_type: 'user_action',
-        activity_description: 'User submitted appeal',
-        target_user_email: bannedUserEmail,
-        target_report_id: selectedReportId,
-        details: { message: appealText }
-      });
+        if (userError) {
+          console.error('ERROR updating users.user_appeal:', userError);
+          console.error('Error code:', userError.code);
+          console.error('Error message:', userError.message);
+          console.error('Error details:', userError.details);
+          console.error('Error hint:', userError.hint);
+          throw userError;
+        }
 
-      showCustomToast('Appeal submitted successfully. Admin will review your request.', 'success');
-      setShowAppealModal(false);
-      setSelectedReportId('');
-      setAppealMessage('');
-      setBannedUserEmail('');
-      setBannedUsername('');
-      setAppealType('banned');
+        if (!updateData || updateData.length === 0) {
+          console.error('ERROR: No rows updated. Trying with email as fallback...');
+          // Fallback: try with email
+          const { data: updateData2, error: userError2 } = await supabase
+            .from('users')
+            .update({ user_appeal: appealPayload })
+            .eq('user_email', bannedUserEmail.toLowerCase())
+            .select();
+          
+          console.log('Fallback Update Response Data:', updateData2);
+          console.log('Fallback Update Response Error:', userError2);
+          
+          if (userError2 || !updateData2 || updateData2.length === 0) {
+            throw new Error(`Failed to update user appeal. Please contact support.`);
+          }
+        }
+
+        console.log('SUCCESS: Appeal stored in users.user_appeal');
+
+        // Verify the appeal was actually stored
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('users')
+          .select('user_appeal')
+          .eq('id', userData.id)
+          .single();
+        
+        console.log('Verification - Retrieved user_appeal:', verifyData?.user_appeal);
+        if (verifyError) {
+          console.warn('Warning: Could not verify appeal was stored:', verifyError);
+        } else if (!verifyData?.user_appeal) {
+          console.error('ERROR: Appeal was not found after update!');
+          throw new Error('Appeal was not stored. Please try again.');
+        } else {
+          console.log('VERIFIED: Appeal is stored in database');
+        }
+
+        // Try to log to system_logs (may fail for unauthenticated users, but that's okay)
+        try {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          await supabase.from('system_logs').insert({
+            admin_email: currentUser?.email || bannedUserEmail,
+            activity_type: 'user_action',
+            activity_description: 'User submitted account appeal',
+            target_user_email: bannedUserEmail,
+            details: { message: trimmedMessage, appeal_type: appealType }
+          });
+        } catch (logError) {
+          // Silently fail - appeal is already stored in users.user_appeal
+          console.warn('Could not log to system_logs (user may be unauthenticated):', logError);
+        }
+
+        showCustomToast('Appeal submitted successfully. Admin will review your request.', 'success');
+        setShowAppealModal(false);
+        setSelectedReportId('');
+        setAppealMessage('');
+        setBannedUserEmail('');
+        setBannedUsername('');
+        setAppealType(null);
+        return;
+      }
+
+      // Case 2: Prank Report selected - store in incident_reports.admin_appeal
+      if (selectedReportId && !appealType) {
+        console.log('=== CASE 2: Prank Report Selected ===');
+        
+        // First, fetch the report to verify it exists
+        console.log('Fetching report with id:', selectedReportId);
+        const { data: reportData, error: fetchError } = await supabase
+          .from('incident_reports')
+          .select('id, title, reporter_email, priority')
+          .eq('id', selectedReportId)
+          .single();
+
+        console.log('Report fetch result:', reportData);
+        console.log('Report fetch error:', fetchError);
+
+        if (fetchError || !reportData) {
+          console.error('ERROR: Report not found with id:', selectedReportId);
+          throw new Error(`Report not found. Please contact support.`);
+        }
+
+        // Verify it's a prank report
+        if (reportData.priority !== 'prank') {
+          console.warn('WARNING: Report is not a prank report. Priority:', reportData.priority);
+        }
+
+        const selectedReport = prankReports.find(r => r.id === selectedReportId);
+        console.log('Selected Report from array:', selectedReport);
+
+        const appealPayload = {
+          report_id: selectedReportId,
+          user_email: bannedUserEmail,
+          username: username,
+          message: trimmedMessage,
+          created_at: new Date().toISOString(),
+          status: 'pending',
+          admin_read: false
+        };
+        console.log('Appeal Payload:', JSON.stringify(appealPayload, null, 2));
+        console.log('Updating incident_reports table with id:', selectedReportId);
+
+        const { data: updateData, error: reportError } = await supabase
+          .from('incident_reports')
+          .update({ admin_appeal: appealPayload })
+          .eq('id', selectedReportId)
+          .select();
+
+        console.log('Update Response Data:', updateData);
+        console.log('Update Response Error:', reportError);
+
+        if (reportError) {
+          console.error('ERROR updating incident_reports.admin_appeal:', reportError);
+          console.error('Error code:', reportError.code);
+          console.error('Error message:', reportError.message);
+          console.error('Error details:', reportError.details);
+          console.error('Error hint:', reportError.hint);
+          throw reportError;
+        }
+
+        if (!updateData || updateData.length === 0) {
+          console.error('ERROR: No rows updated. Report might not exist or RLS is blocking.');
+          throw new Error(`Failed to update report appeal. Please contact support.`);
+        }
+
+        console.log('SUCCESS: Appeal stored in incident_reports.admin_appeal');
+
+        // Verify the appeal was actually stored
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('incident_reports')
+          .select('admin_appeal')
+          .eq('id', selectedReportId)
+          .single();
+        
+        console.log('Verification - Retrieved admin_appeal:', verifyData?.admin_appeal);
+        if (verifyError) {
+          console.warn('Warning: Could not verify appeal was stored:', verifyError);
+        } else if (!verifyData?.admin_appeal) {
+          console.error('ERROR: Appeal was not found after update!');
+          throw new Error('Appeal was not stored. Please try again.');
+        } else {
+          console.log('VERIFIED: Appeal is stored in database');
+        }
+
+        // Try to log to system_logs (may fail for unauthenticated users, but that's okay)
+        try {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          await supabase.from('system_logs').insert({
+            admin_email: currentUser?.email || bannedUserEmail,
+            activity_type: 'user_action',
+            activity_description: 'User submitted report appeal',
+            target_user_email: bannedUserEmail,
+            target_report_id: selectedReportId,
+            details: { message: trimmedMessage, report_title: selectedReport.title }
+          });
+        } catch (logError) {
+          // Silently fail - appeal is already stored in incident_reports.admin_appeal
+          console.warn('Could not log to system_logs (user may be unauthenticated):', logError);
+        }
+
+        showCustomToast('Appeal submitted successfully. Admin will review your request.', 'success');
+        setShowAppealModal(false);
+        setSelectedReportId('');
+        setAppealMessage('');
+        setBannedUserEmail('');
+        setBannedUsername('');
+        setAppealType(null);
+        return;
+      }
+
+      // If both are selected, prioritize appeal type
+      if (appealType && selectedReportId) {
+        showCustomToast('Please select either an appeal type OR a report, not both', 'warning');
+        setIsSubmittingAppeal(false);
+        return;
+      }
+
     } catch (error: any) {
-      console.error('Error submitting appeal:', error);
-      showCustomToast('Failed to submit appeal. Please try again.', 'danger');
+      console.error('=== ERROR SUBMITTING APPEAL ===');
+      console.error('Error object:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error details:', error?.details);
+      console.error('Error hint:', error?.hint);
+      console.error('Error code:', error?.code);
+      showCustomToast(
+        error?.message || 'Failed to submit appeal. Please try again.', 
+        'danger'
+      );
     } finally {
       setIsSubmittingAppeal(false);
+      console.log('=== SUBMIT APPEAL END ===');
     }
   };
 
@@ -2016,7 +2255,7 @@ Thank you for your consideration.`;
           setAppealMessage('');
           setBannedUserEmail('');
           setBannedUsername('');
-          setAppealType('banned');
+          setAppealType(null);
         }}>
           <IonHeader>
             <IonToolbar>
@@ -2028,7 +2267,7 @@ Thank you for your consideration.`;
                   setAppealMessage('');
                   setBannedUserEmail('');
                   setBannedUsername('');
-                  setAppealType('banned');
+                  setAppealType(null);
                 }}>
                   <IonIcon icon={closeOutline} />
                 </IonButton>
@@ -2042,7 +2281,12 @@ Thank you for your consideration.`;
                   <IonLabel position="stacked" style={{ marginBottom: '12px', display: 'block' }}>Appeal Type</IonLabel>
                   <IonRadioGroup
                     value={appealType}
-                    onIonChange={e => setAppealType(e.detail.value as 'banned' | 'suspended' | 'warned')}
+                    onIonChange={e => {
+                      const newAppealType = e.detail.value as 'banned' | 'suspended' | 'warned';
+                      setAppealType(newAppealType);
+                      // Clear report selection when appeal type is selected
+                      setSelectedReportId('');
+                    }}
                   >
                     <IonItem>
                       <IonRadio slot="start" value="banned" />
@@ -2066,7 +2310,11 @@ Thank you for your consideration.`;
                     <p style={{ color: '#6b7280' }}>No prank reports found.</p>
                   ) : (
                     <IonList>
-                      <IonRadioGroup value={selectedReportId} onIonChange={e => setSelectedReportId(e.detail.value)}>
+                      <IonRadioGroup value={selectedReportId} onIonChange={e => {
+                        setSelectedReportId(e.detail.value);
+                        // Clear appeal type selection when report is selected
+                        setAppealType(null as any);
+                      }}>
                         {prankReports.map((report) => (
                           <IonItem key={report.id}>
                             <IonRadio slot="start" value={report.id} />
@@ -2082,16 +2330,19 @@ Thank you for your consideration.`;
                 </IonCardContent>
               </IonCard>
 
-              {(selectedReportId && (appealType === 'banned' || appealType === 'suspended' || appealType === 'warned')) && (
+              {(appealType || selectedReportId) && (
                 <IonCard style={{ marginTop: '16px' }}>
                   <IonCardContent>
                     <IonItem>
-                      <IonLabel position="stacked">Message to Admin (Optional - will use default if empty)</IonLabel>
+                      <IonLabel position="stacked">
+                        Message to Admin <span style={{ color: '#ef4444' }}>*</span>
+                      </IonLabel>
                       <IonTextarea
                         value={appealMessage}
                         onIonInput={e => setAppealMessage(e.detail.value!)}
                         rows={6}
                         placeholder="Enter your appeal message..."
+                        required
                       />
                     </IonItem>
                   </IonCardContent>
@@ -2101,7 +2352,7 @@ Thank you for your consideration.`;
               <IonButton
                 expand="block"
                 onClick={submitAppeal}
-                disabled={!selectedReportId || isSubmittingAppeal}
+                disabled={!appealMessage.trim() || (!appealType && !selectedReportId) || isSubmittingAppeal}
                 style={{ marginTop: '16px' }}
               >
                 {isSubmittingAppeal ? 'Submitting...' : 'Submit Appeal'}
